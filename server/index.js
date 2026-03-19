@@ -357,6 +357,116 @@ app.get("/api/boats/:id", async (req, res) => {
   });
 });
 
+// --- Owner boats (locatário) ---
+app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, res) => {
+  const boats = await query(
+    `select
+       b.id,
+       b.name,
+       b.location_text,
+       b.price_cents,
+       b.rating,
+       b.size_feet,
+       b.capacity,
+       b.type,
+       b.description,
+       b.verified
+     from boats b
+     where b.owner_user_id = $1
+     order by b.created_at desc`,
+    [req.user.sub]
+  );
+
+  return res.json({
+    boats: boats.rows.map((b) => ({
+      id: b.id,
+      nome: b.name,
+      distancia: b.location_text,
+      precoCents: b.price_cents,
+      preco: `R$ ${(b.price_cents / 100).toLocaleString("pt-BR")}`,
+      nota: Number(b.rating).toFixed(1).replace(".", ","),
+      rating: Number(b.rating),
+      tamanhoPes: b.size_feet,
+      tamanho: `${b.size_feet} pés`,
+      capacidade: b.capacity,
+      tipo: b.type,
+      descricao: b.description,
+      verificado: b.verified,
+    })),
+  });
+});
+
+const ownerUpdateBoatSchema = z.object({
+  nome: z.string().min(2).max(120),
+  distancia: z.string().min(2).max(200),
+  precoCents: z.number().int().min(0).max(500000000),
+  rating: z.number().min(0).max(5),
+  tamanhoPes: z.number().int().min(1).max(300),
+  capacidade: z.number().int().min(1).max(500),
+  tipo: z.string().min(2).max(80),
+  descricao: z.string().min(5).max(4000),
+  verificado: z.boolean(),
+});
+
+app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const boatId = req.params.id;
+    const body = ownerUpdateBoatSchema.parse(req.body || {});
+
+    const updated = await query(
+      `update boats
+       set name = $3,
+           location_text = $4,
+           price_cents = $5,
+           rating = $6,
+           size_feet = $7,
+           capacity = $8,
+           type = $9,
+           description = $10,
+           verified = $11
+       where id = $1 and owner_user_id = $2
+       returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified`,
+      [
+        boatId,
+        req.user.sub,
+        body.nome,
+        body.distancia,
+        body.precoCents,
+        body.rating,
+        body.tamanhoPes,
+        body.capacidade,
+        body.tipo,
+        body.descricao,
+        body.verificado,
+      ]
+    );
+
+    const b = updated.rows[0];
+    if (!b) return res.status(404).send("Barco não encontrado para este locatário.");
+
+    return res.json({
+      boat: {
+        id: b.id,
+        nome: b.name,
+        distancia: b.location_text,
+        precoCents: b.price_cents,
+        preco: `R$ ${(b.price_cents / 100).toLocaleString("pt-BR")}`,
+        nota: Number(b.rating).toFixed(1).replace(".", ","),
+        rating: Number(b.rating),
+        tamanhoPes: b.size_feet,
+        tamanho: `${b.size_feet} pés`,
+        capacidade: b.capacity,
+        tipo: b.type,
+        descricao: b.description,
+        verificado: b.verified,
+      },
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao atualizar barco.";
+    return res.status(400).send(msg);
+  }
+});
+
 // --- Bookings ---
 const createBookingSchema = z.object({
   boatId: z.string().uuid(),
