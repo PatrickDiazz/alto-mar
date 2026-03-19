@@ -7,6 +7,7 @@ import Home from "./pages/Home";
 import Explorar from "./pages/Explorar";
 import DetalhesBarco from "./pages/DetalhesBarco";
 import Marinheiro from "./pages/Marinheiro";
+import Reservar from "./pages/Reservar";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
