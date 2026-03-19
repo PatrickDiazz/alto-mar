@@ -37,6 +37,7 @@ const DetalhesBarco = () => {
     setImgIndex((p) => (p + 1) % barco.imagens.length);
 
   const handleReservar = () => {
+    console.log("Reservar clicked, navigating to:", `/reservar/${barco.id}`);
     navigate(`/reservar/${barco.id}`);
   };
 
