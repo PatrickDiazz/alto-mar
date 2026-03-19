@@ -95,6 +95,15 @@ const Marinheiro_Page = () => {
       tipo: form.tipo,
       documentacaoBarco: form.documentacaoBarco,
       marinheiro,
+      amenidades: [
+        { nome: "Carvão", incluido: true },
+        { nome: "Gelo", incluido: true },
+        { nome: "Banho com água doce", incluido: false },
+        { nome: "Cooler", incluido: true },
+        { nome: "Som Bluetooth", incluido: false },
+        { nome: "Coletes salva-vidas", incluido: true },
+      ],
+      locaisEmbarque: ["Marina de Angra", "Cais de Santa Luzia"],
     };
 
     if (editingId) {
