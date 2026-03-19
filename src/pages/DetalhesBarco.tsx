@@ -10,11 +10,11 @@ import {
   Ruler,
   Users,
   AlertTriangle,
-  Anchor,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useBarcos } from "@/hooks/useBarcos";
-import { getPendencias } from "@/data/embarcacoes";
+import { BoatLiveGps } from "@/components/BoatLiveGps";
+import { getStoredUser } from "@/lib/auth";
 
 const DetalhesBarco = () => {
   const { id } = useParams<{ id: string }>();
@@ -37,11 +37,12 @@ const DetalhesBarco = () => {
     setImgIndex((p) => (p + 1) % barco.imagens.length);
 
   const handleReservar = () => {
-    console.log("Reservar clicked, navigating to:", `/reservar/${barco.id}`);
+    if (!getStoredUser()) {
+      navigate("/login", { state: { from: `/reservar/${barco.id}` } });
+      return;
+    }
     navigate(`/reservar/${barco.id}`);
   };
-
-  const pendencias = getPendencias(barco);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -117,35 +118,12 @@ const DetalhesBarco = () => {
           {barco.verificado ? (
             <div className="flex items-center gap-1.5">
               <BadgeCheck className="w-5 h-5 text-verified" />
-              <span className="text-sm font-bold text-verified">
-                Verificado pela Alto Mar
-              </span>
+              <span className="text-sm font-bold text-verified">Verificado pela Alto Mar</span>
             </div>
           ) : (
-            <div className="space-y-1">
-              <div className="flex items-center gap-1.5 text-accent">
-                <AlertTriangle className="w-5 h-5" />
-                <span className="text-sm font-bold">Validação pendente</span>
-              </div>
-              {pendencias.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {pendencias.map((p) => (
-                    <span
-                      key={p}
-                      className="text-[11px] bg-accent/10 text-accent px-2 py-0.5 rounded-full"
-                    >
-                      {p}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {barco.marinheiro && (
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Anchor className="w-4 h-4" />
-              Marinheiro: {barco.marinheiro.nome}
+            <div className="flex items-center gap-1.5 text-accent">
+              <AlertTriangle className="w-5 h-5" />
+              <span className="text-sm font-bold">Validação pendente</span>
             </div>
           )}
 
@@ -153,10 +131,14 @@ const DetalhesBarco = () => {
 
           <h2 className="text-lg font-bold text-foreground">Descrição</h2>
           <p className="text-foreground/80 leading-relaxed">{barco.descricao}</p>
+
+          <hr className="border-border" />
+
+          <BoatLiveGps boatId={barco.id} boatName={barco.nome} />
         </div>
       </div>
 
-      <div className="sticky bottom-0 bg-card border-t border-border px-4 py-4">
+      <div className="sticky bottom-0 z-20 bg-card border-t border-border px-4 py-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <span className="text-xl font-bold text-foreground">{barco.preco}</span>
           <Button

@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { BadgeCheck } from "lucide-react";
-import type { Embarcacao } from "@/data/embarcacoes";
+import type { Boat } from "@/lib/types";
 
 interface BoatCardProps {
-  barco: Embarcacao;
+  barco: Boat;
 }
 
 const BoatCard = ({ barco }: BoatCardProps) => {

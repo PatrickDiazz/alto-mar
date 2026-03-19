@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -7,7 +7,6 @@ import {
   Ship,
   Ruler,
   Users,
-  Flame,
   CreditCard,
   QrCode,
   MapPin,
@@ -30,14 +29,105 @@ import {
 } from "@/components/ui/select";
 import { useBarcos } from "@/hooks/useBarcos";
 import { toast } from "sonner";
+import { apiUrl, authFetch, getStoredUser } from "@/lib/auth";
 
 const KIT_CHURRASCO_PRECO = 250;
+
+function onlyDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function formatCpf(value: string) {
+  const digits = onlyDigits(value).slice(0, 11);
+  const p1 = digits.slice(0, 3);
+  const p2 = digits.slice(3, 6);
+  const p3 = digits.slice(6, 9);
+  const p4 = digits.slice(9, 11);
+
+  if (digits.length <= 3) return p1;
+  if (digits.length <= 6) return `${p1}.${p2}`;
+  if (digits.length <= 9) return `${p1}.${p2}.${p3}`;
+  return `${p1}.${p2}.${p3}-${p4}`;
+}
+
+function formatTelefoneBR(value: string) {
+  const digits = onlyDigits(value).slice(0, 11);
+  const ddd = digits.slice(0, 2);
+  const rest = digits.slice(2);
+
+  if (digits.length <= 2) return digits;
+
+  // 11 dígitos (celular): (DD) 9XXXX-XXXX
+  if (digits.length >= 11) {
+    const p1 = rest.slice(0, 5);
+    const p2 = rest.slice(5, 9);
+    return `(${ddd}) ${p1}-${p2}`;
+  }
+
+  // 10 dígitos (fixo): (DD) XXXX-XXXX
+  const p1 = rest.slice(0, 4);
+  const p2 = rest.slice(4, 8);
+  if (rest.length <= 4) return `(${ddd}) ${p1}`;
+  return `(${ddd}) ${p1}-${p2}`;
+}
+
+async function criarPreferenciaMercadoPago(input: {
+  titulo: string;
+  valor: number;
+  metodoPagamento: "pix" | "cartao";
+  nome: string;
+  cpf: string;
+  telefone: string;
+  externalReference: string;
+  bookingId: string;
+}) {
+  const resp = await fetch(apiUrl("/api/mercadopago/preference"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(text || "Falha ao criar preferência de pagamento.");
+  }
+
+  return (await resp.json()) as { init_point?: string; sandbox_init_point?: string };
+}
+
+async function criarReserva(input: {
+  boatId: string;
+  passengersAdults: number;
+  passengersChildren: number;
+  hasKids: boolean;
+  bbqKit: boolean;
+  embarkLocation: string;
+  totalCents: number;
+}) {
+  const resp = await authFetch("/api/bookings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(text || "Falha ao criar reserva.");
+  }
+  return (await resp.json()) as { booking: { id: string; status: string; ownerUserId: string } };
+}
 
 const Reservar = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const barcos = useBarcos();
   const barco = barcos.find((b) => b.id === id);
+  const user = getStoredUser();
+
+  useEffect(() => {
+    if (id && !user) {
+      navigate("/login", { state: { from: `/reservar/${id}` }, replace: true });
+    }
+  }, [id, user, navigate]);
 
   const [pessoas, setPessoas] = useState(1);
   const [criancas, setCriancas] = useState(0);
@@ -48,6 +138,15 @@ const Reservar = () => {
   const [nomeCompleto, setNomeCompleto] = useState("");
   const [cpf, setCpf] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [pagando, setPagando] = useState(false);
+
+  if (!user && id) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <p className="text-muted-foreground">Redirecionando para login...</p>
+      </div>
+    );
+  }
 
   if (!barco) {
     return (
@@ -60,9 +159,29 @@ const Reservar = () => {
   const precoBase = parseInt(barco.preco.replace(/[^0-9]/g, ""), 10);
   const total = precoBase + (kitChurrasco ? KIT_CHURRASCO_PRECO : 0);
 
-  const handleConfirmar = () => {
+  const handleConfirmar = async () => {
+    const user = getStoredUser();
+    if (!user) {
+      toast.error("Faça login para reservar.");
+      navigate("/login", { state: { from: `/reservar/${barco.id}` } });
+      return;
+    }
+    if (user.role !== "banhista") {
+      toast.error("Apenas banhistas podem reservar.");
+      return;
+    }
     if (!nomeCompleto.trim() || !cpf.trim() || !telefone.trim()) {
       toast.error("Preencha todos os dados pessoais.");
+      return;
+    }
+    const cpfDigits = onlyDigits(cpf);
+    if (cpfDigits.length !== 11) {
+      toast.error("CPF inválido. Confira e tente novamente.");
+      return;
+    }
+    const telDigits = onlyDigits(telefone);
+    if (telDigits.length !== 10 && telDigits.length !== 11) {
+      toast.error("Telefone inválido. Use DDD + número.");
       return;
     }
     if (!localEmbarque) {
@@ -74,21 +193,58 @@ const Reservar = () => {
       return;
     }
 
-    toast.success("Reserva confirmada! Você receberá os detalhes por WhatsApp.", {
-      duration: 4000,
-    });
+    setPagando(true);
+    try {
+      const totalCents = total * 100;
+      const booking = await criarReserva({
+        boatId: barco.id,
+        passengersAdults: pessoas,
+        passengersChildren: criancas,
+        hasKids: temCriancas,
+        bbqKit: kitChurrasco,
+        embarkLocation: localEmbarque,
+        totalCents,
+      });
 
-    const msg = encodeURIComponent(
-      `Olá! Gostaria de confirmar a reserva:\n` +
-        `Barco: ${barco.nome}\n` +
-        `Pessoas: ${pessoas} adultos${temCriancas ? ` + ${criancas} crianças` : ""}\n` +
-        `Local: ${localEmbarque}\n` +
-        `Kit Churrasco: ${kitChurrasco ? "Sim" : "Não"}\n` +
-        `Pagamento: ${metodoPagamento === "pix" ? "PIX" : "Cartão"}\n` +
-        `Total: R$ ${total.toLocaleString("pt-BR")}\n` +
-        `Nome: ${nomeCompleto}\nCPF: ${cpf}\nTel: ${telefone}`
-    );
-    window.open(`https://wa.me/5524999999999?text=${msg}`, "_blank");
+      const externalReference = booking.booking.id;
+      const pref = await criarPreferenciaMercadoPago({
+        titulo: `Reserva: ${barco.nome}`,
+        valor: total,
+        metodoPagamento: metodoPagamento === "pix" ? "pix" : "cartao",
+        nome: nomeCompleto,
+        cpf: cpfDigits,
+        telefone: telDigits,
+        externalReference,
+        bookingId: booking.booking.id,
+      });
+
+      const paymentUrl = pref.init_point || pref.sandbox_init_point;
+      if (!paymentUrl) {
+        throw new Error("Não foi possível obter o link de pagamento.");
+      }
+
+      toast.success("Pagamento gerado! Abrindo checkout do Mercado Pago…", { duration: 3000 });
+      window.open(paymentUrl, "_blank", "noopener,noreferrer");
+
+      const msg = encodeURIComponent(
+        `Olá! Gostaria de confirmar a reserva:\n` +
+          `Barco: ${barco.nome}\n` +
+          `Pessoas: ${pessoas} adultos${temCriancas ? ` + ${criancas} crianças` : ""}\n` +
+          `Local: ${localEmbarque}\n` +
+          `Kit Churrasco: ${kitChurrasco ? "Sim" : "Não"}\n` +
+          `Pagamento: ${metodoPagamento === "pix" ? "PIX" : "Cartão"}\n` +
+          `Total: R$ ${total.toLocaleString("pt-BR")}\n` +
+          `Nome: ${nomeCompleto}\nCPF: ${formatCpf(cpfDigits)}\nTel: ${formatTelefoneBR(telDigits)}\n` +
+          `Link de pagamento: ${paymentUrl}\n` +
+          `Reserva: ${booking.booking.id}`
+      );
+      window.open(`https://wa.me/5524999999999?text=${msg}`, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Falha ao iniciar pagamento.";
+      toast.error(message);
+    } finally {
+      setPagando(false);
+    }
   };
 
   return (
@@ -176,8 +332,10 @@ const Reservar = () => {
                   id="cpf"
                   placeholder="000.000.000-00"
                   value={cpf}
-                  onChange={(e) => setCpf(e.target.value)}
+                  onChange={(e) => setCpf(formatCpf(e.target.value))}
                   maxLength={14}
+                  inputMode="numeric"
+                  autoComplete="off"
                 />
               </div>
               <div>
@@ -186,8 +344,10 @@ const Reservar = () => {
                   id="telefone"
                   placeholder="(00) 00000-0000"
                   value={telefone}
-                  onChange={(e) => setTelefone(e.target.value)}
+                  onChange={(e) => setTelefone(formatTelefoneBR(e.target.value))}
                   maxLength={15}
+                  inputMode="tel"
+                  autoComplete="tel"
                 />
               </div>
             </div>
@@ -330,8 +490,9 @@ const Reservar = () => {
           <Button
             className="bg-accent text-accent-foreground hover:bg-accent/90 px-8"
             onClick={handleConfirmar}
+            disabled={pagando}
           >
-            Confirmar reserva
+            {pagando ? "Gerando pagamento..." : "Confirmar reserva"}
           </Button>
         </div>
       </div>

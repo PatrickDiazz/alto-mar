@@ -132,6 +132,66 @@ export const listaBarcosPadrao: Embarcacao[] = [
     amenidades: amenidadesBasicas,
     locaisEmbarque: locaisPadrao,
   },
+  // Barcos fictícios adicionais (até 30)
+  ...Array.from({ length: 26 }, (_, idx) => {
+    const n = idx + 5;
+    const tipos = ["Lancha", "Veleiro", "Catamarã", "Iate", "Escuna"] as const;
+    const tipo = tipos[idx % tipos.length];
+    const regioes = [
+      { distancia: "Angra dos Reis/RJ", locais: locaisPadrao },
+      { distancia: "Paraty/RJ", locais: locaisParaty },
+      { distancia: "Ilha Grande/RJ", locais: locaisPadrao },
+      { distancia: "Mangaratiba/RJ", locais: locaisPadrao },
+      { distancia: "Ubatuba/SP", locais: ["Saco da Ribeira", "Marina do Itaguá"] },
+    ] as const;
+    const reg = regioes[idx % regioes.length];
+
+    const capacidade = [6, 8, 10, 12, 16][idx % 5];
+    const pes = [22, 25, 28, 32, 36][idx % 5];
+    const precoNumero = 1800 + (idx % 9) * 350 + (tipo === "Iate" ? 1200 : 0);
+    const nota = (4.1 + (idx % 8) * 0.1).toFixed(1).replace(".", ",");
+
+    const hasMarinheiro = idx % 3 !== 0;
+    const docMarinheiroOk = idx % 5 !== 0;
+    const docBarcoOk = idx % 4 !== 0;
+    const marinheiro = hasMarinheiro
+      ? { nome: ["Rafael", "Mariana", "Bruno", "Fernanda", "Diego", "Camila"][idx % 6] + " " + ["Lima", "Souza", "Pereira", "Alves", "Costa"][idx % 5], documentoOk: docMarinheiroOk }
+      : undefined;
+
+    const barco: Embarcacao = {
+      id: String(n),
+      nome:
+        tipo === "Lancha"
+          ? `Lancha Maré ${n}`
+          : tipo === "Veleiro"
+            ? `Veleiro Brisa ${n}`
+            : tipo === "Catamarã"
+              ? `Catamarã Atlântico ${n}`
+              : tipo === "Iate"
+                ? `Iate Aurora ${n}`
+                : `Escuna Encanto ${n}`,
+      distancia: reg.distancia,
+      preco: `R$ ${precoNumero.toLocaleString("pt-BR")}`,
+      nota,
+      imagens:
+        idx % 2 === 0
+          ? [boatExterior, boatInterior]
+          : [boatBathroom, boatExterior, boatInterior],
+      descricao:
+        "Embarcação fictícia para demonstração. Inclui itens básicos e roteiro personalizado conforme o clima.",
+      verificado: false, // será recalculado abaixo
+      tamanho: `${pes} pés`,
+      capacidade,
+      tipo,
+      documentacaoBarco: docBarcoOk,
+      marinheiro,
+      amenidades: idx % 2 === 0 ? amenidadesPadrao : amenidadesBasicas,
+      locaisEmbarque: [...reg.locais],
+    };
+
+    barco.verificado = calcularVerificado(barco);
+    return barco;
+  }),
 ];
 
 // Shared state store (simple module-level for now)

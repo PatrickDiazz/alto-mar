@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: alto-mar-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: alto_mar
+    ports:
+      - "5432:5432"
+    volumes:
+      - alto_mar_pgdata:/var/lib/postgresql/data
+
+volumes:
+  alto_mar_pgdata:
+

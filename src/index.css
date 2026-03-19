@@ -100,3 +100,8 @@
     font-family: var(--font-heading);
   }
 }
+
+/* Leaflet cria panes com z-index alto; isso impede o mapa de "passar por cima" de footers sticky */
+.leaflet-container {
+  z-index: 0;
+}

@@ -1,9 +1,23 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/logo-altomar.png";
+import { getStoredUser } from "@/lib/auth";
 
 const Home = () => {
   const navigate = useNavigate();
+  const user = getStoredUser();
+
+  const handleMarinheiro = () => {
+    if (!user) {
+      navigate("/login", { state: { from: "/marinheiro" } });
+      return;
+    }
+    if (user.role === "locatario") {
+      navigate("/marinheiro");
+      return;
+    }
+    navigate("/marinheiro");
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
@@ -22,7 +36,7 @@ const Home = () => {
         <Button
           size="lg"
           className="bg-primary text-primary-foreground hover:bg-primary/90"
-          onClick={() => navigate("/marinheiro")}
+          onClick={handleMarinheiro}
         >
           SOU MARINHEIRO
         </Button>
