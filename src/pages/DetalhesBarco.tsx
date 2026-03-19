@@ -37,7 +37,7 @@ const DetalhesBarco = () => {
     setImgIndex((p) => (p + 1) % barco.imagens.length);
 
   const handleReservar = () => {
-    window.open("https://wa.me/5524999999999", "_blank");
+    navigate(`/reservar/${barco.id}`);
   };
 
   const pendencias = getPendencias(barco);

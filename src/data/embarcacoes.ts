@@ -7,6 +7,11 @@ export interface Marinheiro {
   documentoOk: boolean;
 }
 
+export interface Amenidade {
+  nome: string;
+  incluido: boolean;
+}
+
 export interface Embarcacao {
   id: string;
   nome: string;
@@ -21,6 +26,8 @@ export interface Embarcacao {
   tipo: string;
   marinheiro?: Marinheiro;
   documentacaoBarco: boolean;
+  amenidades: Amenidade[];
+  locaisEmbarque: string[];
 }
 
 // Derivar verificado: barco + marinheiro docs ok
@@ -35,6 +42,27 @@ export function getPendencias(barco: Embarcacao): string[] {
   else if (!barco.marinheiro.documentoOk) pendencias.push("Documentação do marinheiro");
   return pendencias;
 }
+
+const amenidadesPadrao: Amenidade[] = [
+  { nome: "Carvão", incluido: true },
+  { nome: "Gelo", incluido: true },
+  { nome: "Banho com água doce", incluido: true },
+  { nome: "Cooler", incluido: true },
+  { nome: "Som Bluetooth", incluido: true },
+  { nome: "Coletes salva-vidas", incluido: true },
+];
+
+const amenidadesBasicas: Amenidade[] = [
+  { nome: "Carvão", incluido: false },
+  { nome: "Gelo", incluido: true },
+  { nome: "Banho com água doce", incluido: false },
+  { nome: "Cooler", incluido: true },
+  { nome: "Som Bluetooth", incluido: false },
+  { nome: "Coletes salva-vidas", incluido: true },
+];
+
+const locaisPadrao = ["Marina de Angra", "Cais de Santa Luzia", "Pier do Frade"];
+const locaisParaty = ["Marina de Paraty", "Cais do Porto"];
 
 export const listaBarcosPadrao: Embarcacao[] = [
   {
@@ -51,6 +79,8 @@ export const listaBarcosPadrao: Embarcacao[] = [
     tipo: "Lancha",
     documentacaoBarco: true,
     marinheiro: { nome: "Carlos Silva", documentoOk: true },
+    amenidades: amenidadesPadrao,
+    locaisEmbarque: locaisPadrao,
   },
   {
     id: "2",
@@ -66,6 +96,8 @@ export const listaBarcosPadrao: Embarcacao[] = [
     tipo: "Veleiro",
     documentacaoBarco: true,
     marinheiro: { nome: "João Mendes", documentoOk: false },
+    amenidades: amenidadesBasicas,
+    locaisEmbarque: locaisParaty,
   },
   {
     id: "3",
@@ -81,6 +113,8 @@ export const listaBarcosPadrao: Embarcacao[] = [
     tipo: "Lancha",
     documentacaoBarco: true,
     marinheiro: { nome: "Pedro Santos", documentoOk: true },
+    amenidades: amenidadesPadrao,
+    locaisEmbarque: locaisPadrao,
   },
   {
     id: "4",
@@ -95,6 +129,8 @@ export const listaBarcosPadrao: Embarcacao[] = [
     capacidade: 8,
     tipo: "Lancha",
     documentacaoBarco: false,
+    amenidades: amenidadesBasicas,
+    locaisEmbarque: locaisPadrao,
   },
 ];
 
