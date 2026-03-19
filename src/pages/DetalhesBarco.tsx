@@ -1,13 +1,26 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, BadgeCheck, Star, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  ArrowLeft,
+  BadgeCheck,
+  Star,
+  ChevronLeft,
+  ChevronRight,
+  Ship,
+  Ruler,
+  Users,
+  AlertTriangle,
+  Anchor,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { listaBarcos } from "@/data/embarcacoes";
+import { useBarcos } from "@/hooks/useBarcos";
+import { getPendencias } from "@/data/embarcacoes";
 
 const DetalhesBarco = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const barco = listaBarcos.find((b) => b.id === id);
+  const barcos = useBarcos();
+  const barco = barcos.find((b) => b.id === id);
   const [imgIndex, setImgIndex] = useState(0);
 
   if (!barco) {
@@ -27,9 +40,10 @@ const DetalhesBarco = () => {
     window.open("https://wa.me/5524999999999", "_blank");
   };
 
+  const pendencias = getPendencias(barco);
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-4 py-3">
         <div className="max-w-2xl mx-auto">
           <button
@@ -41,7 +55,6 @@ const DetalhesBarco = () => {
         </div>
       </header>
 
-      {/* Content */}
       <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-6">
         {/* Image carousel */}
         <div className="relative aspect-square max-w-lg mx-auto rounded-xl overflow-hidden shadow-elevated border border-border">
@@ -66,7 +79,6 @@ const DetalhesBarco = () => {
               </button>
             </>
           )}
-          {/* Dots */}
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
             {barco.imagens.map((_, i) => (
               <span
@@ -88,12 +100,51 @@ const DetalhesBarco = () => {
           </div>
           <p className="text-muted-foreground">{barco.distancia}</p>
 
-          {barco.verificado && (
+          {/* Details chips */}
+          <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+            <span className="flex items-center gap-1 bg-secondary px-3 py-1 rounded-full">
+              <Ship className="w-4 h-4" /> {barco.tipo}
+            </span>
+            <span className="flex items-center gap-1 bg-secondary px-3 py-1 rounded-full">
+              <Ruler className="w-4 h-4" /> {barco.tamanho}
+            </span>
+            <span className="flex items-center gap-1 bg-secondary px-3 py-1 rounded-full">
+              <Users className="w-4 h-4" /> {barco.capacidade} pessoas
+            </span>
+          </div>
+
+          {barco.verificado ? (
             <div className="flex items-center gap-1.5">
               <BadgeCheck className="w-5 h-5 text-verified" />
               <span className="text-sm font-bold text-verified">
                 Verificado pela Alto Mar
               </span>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5 text-accent">
+                <AlertTriangle className="w-5 h-5" />
+                <span className="text-sm font-bold">Validação pendente</span>
+              </div>
+              {pendencias.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {pendencias.map((p) => (
+                    <span
+                      key={p}
+                      className="text-[11px] bg-accent/10 text-accent px-2 py-0.5 rounded-full"
+                    >
+                      {p}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {barco.marinheiro && (
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Anchor className="w-4 h-4" />
+              Marinheiro: {barco.marinheiro.nome}
             </div>
           )}
 
@@ -104,7 +155,6 @@ const DetalhesBarco = () => {
         </div>
       </div>
 
-      {/* Bottom bar */}
       <div className="sticky bottom-0 bg-card border-t border-border px-4 py-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <span className="text-xl font-bold text-foreground">{barco.preco}</span>
