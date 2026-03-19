@@ -22,7 +22,7 @@ const Home = () => {
         <Button
           size="lg"
           className="bg-primary text-primary-foreground hover:bg-primary/90"
-          onClick={() => navigate("/explorar")}
+          onClick={() => navigate("/marinheiro")}
         >
           SOU MARINHEIRO
         </Button>
