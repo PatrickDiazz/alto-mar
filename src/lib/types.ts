@@ -17,5 +17,6 @@ export type Boat = {
   tipo: string;
   amenidades: Amenidade[];
   locaisEmbarque: string[];
+  routeIslands?: string[];
 };
 

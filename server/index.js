@@ -47,6 +47,10 @@ async function ensureFavoritesTable() {
   `);
 }
 
+async function ensureBoatsRouteIslandsColumn() {
+  await query(`alter table boats add column if not exists route_islands text[] not null default '{}'::text[]`);
+}
+
 const app = express();
 app.use(express.json());
 const extraCors = (process.env.EXTRA_CORS_ORIGINS || "")
@@ -286,7 +290,8 @@ app.get("/api/boats", async (_req, res) => {
        b.capacity,
        b.type,
        b.description,
-       b.verified
+       b.verified,
+       b.route_islands
      from boats b
      order by b.created_at desc`
   );
@@ -355,6 +360,7 @@ app.get("/api/boats", async (_req, res) => {
     tipo: b.type,
     amenidades: amenitiesByBoat[b.id] || [],
     locaisEmbarque: locationsByBoat[b.id] || [],
+    routeIslands: Array.isArray(b.route_islands) ? b.route_islands : [],
   }));
 
   return res.json({ boats: payload });
@@ -374,7 +380,8 @@ app.get("/api/boats/:id", async (req, res) => {
        b.capacity,
        b.type,
        b.description,
-       b.verified
+       b.verified,
+       b.route_islands
      from boats b
      where b.id = $1
      limit 1`,
@@ -412,6 +419,7 @@ app.get("/api/boats/:id", async (req, res) => {
       tipo: b.type,
       amenidades: amenities.rows.map((r) => ({ nome: r.name, incluido: r.included })),
       locaisEmbarque: locations.rows.map((r) => r.name),
+      routeIslands: Array.isArray(b.route_islands) ? b.route_islands : [],
     },
   });
 });
@@ -500,7 +508,8 @@ app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, r
        b.verified,
        b.tie_document_url,
        b.tiem_document_url,
-       b.video_url
+       b.video_url,
+       b.route_islands
      from boats b
      where b.owner_user_id = $1
      order by b.created_at desc`,
@@ -537,6 +546,7 @@ app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, r
       tieDocumentUrl: b.tie_document_url,
       tiemDocumentUrl: b.tiem_document_url,
       videoUrl: b.video_url,
+      routeIslands: Array.isArray(b.route_islands) ? b.route_islands : [],
       imagens: images.rows.filter((i) => i.boat_id === b.id).map((i) => i.url),
     })),
   });
@@ -546,11 +556,11 @@ const ownerUpdateBoatSchema = z.object({
   nome: z.string().min(2).max(120),
   distancia: z.string().min(2).max(200),
   precoCents: z.number().int().min(0).max(500000000),
-  rating: z.number().min(0).max(5),
   tamanhoPes: z.number().int().min(1).max(300),
   capacidade: z.number().int().min(1).max(500),
   tipo: z.string().min(2).max(80),
   descricao: z.string().min(5).max(4000),
+  routeIslands: z.array(z.string().min(2).max(120)).max(20).optional(),
   verificado: z.boolean(),
   tieDocumentUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
   tiemDocumentUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
@@ -568,24 +578,23 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
        set name = $3,
            location_text = $4,
            price_cents = $5,
-           rating = $6,
-           size_feet = $7,
-           capacity = $8,
-           type = $9,
-           description = $10,
-           verified = $11,
-           tie_document_url = $12,
-           tiem_document_url = $13,
-           video_url = $14
+           size_feet = $6,
+           capacity = $7,
+           type = $8,
+           description = $9,
+           verified = $10,
+           tie_document_url = $11,
+           tiem_document_url = $12,
+           video_url = $13,
+           route_islands = $14
        where id = $1 and owner_user_id = $2
-       returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url`,
+       returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands`,
       [
         boatId,
         req.user.sub,
         body.nome,
         body.distancia,
         body.precoCents,
-        body.rating,
         body.tamanhoPes,
         body.capacidade,
         body.tipo,
@@ -594,6 +603,7 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
         body.tieDocumentUrl ?? null,
         body.tiemDocumentUrl ?? null,
         body.videoUrl ?? null,
+        body.routeIslands ?? [],
       ]
     );
 
@@ -631,6 +641,7 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
         tieDocumentUrl: b.tie_document_url,
         tiemDocumentUrl: b.tiem_document_url,
         videoUrl: b.video_url,
+        routeIslands: Array.isArray(b.route_islands) ? b.route_islands : [],
         imagens: imgs.rows.map((r) => r.url),
       },
     });
@@ -644,11 +655,11 @@ const ownerCreateBoatSchema = z.object({
   nome: z.string().min(2).max(120),
   distancia: z.string().min(2).max(200),
   precoCents: z.number().int().min(0).max(500000000),
-  rating: z.number().min(0).max(5),
   tamanhoPes: z.number().int().min(1).max(300),
   capacidade: z.number().int().min(1).max(500),
   tipo: z.string().min(2).max(80),
   descricao: z.string().min(5).max(4000),
+  routeIslands: z.array(z.string().min(2).max(120)).max(20).optional(),
   tieDocumentUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
   tiemDocumentUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
   videoUrl: z.string().url().optional().nullable(),
@@ -660,15 +671,15 @@ app.post("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, 
     const body = ownerCreateBoatSchema.parse(req.body || {});
     const created = await query(
       `insert into boats
-        (owner_user_id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-       returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url`,
+        (owner_user_id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+       returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands`,
       [
         req.user.sub,
         body.nome,
         body.distancia,
         body.precoCents,
-        body.rating,
+        0,
         body.tamanhoPes,
         body.capacidade,
         body.tipo,
@@ -677,6 +688,7 @@ app.post("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, 
         body.tieDocumentUrl ?? null,
         body.tiemDocumentUrl ?? null,
         body.videoUrl ?? null,
+        body.routeIslands ?? [],
       ]
     );
     const b = created.rows[0];
@@ -933,10 +945,11 @@ app.post("/api/mercadopago/preference", async (req, res) => {
 async function startServer() {
   try {
     await ensureFavoritesTable();
+    await ensureBoatsRouteIslandsColumn();
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
     // eslint-disable-next-line no-console
-    console.error("Falha ao garantir tabela de favoritos:", msg);
+    console.error("Falha ao garantir estrutura inicial:", msg);
   }
 
   app.listen(PORT, () => {

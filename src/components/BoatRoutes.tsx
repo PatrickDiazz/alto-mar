@@ -5,6 +5,7 @@ import L from "leaflet";
 type BoatRoutesProps = {
   boatId: string;
   locationText: string;
+  routeIslands?: string[];
 };
 
 type RouteStop = {
@@ -117,7 +118,27 @@ function hashToUnit(seed: string) {
   return (h >>> 0) / 2 ** 32;
 }
 
-function getRoutesForBoat(boatId: string, locationText: string): RouteItem[] {
+function estimateDurationHours(locationText: string, route: RouteItem, boatId: string) {
+  const avgKmh = 33; // ~18 knots
+  const pts = routeCoordinates(boatId, locationText, route);
+  let sailKm = 0;
+  for (let i = 1; i < pts.length; i++) sailKm += haversineKm(pts[i - 1], pts[i]);
+  const sailHours = sailKm / avgKmh;
+  const stopHours = route.stops.reduce((acc, s) => acc + s.paradaMin, 0) / 60;
+  return Math.max(1, Math.round((sailHours + stopHours) * 10) / 10);
+}
+
+function customRouteFromIslands(routeIslands: string[] | undefined, locationText: string, boatId: string): RouteItem | null {
+  const stops = (routeIslands || []).map((ilha) => ilha.trim()).filter(Boolean).map((ilha) => ({ ilha, paradaMin: 40 }));
+  if (stops.length === 0) return null;
+  const custom: RouteItem = { nome: "Roteiro personalizado do locatário", duracaoHoras: 0, stops };
+  custom.duracaoHoras = estimateDurationHours(locationText, custom, boatId);
+  return custom;
+}
+
+function getRoutesForBoat(boatId: string, locationText: string, routeIslands?: string[]): RouteItem[] {
+  const custom = customRouteFromIslands(routeIslands, locationText, boatId);
+  if (custom) return [custom];
   const base = ROUTES_BY_REGION[locationText] || ROUTES_BY_REGION["Angra dos Reis/RJ"];
   if (base.length <= 1) return base;
   const rotateBy = Math.floor(hashToUnit(boatId) * base.length);
@@ -135,17 +156,58 @@ function getBaseCoord(locationText: string): LatLng {
   return map[locationText] || map["Angra dos Reis/RJ"];
 }
 
+const KNOWN_ISLANDS: Record<string, LatLng> = {
+  "ilha de cataguases": { lat: -23.008, lng: -44.314 },
+  "ilha da gipoia": { lat: -23.034, lng: -44.329 },
+  "praia do dentista": { lat: -23.033, lng: -44.325 },
+  "ilhas botinas": { lat: -23.031, lng: -44.318 },
+  "ilha de paquetá": { lat: -23.02, lng: -44.295 },
+  "lagoa azul": { lat: -23.167, lng: -44.248 },
+  "ilha comprida": { lat: -23.199, lng: -44.664 },
+  "praia da lula": { lat: -23.214, lng: -44.687 },
+  "praia vermelha": { lat: -23.228, lng: -44.675 },
+  "ilha do algodao": { lat: -23.225, lng: -44.676 },
+  "saco do mamangua": { lat: -23.227, lng: -44.63 },
+  "lagoa verde": { lat: -23.145, lng: -44.236 },
+  "praia de aventureiro": { lat: -23.191, lng: -44.317 },
+  "praia de lopes mendes": { lat: -23.176, lng: -44.143 },
+  "saco do ceu": { lat: -23.132, lng: -44.249 },
+  "freguesia de santana": { lat: -23.106, lng: -44.207 },
+  "ilha de itacuruca": { lat: -22.93, lng: -43.89 },
+  "ilha de jaguanum": { lat: -22.952, lng: -43.998 },
+  "ilha anchieta": { lat: -23.548, lng: -45.065 },
+  "ilha das couves": { lat: -23.424, lng: -44.855 },
+};
+
+function normalizeIslandName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function haversineKm(a: LatLng, b: LatLng) {
+  const toRad = (n: number) => (n * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const sa = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(sa));
+}
+
 function routeCoordinates(boatId: string, locationText: string, route: RouteItem): LatLng[] {
   const base = getBaseCoord(locationText);
   const coords: LatLng[] = [base];
   route.stops.forEach((s, idx) => {
+    const known = KNOWN_ISLANDS[normalizeIslandName(s.ilha)];
+    if (known) {
+      coords.push(known);
+      return;
+    }
     const u = hashToUnit(`${boatId}:${route.nome}:${s.ilha}:${idx}`);
     const angle = (idx / Math.max(1, route.stops.length - 1)) * Math.PI * 1.25 + u * 0.7;
     const radius = 0.02 + idx * 0.01 + u * 0.006;
-    coords.push({
-      lat: base.lat + Math.sin(angle) * radius,
-      lng: base.lng + Math.cos(angle) * radius,
-    });
+    coords.push({ lat: base.lat + Math.sin(angle) * radius, lng: base.lng + Math.cos(angle) * radius });
   });
   return coords;
 }
@@ -165,8 +227,8 @@ function makeStopIcon(n: number) {
   });
 }
 
-export function BoatRoutes({ boatId, locationText }: BoatRoutesProps) {
-  const routes = getRoutesForBoat(boatId, locationText);
+export function BoatRoutes({ boatId, locationText, routeIslands }: BoatRoutesProps) {
+  const routes = getRoutesForBoat(boatId, locationText, routeIslands);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const selected = routes[selectedIdx] || routes[0];
   const coords = useMemo(

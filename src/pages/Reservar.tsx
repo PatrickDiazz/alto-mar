@@ -156,8 +156,19 @@ const Reservar = () => {
     );
   }
 
+  const locaisDisponiveis =
+    barco.locaisEmbarque && barco.locaisEmbarque.length > 0
+      ? barco.locaisEmbarque
+      : [barco.distancia || "Local a combinar"];
+
   const precoBase = parseInt(barco.preco.replace(/[^0-9]/g, ""), 10);
   const total = precoBase + (kitChurrasco ? KIT_CHURRASCO_PRECO : 0);
+
+  useEffect(() => {
+    if (!localEmbarque && locaisDisponiveis.length > 0) {
+      setLocalEmbarque(locaisDisponiveis[0]);
+    }
+  }, [localEmbarque, locaisDisponiveis]);
 
   const handleConfirmar = async () => {
     const user = getStoredUser();
@@ -364,7 +375,7 @@ const Reservar = () => {
               <SelectValue placeholder="Selecione o local" />
             </SelectTrigger>
             <SelectContent>
-              {barco.locaisEmbarque.map((local) => (
+              {locaisDisponiveis.map((local) => (
                 <SelectItem key={local} value={local}>
                   {local}
                 </SelectItem>

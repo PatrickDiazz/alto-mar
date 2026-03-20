@@ -134,7 +134,7 @@ const DetalhesBarco = () => {
 
           <hr className="border-border" />
 
-          <BoatRoutes boatId={barco.id} locationText={barco.distancia} />
+          <BoatRoutes boatId={barco.id} locationText={barco.distancia} routeIslands={barco.routeIslands} />
         </div>
       </div>
 
