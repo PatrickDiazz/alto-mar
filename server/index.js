@@ -420,10 +420,26 @@ app.get("/api/boats/:id", async (req, res) => {
 app.get("/api/favorites", requireAuth, async (req, res) => {
   try {
     const rows = await query(
-      `select boat_id from user_boat_favorites where user_id = $1 order by created_at desc`,
+      `select
+         f.boat_id,
+         b.name,
+         b.location_text,
+         b.price_cents
+       from user_boat_favorites f
+       join boats b on b.id = f.boat_id
+       where f.user_id = $1
+       order by f.created_at desc`,
       [req.user.sub]
     );
-    return res.json({ boatIds: rows.rows.map((r) => r.boat_id) });
+    return res.json({
+      boatIds: rows.rows.map((r) => r.boat_id),
+      boats: rows.rows.map((r) => ({
+        id: r.boat_id,
+        nome: r.name,
+        distancia: r.location_text,
+        preco: `R$ ${(r.price_cents / 100).toLocaleString("pt-BR")}`,
+      })),
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro ao carregar favoritos.";
     if (msg.includes("user_boat_favorites")) {

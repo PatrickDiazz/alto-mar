@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, LogOut, Trash2, UserRound, CircleHelp, Heart } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { authFetch, clearSession, getStoredUser } from "@/lib/auth";
-import { useBarcos } from "@/hooks/useBarcos";
 
 type MeResponse = {
   user: {
@@ -19,15 +18,10 @@ type MeResponse = {
 const ContaUsuario = () => {
   const navigate = useNavigate();
   const currentUser = getStoredUser();
-  const barcos = useBarcos();
   const [me, setMe] = useState<MeResponse["user"] | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [favoriteBoats, setFavoriteBoats] = useState<Array<{ id: string; nome: string; distancia: string; preco: string }>>([]);
   const [loading, setLoading] = useState(false);
-
-  const favoritos = useMemo(
-    () => barcos.filter((b) => favoriteIds.has(b.id)),
-    [barcos, favoriteIds]
-  );
 
   const maskEmail = (email: string) => {
     const [name, domain] = email.split("@");
@@ -49,10 +43,14 @@ const ContaUsuario = () => {
         if (!meResp.ok) throw new Error(await meResp.text());
         if (!favResp.ok) throw new Error(await favResp.text());
         const meData = (await meResp.json()) as MeResponse;
-        const favData = (await favResp.json()) as { boatIds: string[] };
+        const favData = (await favResp.json()) as {
+          boatIds: string[];
+          boats?: Array<{ id: string; nome: string; distancia: string; preco: string }>;
+        };
         if (!active) return;
         setMe(meData.user);
         setFavoriteIds(new Set(favData.boatIds));
+        setFavoriteBoats(favData.boats || []);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Falha ao carregar conta.");
       }
@@ -72,6 +70,9 @@ const ContaUsuario = () => {
     try {
       const resp = await authFetch(`/api/favorites/${boatId}`, { method: has ? "DELETE" : "POST" });
       if (!resp.ok) throw new Error(await resp.text());
+      if (has) {
+        setFavoriteBoats((prev) => prev.filter((b) => b.id !== boatId));
+      }
     } catch (e) {
       setFavoriteIds(new Set(favoriteIds));
       toast.error(e instanceof Error ? e.message : "Falha ao atualizar favorito.");
@@ -143,13 +144,13 @@ const ContaUsuario = () => {
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-foreground">Meus favoritos</h2>
-            <span className="text-xs text-muted-foreground">{favoritos.length} barco(s)</span>
+            <span className="text-xs text-muted-foreground">{favoriteBoats.length} barco(s)</span>
           </div>
-          {favoritos.length === 0 ? (
+          {favoriteBoats.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">Você ainda não favoritou nenhum barco.</p>
           ) : (
             <div className="space-y-2">
-              {favoritos.map((barco) => (
+              {favoriteBoats.map((barco) => (
                 <div
                   key={barco.id}
                   className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2"
