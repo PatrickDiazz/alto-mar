@@ -150,15 +150,6 @@ function routeCoordinates(boatId: string, locationText: string, route: RouteItem
   return coords;
 }
 
-function bearingDeg(a: LatLng, b: LatLng) {
-  const y = b.lng - a.lng;
-  const x = b.lat - a.lat;
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
-}
-
-function midpoint(a: LatLng, b: LatLng): LatLng {
-  return { lat: (a.lat + b.lat) / 2, lng: (a.lng + b.lng) / 2 };
-}
 
 function makeStopIcon(n: number) {
   return L.divIcon({
@@ -174,20 +165,6 @@ function makeStopIcon(n: number) {
   });
 }
 
-function makeArrowIcon(deg: number) {
-  return L.divIcon({
-    className: "",
-    iconSize: [20, 20],
-    iconAnchor: [10, 10],
-    html: `<div style="
-      width:20px;height:20px;display:grid;place-items:center;
-      color:#2563eb;font-size:16px;font-weight:700;
-      transform: rotate(${deg}deg);
-      text-shadow:0 1px 2px rgba(255,255,255,.9);
-    ">➤</div>`,
-  });
-}
-
 export function BoatRoutes({ boatId, locationText }: BoatRoutesProps) {
   const routes = getRoutesForBoat(boatId, locationText);
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -197,23 +174,15 @@ export function BoatRoutes({ boatId, locationText }: BoatRoutesProps) {
     [boatId, locationText, selected]
   );
 
-  const arrows = useMemo(() => {
-    const items: { pos: LatLng; deg: number }[] = [];
-    for (let i = 0; i < coords.length - 1; i++) {
-      items.push({
-        pos: midpoint(coords[i], coords[i + 1]),
-        deg: bearingDeg(coords[i], coords[i + 1]),
-      });
-    }
-    return items;
-  }, [coords]);
-
   return (
     <section className="bg-card rounded-xl border border-border p-4 space-y-3">
       <div>
         <h3 className="text-base font-bold text-foreground">Roteiros sugeridos</h3>
         <p className="text-xs text-muted-foreground">
           Rotas fictícias com navegação de ilha em ilha para este passeio.
+        </p>
+        <p className="text-[11px] text-muted-foreground mt-1">
+          Trajeto marítimo estimado, podendo contornar costa e ilhas durante a navegação.
         </p>
       </div>
 
@@ -238,9 +207,6 @@ export function BoatRoutes({ boatId, locationText }: BoatRoutesProps) {
                 {selected.stops[i]?.ilha} • parada ~{selected.stops[i]?.paradaMin}min
               </Popup>
             </Marker>
-          ))}
-          {arrows.map((a, i) => (
-            <Marker key={`arrow-${i}`} position={[a.pos.lat, a.pos.lng]} icon={makeArrowIcon(a.deg)} />
           ))}
         </MapContainer>
       </div>
