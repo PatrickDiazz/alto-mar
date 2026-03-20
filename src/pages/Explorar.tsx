@@ -1,12 +1,13 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Search, ArrowLeft, LogIn, UserPlus, LogOut } from "lucide-react";
+import { Search, LogIn, UserPlus, LogOut } from "lucide-react";
 import BoatCard from "@/components/BoatCard";
 import FilterBar from "@/components/FilterBar";
 import { useBarcos } from "@/hooks/useBarcos";
 import { getStoredUser, clearSession, authFetch } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import logo from "@/assets/logo-altomar.png";
 import {
   Select,
   SelectContent,
@@ -29,6 +30,7 @@ const Explorar = () => {
 
   const tiposDisponiveis = useMemo(() => {
     const set = new Set(listaBarcos.map((b) => b.tipo).filter(Boolean));
+    set.add("Jetsky");
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [listaBarcos]);
 
@@ -131,16 +133,24 @@ const Explorar = () => {
     }
   };
 
+  const handleLogout = () => {
+    clearSession();
+    const goHome = window.confirm(
+      "Você saiu da conta. Clique em OK para ir à tela inicial ou Cancelar para ficar no Explorar."
+    );
+    navigate(goHome ? "/" : "/explorar", { replace: true });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/explorar")}
               className="text-foreground hover:text-primary transition-colors"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <img src={logo} alt="Alto Mar" className="h-7 w-auto" />
             </button>
             <h1 className="text-lg font-semibold text-foreground">Explorar</h1>
           </div>
@@ -157,10 +167,7 @@ const Explorar = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  clearSession();
-                  navigate("/explorar");
-                }}
+                onClick={handleLogout}
                 className="text-muted-foreground"
               >
                 <LogOut className="w-4 h-4 mr-1" />

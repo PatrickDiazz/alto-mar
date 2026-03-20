@@ -32,6 +32,21 @@ if (!DATABASE_URL) {
 const mp = new MercadoPagoConfig({ accessToken: MP_ACCESS_TOKEN || "" });
 const preferenceClient = new Preference(mp);
 
+async function ensureFavoritesTable() {
+  await query(`
+    create table if not exists user_boat_favorites (
+      user_id uuid not null references users(id) on delete cascade,
+      boat_id uuid not null references boats(id) on delete cascade,
+      created_at timestamptz not null default now(),
+      primary key (user_id, boat_id)
+    )
+  `);
+  await query(`
+    create index if not exists idx_user_boat_favorites_user
+      on user_boat_favorites(user_id, created_at desc)
+  `);
+}
+
 const app = express();
 app.use(express.json());
 const extraCors = (process.env.EXTRA_CORS_ORIGINS || "")
@@ -206,12 +221,35 @@ app.post("/api/auth/reset-password", async (req, res) => {
 app.get("/api/me", requireAuth, async (req, res) => {
   const userId = req.user.sub;
   const result = await query(
-    `select id, name, email, role, created_at from users where id = $1`,
+    `select id, name, email, role, rg_url, nautical_license_url, created_at from users where id = $1`,
     [userId]
   );
   const row = result.rows[0];
   if (!row) return res.status(404).send("Usuário não encontrado.");
   return res.json({ user: row });
+});
+
+const ownerProfileDocsSchema = z.object({
+  rgUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
+  nauticalLicenseUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
+});
+
+app.patch("/api/owner/profile-docs", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const body = ownerProfileDocsSchema.parse(req.body || {});
+    const updated = await query(
+      `update users
+       set rg_url = $2,
+           nautical_license_url = $3
+       where id = $1
+       returning id, name, email, role, rg_url, nautical_license_url, created_at`,
+      [req.user.sub, body.rgUrl ?? null, body.nauticalLicenseUrl ?? null]
+    );
+    return res.json({ user: updated.rows[0] });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao atualizar documentos.";
+    return res.status(400).send(msg);
+  }
 });
 
 app.delete("/api/me", requireAuth, async (req, res) => {
@@ -443,12 +481,27 @@ app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, r
        b.capacity,
        b.type,
        b.description,
-       b.verified
+       b.verified,
+       b.tie_document_url,
+       b.tiem_document_url,
+       b.video_url
      from boats b
      where b.owner_user_id = $1
      order by b.created_at desc`,
     [req.user.sub]
   );
+
+  const boatIds = boats.rows.map((b) => b.id);
+  const images =
+    boatIds.length === 0
+      ? { rows: [] }
+      : await query(
+          `select boat_id, url, sort
+           from boat_images
+           where boat_id = any($1::uuid[])
+           order by boat_id, sort asc`,
+          [boatIds]
+        );
 
   return res.json({
     boats: boats.rows.map((b) => ({
@@ -465,6 +518,10 @@ app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, r
       tipo: b.type,
       descricao: b.description,
       verificado: b.verified,
+      tieDocumentUrl: b.tie_document_url,
+      tiemDocumentUrl: b.tiem_document_url,
+      videoUrl: b.video_url,
+      imagens: images.rows.filter((i) => i.boat_id === b.id).map((i) => i.url),
     })),
   });
 });
@@ -479,6 +536,10 @@ const ownerUpdateBoatSchema = z.object({
   tipo: z.string().min(2).max(80),
   descricao: z.string().min(5).max(4000),
   verificado: z.boolean(),
+  tieDocumentUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
+  tiemDocumentUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
+  videoUrl: z.string().url().optional().nullable(),
+  imagens: z.array(z.string().url().or(z.string().startsWith("data:"))).max(20).optional(),
 });
 
 app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (req, res) => {
@@ -496,9 +557,12 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
            capacity = $8,
            type = $9,
            description = $10,
-           verified = $11
+           verified = $11,
+           tie_document_url = $12,
+           tiem_document_url = $13,
+           video_url = $14
        where id = $1 and owner_user_id = $2
-       returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified`,
+       returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url`,
       [
         boatId,
         req.user.sub,
@@ -511,11 +575,27 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
         body.tipo,
         body.descricao,
         body.verificado,
+        body.tieDocumentUrl ?? null,
+        body.tiemDocumentUrl ?? null,
+        body.videoUrl ?? null,
       ]
     );
 
     const b = updated.rows[0];
     if (!b) return res.status(404).send("Barco não encontrado para este locatário.");
+
+    if (body.imagens) {
+      await query(`delete from boat_images where boat_id = $1`, [boatId]);
+      for (let i = 0; i < body.imagens.length; i++) {
+        await query(`insert into boat_images (boat_id, url, sort) values ($1, $2, $3)`, [
+          boatId,
+          body.imagens[i],
+          i,
+        ]);
+      }
+    }
+
+    const imgs = await query(`select url from boat_images where boat_id = $1 order by sort asc`, [boatId]);
 
     return res.json({
       boat: {
@@ -532,10 +612,64 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
         tipo: b.type,
         descricao: b.description,
         verificado: b.verified,
+        tieDocumentUrl: b.tie_document_url,
+        tiemDocumentUrl: b.tiem_document_url,
+        videoUrl: b.video_url,
+        imagens: imgs.rows.map((r) => r.url),
       },
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro ao atualizar barco.";
+    return res.status(400).send(msg);
+  }
+});
+
+const ownerCreateBoatSchema = z.object({
+  nome: z.string().min(2).max(120),
+  distancia: z.string().min(2).max(200),
+  precoCents: z.number().int().min(0).max(500000000),
+  rating: z.number().min(0).max(5),
+  tamanhoPes: z.number().int().min(1).max(300),
+  capacidade: z.number().int().min(1).max(500),
+  tipo: z.string().min(2).max(80),
+  descricao: z.string().min(5).max(4000),
+  tieDocumentUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
+  tiemDocumentUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
+  videoUrl: z.string().url().optional().nullable(),
+  imagens: z.array(z.string().url().or(z.string().startsWith("data:"))).max(20).default([]),
+});
+
+app.post("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const body = ownerCreateBoatSchema.parse(req.body || {});
+    const created = await query(
+      `insert into boats
+        (owner_user_id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url`,
+      [
+        req.user.sub,
+        body.nome,
+        body.distancia,
+        body.precoCents,
+        body.rating,
+        body.tamanhoPes,
+        body.capacidade,
+        body.tipo,
+        body.descricao,
+        false,
+        body.tieDocumentUrl ?? null,
+        body.tiemDocumentUrl ?? null,
+        body.videoUrl ?? null,
+      ]
+    );
+    const b = created.rows[0];
+    for (let i = 0; i < body.imagens.length; i++) {
+      await query(`insert into boat_images (boat_id, url, sort) values ($1, $2, $3)`, [b.id, body.imagens[i], i]);
+    }
+    return res.json({ boat: b });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao registrar embarcação.";
     return res.status(400).send(msg);
   }
 });
@@ -780,14 +914,26 @@ app.post("/api/mercadopago/preference", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`API running on http://localhost:${PORT}`);
-}).on("error", (err) => {
-  if (err.code === "EADDRINUSE") {
+async function startServer() {
+  try {
+    await ensureFavoritesTable();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "unknown";
     // eslint-disable-next-line no-console
-    console.error(`Porta ${PORT} em uso. Feche o programa que está usando ou mude PORT no server/.env e o target no vite.config.ts.`);
+    console.error("Falha ao garantir tabela de favoritos:", msg);
   }
-  process.exit(1);
-});
+
+  app.listen(PORT, () => {
+    // eslint-disable-next-line no-console
+    console.log(`API running on http://localhost:${PORT}`);
+  }).on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+      // eslint-disable-next-line no-console
+      console.error(`Porta ${PORT} em uso. Feche o programa que está usando ou mude PORT no server/.env e o target no vite.config.ts.`);
+    }
+    process.exit(1);
+  });
+}
+
+startServer();
 

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/logo-altomar.png";
@@ -6,6 +7,11 @@ import { getStoredUser } from "@/lib/auth";
 const Home = () => {
   const navigate = useNavigate();
   const user = getStoredUser();
+
+  useEffect(() => {
+    if (!user) return;
+    navigate(user.role === "locatario" ? "/marinheiro" : "/explorar", { replace: true });
+  }, [navigate, user]);
 
   const handleMarinheiro = () => {
     if (!user) {

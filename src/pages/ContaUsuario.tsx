@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, LogOut, Trash2 } from "lucide-react";
+import { ArrowLeft, LogOut, Trash2, UserRound, CircleHelp, Heart } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import BoatCard from "@/components/BoatCard";
 import { authFetch, clearSession, getStoredUser } from "@/lib/auth";
 import { useBarcos } from "@/hooks/useBarcos";
 
@@ -29,6 +28,14 @@ const ContaUsuario = () => {
     () => barcos.filter((b) => favoriteIds.has(b.id)),
     [barcos, favoriteIds]
   );
+
+  const maskEmail = (email: string) => {
+    const [name, domain] = email.split("@");
+    if (!name || !domain) return email;
+    const visible = name.slice(0, 2);
+    const stars = "*".repeat(Math.max(2, name.length - 2));
+    return `${visible}${stars}@${domain}`;
+  };
 
   useEffect(() => {
     if (!currentUser) {
@@ -73,7 +80,10 @@ const ContaUsuario = () => {
 
   const logout = () => {
     clearSession();
-    navigate("/explorar", { replace: true });
+    const goHome = window.confirm(
+      "Você saiu da conta. Clique em OK para ir à tela inicial ou Cancelar para ficar no Explorar."
+    );
+    navigate(goHome ? "/" : "/explorar", { replace: true });
   };
 
   const deleteAccount = async () => {
@@ -113,21 +123,20 @@ const ContaUsuario = () => {
       </header>
 
       <div className="max-w-2xl mx-auto px-4 py-5 space-y-5">
-        <section className="rounded-xl border border-border bg-card p-4 shadow-card">
-          <h2 className="text-base font-semibold text-foreground mb-3">Dados da conta</h2>
-          <div className="space-y-1 text-sm">
-            <p className="text-foreground">
-              <span className="text-muted-foreground">Nome: </span>
-              {me?.name || currentUser?.name}
-            </p>
-            <p className="text-foreground">
-              <span className="text-muted-foreground">Email: </span>
-              {me?.email || currentUser?.email}
-            </p>
-            <p className="text-foreground">
-              <span className="text-muted-foreground">Perfil: </span>
-              {me?.role === "locatario" ? "Locatário" : "Banhista"}
-            </p>
+        <section className="rounded-xl border border-border bg-card p-4 shadow-card space-y-3">
+          <div className="text-sm text-foreground">
+            <p className="font-semibold">{me?.name || currentUser?.name}</p>
+            <p className="text-muted-foreground">{maskEmail(me?.email || currentUser?.email || "")}</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Button variant="secondary" onClick={() => navigate("/conta/dados")}>
+              <UserRound className="w-4 h-4 mr-1" />
+              Dados da conta
+            </Button>
+            <Button variant="secondary" onClick={() => navigate("/conta/ajuda-teste")}>
+              <CircleHelp className="w-4 h-4 mr-1" />
+              Ajuda de teste
+            </Button>
           </div>
         </section>
 
@@ -139,17 +148,40 @@ const ContaUsuario = () => {
           {favoritos.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">Você ainda não favoritou nenhum barco.</p>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div className="space-y-2">
               {favoritos.map((barco) => (
-                <BoatCard
+                <div
                   key={barco.id}
-                  barco={barco}
-                  isFavorited={favoriteIds.has(barco.id)}
-                  onToggleFavorite={toggleFavorite}
-                />
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2"
+                >
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/barco/${barco.id}`)}
+                    className="text-left min-w-0 flex-1"
+                  >
+                    <p className="text-sm font-semibold text-foreground truncate">{barco.nome}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {barco.distancia} • {barco.preco}
+                    </p>
+                  </button>
+                  <Button variant="ghost" size="sm" onClick={() => toggleFavorite(barco.id)}>
+                    <Heart className="w-4 h-4 fill-red-500 text-red-500" />
+                  </Button>
+                </div>
               ))}
             </div>
           )}
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-4 shadow-card">
+          <h2 className="text-base font-semibold text-foreground mb-1">Ajuda de teste</h2>
+          <p className="text-xs text-muted-foreground mb-3">
+            Dicas rápidas para testar login, favoritos, reservas e painel de locatário.
+          </p>
+          <Button variant="secondary" onClick={() => navigate("/conta/ajuda-teste")}>
+            <CircleHelp className="w-4 h-4 mr-1" />
+            Abrir ajuda de teste
+          </Button>
         </section>
 
         <section className="rounded-xl border border-red-200/50 bg-card p-4 shadow-card">

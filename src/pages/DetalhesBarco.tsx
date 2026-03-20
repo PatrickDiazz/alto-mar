@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useBarcos } from "@/hooks/useBarcos";
-import { BoatLiveGps } from "@/components/BoatLiveGps";
+import { BoatRoutes } from "@/components/BoatRoutes";
 import { getStoredUser } from "@/lib/auth";
 
 const DetalhesBarco = () => {
@@ -134,7 +134,7 @@ const DetalhesBarco = () => {
 
           <hr className="border-border" />
 
-          <BoatLiveGps boatId={barco.id} boatName={barco.nome} />
+          <BoatRoutes boatId={barco.id} locationText={barco.distancia} />
         </div>
       </div>
 

@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS users (
   email citext NOT NULL UNIQUE,
   password_hash text NOT NULL,
   role user_role NOT NULL,
+  rg_url text NULL,
+  nautical_license_url text NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -57,8 +59,17 @@ CREATE TABLE IF NOT EXISTS boats (
   type text NOT NULL,
   description text NOT NULL,
   verified boolean NOT NULL DEFAULT false,
+  tie_document_url text NULL,
+  tiem_document_url text NULL,
+  video_url text NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS rg_url text NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS nautical_license_url text NULL;
+ALTER TABLE boats ADD COLUMN IF NOT EXISTS tie_document_url text NULL;
+ALTER TABLE boats ADD COLUMN IF NOT EXISTS tiem_document_url text NULL;
+ALTER TABLE boats ADD COLUMN IF NOT EXISTS video_url text NULL;
 
 CREATE TABLE IF NOT EXISTS boat_images (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
