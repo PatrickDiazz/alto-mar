@@ -12,6 +12,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import RecuperarSenha from "./pages/RecuperarSenha";
 import RedefinirSenha from "./pages/RedefinirSenha";
+import ContaUsuario from "./pages/ContaUsuario";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/signup" element={<Signup />} />
           <Route path="/recuperar-senha" element={<RecuperarSenha />} />
           <Route path="/redefinir-senha" element={<RedefinirSenha />} />
+          <Route path="/conta" element={<ContaUsuario />} />
           <Route path="/explorar" element={<Explorar />} />
           <Route path="/barco/:id" element={<DetalhesBarco />} />
           <Route path="/reservar/:id" element={<Reservar />} />

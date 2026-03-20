@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { BadgeCheck } from "lucide-react";
+import { BadgeCheck, Heart } from "lucide-react";
 import type { Boat } from "@/lib/types";
 
 interface BoatCardProps {
   barco: Boat;
+  isFavorited?: boolean;
+  onToggleFavorite?: (boatId: string) => void;
 }
 
-const BoatCard = ({ barco }: BoatCardProps) => {
+const BoatCard = ({ barco, isFavorited = false, onToggleFavorite }: BoatCardProps) => {
   const navigate = useNavigate();
   const [currentImage, setCurrentImage] = useState(0);
 
@@ -31,6 +33,21 @@ const BoatCard = ({ barco }: BoatCardProps) => {
           alt={barco.nome}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
+        {onToggleFavorite && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite(barco.id);
+            }}
+            className="absolute top-2 right-2 rounded-full bg-background/85 p-2 text-foreground hover:bg-background transition"
+            aria-label={isFavorited ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+          >
+            <Heart
+              className={`w-4 h-4 ${isFavorited ? "fill-red-500 text-red-500" : "text-foreground"}`}
+            />
+          </button>
+        )}
       </div>
       <div className="mt-2 space-y-0.5">
         <div className="flex items-center justify-between gap-1">

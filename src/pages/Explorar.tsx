@@ -1,11 +1,12 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Search, ArrowLeft, LogIn, UserPlus, LogOut } from "lucide-react";
 import BoatCard from "@/components/BoatCard";
 import FilterBar from "@/components/FilterBar";
 import { useBarcos } from "@/hooks/useBarcos";
-import { getStoredUser, clearSession } from "@/lib/auth";
+import { getStoredUser, clearSession, authFetch } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -23,6 +24,8 @@ const Explorar = () => {
   const [vagasFiltro, setVagasFiltro] = useState<string>("Todos");
   const [precoFiltro, setPrecoFiltro] = useState<string>("Todos");
   const listaBarcos = useBarcos();
+  const user = getStoredUser();
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
 
   const tiposDisponiveis = useMemo(() => {
     const set = new Set(listaBarcos.map((b) => b.tipo).filter(Boolean));
@@ -80,6 +83,54 @@ const Explorar = () => {
     [listaBarcos]
   );
 
+  useEffect(() => {
+    let active = true;
+    const loadFavorites = async () => {
+      if (!user) {
+        setFavoriteIds(new Set());
+        return;
+      }
+      try {
+        const resp = await authFetch("/api/favorites");
+        if (!resp.ok) throw new Error(await resp.text());
+        const data = (await resp.json()) as { boatIds: string[] };
+        if (active) setFavoriteIds(new Set(data.boatIds));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Falha ao carregar favoritos.";
+        if (!msg.includes("user_boat_favorites")) {
+          toast.error(msg);
+        }
+      }
+    };
+    loadFavorites();
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
+
+  const toggleFavorite = async (boatId: string) => {
+    if (!user) {
+      navigate("/login", { state: { from: "/explorar" } });
+      return;
+    }
+    const already = favoriteIds.has(boatId);
+    const next = new Set(favoriteIds);
+    if (already) next.delete(boatId);
+    else next.add(boatId);
+    setFavoriteIds(next);
+
+    try {
+      const resp = await authFetch(`/api/favorites/${boatId}`, {
+        method: already ? "DELETE" : "POST",
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+    } catch (e) {
+      // rollback otimista
+      setFavoriteIds(new Set(favoriteIds));
+      toast.error(e instanceof Error ? e.message : "Falha ao atualizar favorito.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-4 py-3">
@@ -95,9 +146,14 @@ const Explorar = () => {
           </div>
           {getStoredUser() ? (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground max-w-[120px] truncate" title={getStoredUser()?.name}>
+              <button
+                type="button"
+                onClick={() => navigate("/conta")}
+                className="text-sm text-muted-foreground max-w-[120px] truncate hover:text-foreground transition-colors"
+                title={getStoredUser()?.name}
+              >
                 {getStoredUser()?.name}
-              </span>
+              </button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -221,7 +277,12 @@ const Explorar = () => {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {listaExibida.map((barco) => (
-                <BoatCard key={barco.id} barco={barco} />
+                <BoatCard
+                  key={barco.id}
+                  barco={barco}
+                  isFavorited={favoriteIds.has(barco.id)}
+                  onToggleFavorite={toggleFavorite}
+                />
               ))}
             </div>
           )}
@@ -241,7 +302,12 @@ const Explorar = () => {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {favoritosAngrenses.map((barco) => (
-                <BoatCard key={barco.id} barco={barco} />
+                <BoatCard
+                  key={barco.id}
+                  barco={barco}
+                  isFavorited={favoriteIds.has(barco.id)}
+                  onToggleFavorite={toggleFavorite}
+                />
               ))}
             </div>
           )}

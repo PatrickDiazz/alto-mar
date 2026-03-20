@@ -123,12 +123,20 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS user_boat_favorites (
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  boat_id uuid NOT NULL REFERENCES boats(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, boat_id)
+);
+
 -- 5) Índices
 CREATE INDEX IF NOT EXISTS idx_boats_owner ON boats(owner_user_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_owner_status ON bookings(owner_user_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bookings_renter ON bookings(renter_user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_boat_images_boat_sort ON boat_images(boat_id, sort);
 CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_boat_favorites_user ON user_boat_favorites(user_id, created_at DESC);
 
 -- 6) Trigger simples para payments.updated_at
 CREATE OR REPLACE FUNCTION set_updated_at() RETURNS trigger AS $$

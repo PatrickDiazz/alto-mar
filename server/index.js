@@ -214,6 +214,27 @@ app.get("/api/me", requireAuth, async (req, res) => {
   return res.json({ user: row });
 });
 
+app.delete("/api/me", requireAuth, async (req, res) => {
+  const userId = req.user.sub;
+  try {
+    await query("begin");
+    // Remove vínculos que referenciam usuário diretamente
+    await query(`delete from user_boat_favorites where user_id = $1`, [userId]);
+    await query(`delete from password_reset_tokens where user_id = $1`, [userId]);
+    // Remove reservas onde o usuário participa (renter/owner)
+    await query(`delete from bookings where renter_user_id = $1 or owner_user_id = $1`, [userId]);
+    // Remove usuário (boats do owner caem por cascade)
+    const deleted = await query(`delete from users where id = $1 returning id`, [userId]);
+    await query("commit");
+    if (!deleted.rows[0]) return res.status(404).send("Usuário não encontrado.");
+    return res.json({ ok: true });
+  } catch (e) {
+    await query("rollback").catch(() => {});
+    const msg = e instanceof Error ? e.message : "Erro ao excluir conta.";
+    return res.status(400).send(msg);
+  }
+});
+
 // --- Boats (public) ---
 app.get("/api/boats", async (_req, res) => {
   const boats = await query(
@@ -355,6 +376,58 @@ app.get("/api/boats/:id", async (req, res) => {
       locaisEmbarque: locations.rows.map((r) => r.name),
     },
   });
+});
+
+// --- Favorites (por usuário logado) ---
+app.get("/api/favorites", requireAuth, async (req, res) => {
+  try {
+    const rows = await query(
+      `select boat_id from user_boat_favorites where user_id = $1 order by created_at desc`,
+      [req.user.sub]
+    );
+    return res.json({ boatIds: rows.rows.map((r) => r.boat_id) });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao carregar favoritos.";
+    if (msg.includes("user_boat_favorites")) {
+      return res
+        .status(500)
+        .send("Tabela user_boat_favorites ausente. Rode o schema atualizado no PostgreSQL.");
+    }
+    return res.status(400).send(msg);
+  }
+});
+
+app.post("/api/favorites/:boatId", requireAuth, async (req, res) => {
+  try {
+    const boatId = req.params.boatId;
+    const exists = await query(`select id from boats where id = $1 limit 1`, [boatId]);
+    if (!exists.rows[0]) return res.status(404).send("Barco não encontrado.");
+
+    await query(
+      `insert into user_boat_favorites (user_id, boat_id)
+       values ($1, $2)
+       on conflict (user_id, boat_id) do nothing`,
+      [req.user.sub, boatId]
+    );
+    return res.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao favoritar barco.";
+    return res.status(400).send(msg);
+  }
+});
+
+app.delete("/api/favorites/:boatId", requireAuth, async (req, res) => {
+  try {
+    const boatId = req.params.boatId;
+    await query(`delete from user_boat_favorites where user_id = $1 and boat_id = $2`, [
+      req.user.sub,
+      boatId,
+    ]);
+    return res.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao remover favorito.";
+    return res.status(400).send(msg);
+  }
 });
 
 // --- Owner boats (locatário) ---
