@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { MapContainer, Marker, Polyline, Popup, TileLayer } from "react-leaflet";
+import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import L from "leaflet";
 
 type BoatRoutesProps = {
@@ -196,10 +196,6 @@ export function BoatRoutes({ boatId, locationText }: BoatRoutesProps) {
           <TileLayer
             attribution='Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-          />
-          <Polyline
-            positions={coords.map((c) => [c.lat, c.lng])}
-            pathOptions={{ color: "#2563eb", weight: 4, opacity: 0.9 }}
           />
           {coords.slice(1).map((p, i) => (
             <Marker key={`stop-${i}`} position={[p.lat, p.lng]} icon={makeStopIcon(i + 1)}>
