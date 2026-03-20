@@ -145,6 +145,40 @@ Só avance para a **Parte C** (API) quando o schema tiver rodado **sem erro** e 
 - Depois que o domínio do Vercel estiver definido em `FRONTEND_URL`, login e chamadas `fetch` do front devem funcionar.  
 - **Esqueci minha senha:** em produção você precisará de **e-mail (SMTP)** ou outro meio; hoje o link só aparece no log do servidor. Para produção, configure env de e-mail depois ou use um serviço transacional.
 
+### E.1 — CORS em preview e produção
+
+Se você usa domínio principal + preview do Vercel, configure no Railway:
+
+```env
+FRONTEND_URL=https://alto-mar.vercel.app
+EXTRA_CORS_ORIGINS=https://alto-mar.vercel.app,https://alto-<preview>.vercel.app
+```
+
+Sem barra `/` no final. Depois faça **Redeploy** da API.
+
+### E.2 — Erro 502 + CORS no navegador
+
+Se no navegador aparecer “blocked by CORS” junto com `502 Bad Gateway`, normalmente **não é CORS puro**: a API está quebrando antes de responder.
+
+Passos:
+
+1. Railway → serviço API → **Deployments** → abrir **Logs**.  
+2. Corrigir erro de schema no Neon (coluna/tabela ausente).  
+3. Redeploy da API.
+
+SQL de segurança para versões mais novas do backend:
+
+```sql
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS rg_url text,
+  ADD COLUMN IF NOT EXISTS nautical_license_url text;
+
+ALTER TABLE boats
+  ADD COLUMN IF NOT EXISTS tie_document_url text,
+  ADD COLUMN IF NOT EXISTS tiem_document_url text,
+  ADD COLUMN IF NOT EXISTS video_url text;
+```
+
 ---
 
 ## Checklist rápido
