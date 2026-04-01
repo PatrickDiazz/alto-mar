@@ -119,7 +119,7 @@ async function criarReserva(input: {
 const Reservar = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const barcos = useBarcos();
+  const { boats: barcos, isLoading: barcosLoading, isError: barcosError, error: barcosErr } = useBarcos();
   const barco = barcos.find((b) => b.id === id);
   const user = getStoredUser();
 
@@ -144,6 +144,23 @@ const Reservar = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <p className="text-muted-foreground">Redirecionando para login...</p>
+      </div>
+    );
+  }
+
+  if (barcosLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <p className="text-muted-foreground">Carregando…</p>
+      </div>
+    );
+  }
+
+  if (barcosError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 gap-3 text-center">
+        <p className="text-destructive font-medium">Não foi possível carregar os barcos.</p>
+        <p className="text-sm text-muted-foreground max-w-md">{barcosErr?.message}</p>
       </div>
     );
   }

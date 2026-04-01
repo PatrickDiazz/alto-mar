@@ -24,7 +24,8 @@ const Explorar = () => {
   const [tamFiltro, setTamFiltro] = useState<string>("Todos");
   const [vagasFiltro, setVagasFiltro] = useState<string>("Todos");
   const [precoFiltro, setPrecoFiltro] = useState<string>("Todos");
-  const listaBarcos = useBarcos();
+  const { boats: listaBarcos, isLoading: barcosLoading, isError: barcosError, error: barcosErr, refetch: refetchBarcos } =
+    useBarcos();
   const user = getStoredUser();
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
 
@@ -277,11 +278,23 @@ const Explorar = () => {
           <h2 className="text-lg font-semibold text-foreground mb-3">
             Encontre o barco ideal
           </h2>
-          {listaExibida.length === 0 ? (
+          {barcosLoading && (
+            <p className="text-center text-muted-foreground py-8">Carregando barcos…</p>
+          )}
+          {barcosError && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 space-y-2 text-sm">
+              <p className="font-semibold text-foreground">Não foi possível carregar os barcos</p>
+              <p className="text-muted-foreground">{barcosErr?.message || "Erro desconhecido."}</p>
+              <Button type="button" variant="secondary" size="sm" onClick={() => refetchBarcos()}>
+                Tentar de novo
+              </Button>
+            </div>
+          )}
+          {!barcosLoading && !barcosError && listaExibida.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">
               Nenhum barco encontrado para este filtro.
             </p>
-          ) : (
+          ) : !barcosLoading && !barcosError ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {listaExibida.map((barco) => (
                 <BoatCard
@@ -292,7 +305,7 @@ const Explorar = () => {
                 />
               ))}
             </div>
-          )}
+          ) : null}
         </section>
 
         <section>
@@ -302,7 +315,11 @@ const Explorar = () => {
           <p className="text-xs text-muted-foreground mb-3">
             Barcos com avaliação acima de 4,5
           </p>
-          {favoritosAngrenses.length === 0 ? (
+          {barcosError ? (
+            <p className="text-center text-muted-foreground py-8 text-sm">
+              Corrija o carregamento dos barcos acima para ver esta seção.
+            </p>
+          ) : favoritosAngrenses.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">
               Nenhum barco com nota acima de 4,5 no momento.
             </p>
