@@ -102,7 +102,10 @@
     "signupRenter": "Crear cuenta como armador",
     "signup": "Crear cuenta",
     "toastOk": "Sesión iniciada.",
-    "toastFail": "Error al iniciar sesión."
+    "toastFail": "Error al iniciar sesión.",
+    "failUnavailable": "Servicio no disponible. Inténtalo de nuevo en unos minutos o comprueba que la API esté en marcha.",
+    "failNetwork": "No se pudo conectar al servidor. Comprueba la conexión o que la API esté en ejecución (p. ej. npm run dev:server).",
+    "failCredentials": "Correo o contraseña incorrectos."
   },
   "signup": {
     "title": "Crear cuenta",

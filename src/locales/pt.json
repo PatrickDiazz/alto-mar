@@ -102,7 +102,10 @@
     "signupRenter": "Criar conta como locatário",
     "signup": "Criar conta",
     "toastOk": "Login realizado.",
-    "toastFail": "Falha no login."
+    "toastFail": "Falha no login.",
+    "failUnavailable": "Serviço indisponível. Tente daqui a pouco ou confira se a API está no ar.",
+    "failNetwork": "Não foi possível ligar ao servidor. Verifique a internet ou se a API está a correr (ex.: npm run dev:server).",
+    "failCredentials": "Email ou senha inválidos."
   },
   "signup": {
     "title": "Criar conta",

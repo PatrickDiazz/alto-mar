@@ -102,7 +102,10 @@
     "signupRenter": "Create owner account",
     "signup": "Sign up",
     "toastOk": "Signed in.",
-    "toastFail": "Sign-in failed."
+    "toastFail": "Sign-in failed.",
+    "failUnavailable": "Service unavailable. Try again shortly or check that the API is running.",
+    "failNetwork": "Could not reach the server. Check your connection or that the API is running (e.g. npm run dev:server).",
+    "failCredentials": "Invalid email or password."
   },
   "signup": {
     "title": "Sign up",

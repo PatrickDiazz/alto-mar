@@ -20,6 +20,15 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
+  // Mesmo proxy em `vite preview` (build local); se não houver, /api não chega à API.
+  preview: {
+    proxy: {
+      "/api": {
+        target: "http://localhost:3001",
+        changeOrigin: true,
+      },
+    },
+  },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {

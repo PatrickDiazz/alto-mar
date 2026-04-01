@@ -1,6 +1,30 @@
 import { buffer } from "node:stream/consumers";
 
 /**
+ * Monta o path /api/... de forma fiável na Vercel:
+ * - rotas dinâmicas expõem segmentos em req.query.path (array);
+ * - em alguns runtimes req.url vem sem o prefixo /api (só /auth/login) e o upstream quebrava.
+ */
+function resolveApiPathname(req) {
+  const q = req.query?.path;
+  if (q !== undefined && q !== "") {
+    const segments = Array.isArray(q) ? q : [String(q)];
+    const tail = segments.filter(Boolean).join("/");
+    return tail ? `/api/${tail}` : "/api";
+  }
+  const raw = req.url || "/";
+  let pathname;
+  try {
+    pathname = new URL(raw, "http://localhost").pathname;
+  } catch {
+    return "/api";
+  }
+  if (pathname.startsWith("/api")) return pathname;
+  if (!pathname || pathname === "/") return "/api";
+  return `/api${pathname.startsWith("/") ? pathname : `/${pathname}`}`;
+}
+
+/**
  * Proxy em runtime: /api/* → ALTO_MAR_API_ORIGIN + mesmo path.
  * Defina ALTO_MAR_API_ORIGIN no painel da Vercel (ex.: https://xxx.up.railway.app, sem barra no fim).
  */
@@ -11,16 +35,13 @@ export default async function handler(req, res) {
     return;
   }
 
-  const raw = req.url || "/";
-  let pathname;
-  let search;
+  const pathname = resolveApiPathname(req);
+  let search = "";
   try {
-    const u = new URL(raw, "http://localhost");
-    pathname = u.pathname;
-    search = u.search;
+    const raw = req.url || "/";
+    search = new URL(raw, "http://localhost").search || "";
   } catch {
-    res.status(400).send("Bad request");
-    return;
+    search = "";
   }
 
   const targetUrl = `${base}${pathname}${search}`;

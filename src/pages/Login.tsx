@@ -30,14 +30,39 @@ const Login = () => {
       });
       if (!resp.ok) {
         const text = await resp.text().catch(() => "");
-        throw new Error(text || t("login.toastFail"));
+        let msg = t("login.toastFail");
+        if (resp.status === 401) {
+          msg = text.trim() || t("login.failCredentials");
+        } else if (resp.status === 503 || resp.status === 502 || resp.status === 504) {
+          msg = t("login.failUnavailable");
+        } else {
+          const trimmed = text.trim();
+          if (trimmed) {
+            try {
+              const j = JSON.parse(trimmed) as { ok?: boolean };
+              if (j && typeof j === "object" && j.ok === false) {
+                msg = t("login.failUnavailable");
+              } else {
+                msg = trimmed.length < 280 ? trimmed : t("login.toastFail");
+              }
+            } catch {
+              msg = trimmed.length < 280 ? trimmed : t("login.toastFail");
+            }
+          }
+        }
+        throw new Error(msg);
       }
       const data = (await resp.json()) as { token: string; user: any };
       setSession(data.token, data.user);
       toast.success(t("login.toastOk"));
       navigate(from, { replace: true });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("login.toastFail"));
+      const isNetwork =
+        err instanceof TypeError &&
+        (err.message === "Failed to fetch" || err.message.includes("fetch") || err.message.includes("NetworkError"));
+      toast.error(
+        isNetwork ? t("login.failNetwork") : err instanceof Error ? err.message : t("login.toastFail")
+      );
     } finally {
       setLoading(false);
     }
