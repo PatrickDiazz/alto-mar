@@ -22,9 +22,11 @@ function resolveApiPathname(req) {
  */
 export default async function handler(req, res) {
   try {
-    const base = process.env.ALTO_MAR_API_ORIGIN?.replace(/\/$/, "");
+    const base = process.env.ALTO_MAR_API_ORIGIN?.trim().replace(/\/$/, "");
     if (!base) {
-      res.status(503).json({ ok: false });
+      res
+        .status(503)
+        .json({ ok: false, reason: "missing_ALTO_MAR_API_ORIGIN" });
       return;
     }
 

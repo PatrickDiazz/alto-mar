@@ -15,8 +15,10 @@ const USER_KEY = "alto_mar_user";
  * - Evita `...railway.app/api` + `/api/...` duplicado.
  */
 function normalizeApiBase(raw: string | undefined): string | undefined {
-  if (!raw) return undefined;
-  let b = raw.trim().replace(/\/$/, "");
+  if (raw == null) return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  let b = trimmed.replace(/\/$/, "");
   if (!/^https?:\/\//i.test(b)) {
     b = `https://${b.replace(/^\/+/, "")}`;
   }

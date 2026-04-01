@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -11,12 +11,15 @@ import {
   Ruler,
   Users,
   AlertTriangle,
+  Heart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { useBarcos } from "@/hooks/useBarcos";
 import { BoatRoutes } from "@/components/BoatRoutes";
-import { getStoredUser } from "@/lib/auth";
+import { getStoredUser, authFetch } from "@/lib/auth";
+import { toast } from "sonner";
+import i18n from "@/i18n";
 
 const DetalhesBarco = () => {
   const { t } = useTranslation();
@@ -25,6 +28,57 @@ const DetalhesBarco = () => {
   const { boats: barcos, isLoading: barcosLoading, isError: barcosError } = useBarcos();
   const barco = barcos.find((b) => b.id === id);
   const [imgIndex, setImgIndex] = useState(0);
+  const [isFavorited, setIsFavorited] = useState(false);
+
+  const user = getStoredUser();
+
+  useEffect(() => {
+    let active = true;
+    const loadFavorites = async () => {
+      if (!user || !id) {
+        setIsFavorited(false);
+        return;
+      }
+      try {
+        const resp = await authFetch("/api/favorites");
+        if (!resp.ok) throw new Error(await resp.text());
+        const data = (await resp.json()) as { boatIds?: string[] };
+        const ids = Array.isArray(data.boatIds) ? data.boatIds : [];
+        if (active) setIsFavorited(ids.includes(id));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : i18n.t("explorar.favLoadError");
+        if (!msg.includes("user_boat_favorites")) {
+          toast.error(msg);
+        }
+      }
+    };
+    loadFavorites();
+    return () => {
+      active = false;
+    };
+  }, [user?.id, id]);
+
+  useEffect(() => {
+    setImgIndex(0);
+  }, [id]);
+
+  const toggleFavorite = useCallback(async () => {
+    if (!id || !getStoredUser()) return;
+    let previous = false;
+    setIsFavorited((prev) => {
+      previous = prev;
+      return !prev;
+    });
+    try {
+      const resp = await authFetch(`/api/favorites/${id}`, {
+        method: previous ? "DELETE" : "POST",
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+    } catch (e) {
+      setIsFavorited(previous);
+      toast.error(e instanceof Error ? e.message : i18n.t("explorar.favToggleError"));
+    }
+  }, [id]);
 
   if (barcosLoading) {
     return (
@@ -51,10 +105,17 @@ const DetalhesBarco = () => {
     );
   }
 
-  const prevImg = () =>
-    setImgIndex((p) => (p - 1 + barco.imagens.length) % barco.imagens.length);
-  const nextImg = () =>
-    setImgIndex((p) => (p + 1) % barco.imagens.length);
+  const nImagens = barco.imagens?.length ?? 0;
+  const safeImgIndex = nImagens > 0 ? imgIndex % nImagens : 0;
+
+  const prevImg = () => {
+    if (nImagens <= 0) return;
+    setImgIndex((p) => (p - 1 + nImagens) % nImagens);
+  };
+  const nextImg = () => {
+    if (nImagens <= 0) return;
+    setImgIndex((p) => (p + 1) % nImagens);
+  };
 
   const handleReservar = () => {
     if (!getStoredUser()) {
@@ -69,24 +130,47 @@ const DetalhesBarco = () => {
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
           <button
+            type="button"
             onClick={() => navigate(-1)}
             className="text-foreground hover:text-primary transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <HeaderSettingsMenu />
+          <div className="flex items-center gap-2">
+            {user && (
+              <button
+                type="button"
+                onClick={toggleFavorite}
+                className="rounded-full p-2 text-foreground hover:bg-secondary transition-colors"
+                aria-label={
+                  isFavorited ? t("boatCard.favRemove") : t("boatCard.favAdd")
+                }
+              >
+                <Heart
+                  className={`w-5 h-5 ${isFavorited ? "fill-red-500 text-red-500" : "text-foreground"}`}
+                />
+              </button>
+            )}
+            <HeaderSettingsMenu />
+          </div>
         </div>
       </header>
 
       <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-6">
         {/* Image carousel */}
         <div className="relative aspect-square max-w-lg mx-auto rounded-xl overflow-hidden shadow-elevated border border-border">
-          <img
-            src={barco.imagens[imgIndex]}
-            alt={barco.nome}
-            className="w-full h-full object-cover"
-          />
-          {barco.imagens.length > 1 && (
+          {nImagens > 0 ? (
+            <img
+              src={barco.imagens[safeImgIndex]}
+              alt={barco.nome}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-muted flex items-center justify-center text-sm text-muted-foreground px-4 text-center">
+              {barco.nome}
+            </div>
+          )}
+          {nImagens > 1 && (
             <>
               <button
                 onClick={prevImg}
@@ -102,16 +186,18 @@ const DetalhesBarco = () => {
               </button>
             </>
           )}
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-            {barco.imagens.map((_, i) => (
-              <span
-                key={i}
-                className={`w-2 h-2 rounded-full transition-all ${
-                  i === imgIndex ? "bg-primary scale-110" : "bg-background/60"
-                }`}
-              />
-            ))}
-          </div>
+          {nImagens > 0 && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {barco.imagens.map((_, i) => (
+                <span
+                  key={i}
+                  className={`w-2 h-2 rounded-full transition-all ${
+                    i === safeImgIndex ? "bg-primary scale-110" : "bg-background/60"
+                  }`}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Info */}

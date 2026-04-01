@@ -7,6 +7,7 @@ import { ExploreFiltersCard, JETSKY_TYPE } from "@/components/ExploreFiltersCard
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { useBarcos } from "@/hooks/useBarcos";
 import { getStoredUser, clearSession, authFetch } from "@/lib/auth";
+import i18n from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import logo from "@/assets/logo-altomar.png";
@@ -74,7 +75,7 @@ const Explorar = () => {
         const ids = Array.isArray(data.boatIds) ? data.boatIds : [];
         if (active) setFavoriteIds(new Set(ids));
       } catch (e) {
-        const msg = e instanceof Error ? e.message : t("explorar.favLoadError");
+        const msg = e instanceof Error ? e.message : i18n.t("explorar.favLoadError");
         if (!msg.includes("user_boat_favorites")) {
           toast.error(msg);
         }
@@ -84,7 +85,7 @@ const Explorar = () => {
     return () => {
       active = false;
     };
-  }, [user?.id, t]);
+  }, [user?.id]);
 
   const toggleFavorite = async (boatId: string) => {
     if (!user) return;
