@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { apiUrl, setSession, type AuthUser } from "@/lib/auth";
+import { readJsonOrThrow } from "@/lib/apiResponse";
 
 const Login = () => {
   const { t } = useTranslation();
@@ -52,7 +53,10 @@ const Login = () => {
         }
         throw new Error(msg);
       }
-      const data = (await resp.json()) as { token: string; user: AuthUser };
+      const data = await readJsonOrThrow<{ token: string; user: AuthUser }>(
+        resp,
+        t("login.failUnavailable")
+      );
       setSession(data.token, data.user);
       toast.success(t("login.toastOk"));
       navigate(from, { replace: true });
