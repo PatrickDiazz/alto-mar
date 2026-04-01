@@ -134,6 +134,7 @@ Só avance para a **Parte C** (API) quando o schema tiver rodado **sem erro** e 
    VITE_API_BASE_URL = https://SUA-API.up.railway.app
    ```
 
+   - **Tem de começar por `https://`** (ex.: `https://alto-mar-production.up.railway.app`). Se puseres só `algo.up.railway.app`, o browser junta ao domínio da Vercel e o login dá **405**.  
    - **Sem** barra no fim. **Sem** `/api` no fim (o app já envia `/api/auth/login`, etc.).  
    - Marque a variável para **Production** e para **Preview** se usar previews.  
    - **Redeploy** depois de criar ou alterar (o Vite “cozinha” isto no build).  

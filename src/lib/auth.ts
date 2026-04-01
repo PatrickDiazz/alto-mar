@@ -10,10 +10,16 @@ export type AuthUser = {
 const TOKEN_KEY = "alto_mar_token";
 const USER_KEY = "alto_mar_user";
 
-/** Evita `...railway.app/api` + `/api/auth/login` → URL com `/api` duplicado. */
+/**
+ * - Sem `https://`, o browser trata o valor como caminho relativo ao site (ex.: Vercel + host Railway → 405).
+ * - Evita `...railway.app/api` + `/api/...` duplicado.
+ */
 function normalizeApiBase(raw: string | undefined): string | undefined {
   if (!raw) return undefined;
   let b = raw.trim().replace(/\/$/, "");
+  if (!/^https?:\/\//i.test(b)) {
+    b = `https://${b.replace(/^\/+/, "")}`;
+  }
   if (b.endsWith("/api")) {
     b = b.slice(0, -4);
   }
