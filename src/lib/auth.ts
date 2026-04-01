@@ -10,10 +10,29 @@ export type AuthUser = {
 const TOKEN_KEY = "alto_mar_token";
 const USER_KEY = "alto_mar_user";
 
+/**
+ * Monta a URL da API.
+ * Em produção no navegador (qualquer host que não seja localhost), usa caminho relativo
+ * (`/api/...`) para o mesmo domínio do site — no Vercel, `vercel.json` faz proxy para a Railway
+ * e evita CORS / "Failed to fetch".
+ * Em dev (localhost), usa `VITE_API_BASE_URL` se existir, senão `/api` + proxy do Vite.
+ * Para forçar URL absoluta em produção (ex.: deploy sem proxy), defina `VITE_API_ALWAYS_DIRECT=1`.
+ */
 export function apiUrl(path: string) {
-  const base = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined;
-  if (!base) return path;
-  return `${base.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+  const pathNorm = path.startsWith("/") ? path : `/${path}`;
+  const forceDirect = import.meta.env.VITE_API_ALWAYS_DIRECT === "1" || import.meta.env.VITE_API_ALWAYS_DIRECT === "true";
+
+  if (!forceDirect && typeof window !== "undefined") {
+    const h = window.location.hostname;
+    const isLocal = h === "localhost" || h === "127.0.0.1";
+    if (!isLocal) {
+      return pathNorm;
+    }
+  }
+
+  const base = import.meta.env.VITE_API_BASE_URL as string | undefined;
+  if (!base) return pathNorm;
+  return `${base.replace(/\/$/, "")}${pathNorm}`;
 }
 
 export function getToken() {
