@@ -122,9 +122,10 @@ Só avance para a **Parte C** (API) quando o schema tiver rodado **sem erro** e 
 ## Parte D — Front no Vercel
 
 1. [vercel.com](https://vercel.com) → **Add New** → **Project** → importe o mesmo repositório GitHub.  
-2. **Framework Preset**: Vite (ou detecta sozinho).  
-3. **Root Directory**: raiz do repo (onde está o `package.json` principal com `vite`).  
-4. Em **Environment Variables** (para **Production**):
+2. **Framework Preset**: **Vite** (ou “Other” com build `npm run build` e pasta de saída `dist`).  
+3. **Root Directory**: **vazio** ou **`.`** — tem de ser a raiz do monorepo onde está o `package.json` com o script `"build": "vite build"`. **Não** use `server` aqui (isso é só no Railway).  
+4. **Build Command**: `npm run build` · **Output Directory**: `dist` (a Vercel costuma preencher sozinha para Vite).  
+5. Em **Environment Variables** (para **Production**):
 
    ```
    VITE_API_BASE_URL = https://SUA-API.up.railway.app
@@ -132,11 +133,25 @@ Só avance para a **Parte C** (API) quando o schema tiver rodado **sem erro** e 
 
    Sem barra no final. Use exatamente a URL HTTPS que o Railway mostra para o serviço da API.
 
-5. **Deploy**.
+6. **Deploy**.
 
-6. Abra a URL do Vercel (ex. `https://alto-mar.vercel.app`). Teste login e listagem de barcos.
+7. Abra a URL do Vercel (ex. `https://alto-mar.vercel.app`). Teste login e listagem de barcos.
 
-7. Volte no **Railway** → variável **`FRONTEND_URL`** = URL final do Vercel (com `https://`) → **Redeploy** a API para o CORS aceitar o front.
+8. Volte no **Railway** → variável **`FRONTEND_URL`** = URL final do Vercel (com `https://`) → **Redeploy** a API para o CORS aceitar o front.
+
+### D.1 — Erro “The page could not be found” / `NOT_FOUND` (Vercel)
+
+Isso é **404 da Vercel**, não do React. Quase sempre é **configuração do projeto** ou **build que não gerou o site**.
+
+| Verificar | O que deve estar |
+|-----------|------------------|
+| **Root Directory** (Settings → General) | Vazio ou `.` — **não** `server`. |
+| **Build** | Último deploy com **Build** verde; abra os logs e confirme `vite build` e pasta `dist/`. |
+| **Output Directory** | `dist` (só o front; não confundir com a API). |
+| **Framework** | Vite, ou comando de build explícito. |
+| `vercel.json` | Não force `outputDirectory` errado; o ficheiro no repo já usa só `rewrites` + função `api/`. |
+
+Depois de corrigir, faça **Redeploy** (Deployments → … → Redeploy).
 
 ---
 
