@@ -75,6 +75,10 @@
     --border: 210 20% 20%;
     --input: 210 20% 20%;
     --ring: 199 92% 56%;
+    --verified: 142 70% 45%;
+    --verified-foreground: 0 0% 100%;
+    --shadow-card: 0 2px 12px -2px hsl(0 0% 0% / 0.35);
+    --shadow-elevated: 0 8px 30px -8px hsl(0 0% 0% / 0.45);
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -104,4 +108,8 @@
 /* Leaflet cria panes com z-index alto; isso impede o mapa de "passar por cima" de footers sticky */
 .leaflet-container {
   z-index: 0;
+}
+
+.dark .leaflet-container {
+  filter: brightness(0.88) contrast(1.05) saturate(0.95);
 }

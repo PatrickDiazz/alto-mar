@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, Anchor, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
+import { bcp47FromAppLang } from "@/lib/localeFormat";
 import { authFetch, clearSession, getStoredUser } from "@/lib/auth";
 
 type OwnerBoat = {
@@ -55,6 +58,12 @@ async function fileToDataUrl(file: File) {
 }
 
 const Marinheiro_Page = () => {
+  const { t, i18n } = useTranslation();
+  const locale = bcp47FromAppLang(i18n.language);
+  const currencyFmt = useMemo(
+    () => new Intl.NumberFormat(locale, { style: "currency", currency: "BRL" }),
+    [locale]
+  );
   const navigate = useNavigate();
   const user = getStoredUser();
   const [noteById, setNoteById] = useState<Record<string, string>>({});
@@ -71,14 +80,13 @@ const Marinheiro_Page = () => {
   const isLocatario = user?.role === "locatario";
   const pendentes = useMemo(() => bookings.filter((b) => b.status === "PENDING"), [bookings]);
   const precoPreview = useMemo(() => {
-    return `R$ ${Math.max(0, Math.round((newBoatForm.precoCents || 0) / 100)).toLocaleString("pt-BR")}`;
-  }, [newBoatForm.precoCents]);
+    const n = Math.max(0, Math.round((newBoatForm.precoCents || 0) / 100));
+    return currencyFmt.format(n);
+  }, [newBoatForm.precoCents, currencyFmt]);
 
   const handleLogout = () => {
     clearSession();
-    const goHome = window.confirm(
-      "Você saiu da conta. Clique em OK para ir à tela inicial ou Cancelar para ficar no Explorar."
-    );
+    const goHome = window.confirm(t("marinheiro.logoutConfirm"));
     navigate(goHome ? "/" : "/explorar", { replace: true });
   };
 
@@ -90,7 +98,7 @@ const Marinheiro_Page = () => {
       const data = (await resp.json()) as { bookings: any[] };
       setBookings(data.bookings);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha ao carregar reservas.");
+      toast.error(e instanceof Error ? e.message : t("marinheiro.toastBookings"));
     } finally {
       setLoading(false);
     }
@@ -103,7 +111,7 @@ const Marinheiro_Page = () => {
       const data = (await resp.json()) as { boats: OwnerBoat[] };
       setBoats(data.boats);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha ao carregar barcos.");
+      toast.error(e instanceof Error ? e.message : t("marinheiro.toastBoats"));
     }
   };
 
@@ -116,10 +124,10 @@ const Marinheiro_Page = () => {
         body: JSON.stringify({ note: noteById[id] || "" }),
       });
       if (!resp.ok) throw new Error(await resp.text());
-      toast.success(action === "accept" ? "Reserva aceita." : "Reserva recusada.");
+      toast.success(action === "accept" ? t("marinheiro.toastAccept") : t("marinheiro.toastDecline"));
       await carregarPendentes();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha ao atualizar reserva.");
+      toast.error(e instanceof Error ? e.message : t("marinheiro.toastBookingUpdate"));
     } finally {
       setLoading(false);
     }
@@ -155,13 +163,13 @@ const Marinheiro_Page = () => {
         }),
       });
       if (!resp.ok) throw new Error(await resp.text());
-      toast.success("Embarcação atualizada.");
+      toast.success(t("marinheiro.toastUpdate"));
       setEditingBoatId(null);
       setBoatForm(null);
       setEditRouteIslandsText("");
       await carregarMeusBarcos();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha ao atualizar embarcação.");
+      toast.error(e instanceof Error ? e.message : t("marinheiro.toastUpdateFail"));
     } finally {
       setLoading(false);
     }
@@ -182,13 +190,13 @@ const Marinheiro_Page = () => {
         body: JSON.stringify(payload),
       });
       if (!resp.ok) throw new Error(await resp.text());
-      toast.success("Embarcação registrada.");
+      toast.success(t("marinheiro.toastRegister"));
       setRegistering(false);
       setNewBoatForm(emptyBoatForm);
       setNewRouteIslandsText("");
       await carregarMeusBarcos();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha ao registrar embarcação.");
+      toast.error(e instanceof Error ? e.message : t("marinheiro.toastRegisterFail"));
     } finally {
       setLoading(false);
     }
@@ -204,19 +212,20 @@ const Marinheiro_Page = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-4 py-3">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate("/")} className="text-foreground hover:text-primary transition-colors">
+        <div className="max-w-3xl mx-auto flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={() => navigate("/")} className="text-foreground hover:text-primary transition-colors shrink-0">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h1 className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <Anchor className="w-5 h-5 text-primary" />
-              Painel do Locatário
+            <h1 className="text-lg font-semibold text-foreground flex items-center gap-2 min-w-0 truncate">
+              <Anchor className="w-5 h-5 text-primary shrink-0" />
+              <span className="truncate">{t("marinheiro.title")}</span>
             </h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
+            <HeaderSettingsMenu />
             <Button size="sm" variant="secondary" onClick={handleLogout}>
-              Sair
+              {t("marinheiro.logout")}
             </Button>
             <Button
               size="sm"
@@ -226,7 +235,7 @@ const Marinheiro_Page = () => {
               }}
               disabled={loading || !isLocatario}
             >
-              {loading ? "Carregando..." : "Atualizar"}
+              {loading ? t("marinheiro.loading") : t("marinheiro.refresh")}
             </Button>
           </div>
         </div>
@@ -236,71 +245,69 @@ const Marinheiro_Page = () => {
         {!isLocatario ? (
           <div className="bg-card border border-border rounded-xl p-6 shadow-card">
             <p className="text-sm text-muted-foreground">
-              Você precisa estar logado como <span className="font-semibold text-foreground">Locatário</span> para ver reservas.
+              {t("marinheiro.needRole", { role: t("marinheiro.roleName") })}
             </p>
             <Button className="mt-4" onClick={() => navigate("/login", { state: { from: "/marinheiro" } })}>
-              Ir para login
+              {t("marinheiro.goLogin")}
             </Button>
           </div>
         ) : (
           <>
             <section className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-foreground">Meus barcos</h2>
+                <h2 className="text-lg font-semibold text-foreground">{t("marinheiro.myBoats")}</h2>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{boats.length}</Badge>
                   <Button size="sm" onClick={() => setRegistering((p) => !p)}>
                     <Plus className="w-4 h-4 mr-1" />
-                    Registrar embarcação
+                    {t("marinheiro.registerBoat")}
                   </Button>
                 </div>
               </div>
 
               {registering && (
                 <div className="border border-border rounded-xl bg-card p-4 shadow-card space-y-3">
-                  <h3 className="font-semibold text-foreground">Nova embarcação</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Organize os dados por etapas. A avaliação por estrelas vem dos usuários e não é editada aqui.
-                  </p>
+                  <h3 className="font-semibold text-foreground">{t("marinheiro.newBoat")}</h3>
+                  <p className="text-xs text-muted-foreground">{t("marinheiro.stepsHint")}</p>
                   <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
-                    <p className="text-xs font-semibold text-foreground">Prévia do anúncio que será exibido</p>
+                    <p className="text-xs font-semibold text-foreground">{t("marinheiro.previewTitle")}</p>
                     <div className="grid grid-cols-[92px,1fr] gap-3 items-center">
                       <div className="h-20 w-[92px] overflow-hidden rounded-md border border-border bg-secondary">
                         {newBoatForm.imagens?.[0] ? (
-                          <img src={newBoatForm.imagens[0]} alt={newBoatForm.nome || "Prévia"} className="h-full w-full object-cover" />
+                          <img src={newBoatForm.imagens[0]} alt={newBoatForm.nome || t("marinheiro.previewAlt")} className="h-full w-full object-cover" />
                         ) : null}
                       </div>
                       <div className="min-w-0 space-y-1">
-                        <p className="text-sm font-semibold text-foreground truncate">{newBoatForm.nome || "Nome da embarcação"}</p>
+                        <p className="text-sm font-semibold text-foreground truncate">{newBoatForm.nome || t("marinheiro.previewName")}</p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {(newBoatForm.tipo || "Tipo")} • {(newBoatForm.distancia || "Localização")}
+                          {(newBoatForm.tipo || t("marinheiro.previewType"))} • {(newBoatForm.distancia || t("marinheiro.previewLoc"))}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {newBoatForm.tamanhoPes || 0} pés • {newBoatForm.capacidade || 0} pessoas
+                          {newBoatForm.tamanhoPes || 0} {t("common.feet")} • {newBoatForm.capacidade || 0} {t("common.people")}
                         </p>
                         <p className="text-sm font-semibold text-foreground">{precoPreview}</p>
                       </div>
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-sm font-semibold text-foreground">Dados principais</Label>
+                    <Label className="text-sm font-semibold text-foreground">{t("marinheiro.mainData")}</Label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <Label>Nome da embarcação</Label>
-                        <Input placeholder="Ex: Ventura 265" value={newBoatForm.nome} onChange={(e) => setNewBoatForm({ ...newBoatForm, nome: e.target.value })} />
+                        <Label>{t("marinheiro.boatName")}</Label>
+                        <Input placeholder={t("marinheiro.boatNamePh")} value={newBoatForm.nome} onChange={(e) => setNewBoatForm({ ...newBoatForm, nome: e.target.value })} />
                       </div>
                       <div className="space-y-1">
-                        <Label>Tipo</Label>
-                        <Input placeholder="Ex: Lancha" value={newBoatForm.tipo} onChange={(e) => setNewBoatForm({ ...newBoatForm, tipo: e.target.value })} />
+                        <Label>{t("marinheiro.type")}</Label>
+                        <Input placeholder={t("marinheiro.typePh")} value={newBoatForm.tipo} onChange={(e) => setNewBoatForm({ ...newBoatForm, tipo: e.target.value })} />
                       </div>
                       <div className="space-y-1 sm:col-span-2">
-                        <Label>Localização</Label>
-                        <Input placeholder="Ex: Angra dos Reis/RJ" value={newBoatForm.distancia} onChange={(e) => setNewBoatForm({ ...newBoatForm, distancia: e.target.value })} />
+                        <Label>{t("marinheiro.location")}</Label>
+                        <Input placeholder={t("marinheiro.locationPh")} value={newBoatForm.distancia} onChange={(e) => setNewBoatForm({ ...newBoatForm, distancia: e.target.value })} />
                       </div>
                       <div className="space-y-1">
-                        <Label>Preço base do passeio</Label>
+                        <Label>{t("marinheiro.priceBase")}</Label>
                         <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{t("common.currency")}</span>
                           <Input
                             type="number"
                             min={1}
@@ -318,14 +325,14 @@ const Marinheiro_Page = () => {
                         </div>
                       </div>
                       <div className="space-y-1">
-                        <Label>Tamanho da embarcação</Label>
+                        <Label>{t("marinheiro.sizeLabel")}</Label>
                         <div className="relative">
                           <Input
                             type="number"
                             min={1}
                             step={1}
                             className="pr-12"
-                            placeholder="Ex: 25"
+                            placeholder={t("marinheiro.sizePh")}
                             value={Math.max(1, newBoatForm.tamanhoPes)}
                             onChange={(e) =>
                               setNewBoatForm({
@@ -334,18 +341,18 @@ const Marinheiro_Page = () => {
                               })
                             }
                           />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">pés</span>
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{t("common.feet")}</span>
                         </div>
                       </div>
                       <div className="space-y-1 sm:col-span-2">
-                        <Label>Capacidade máxima</Label>
+                        <Label>{t("marinheiro.capacity")}</Label>
                         <div className="relative">
                           <Input
                             type="number"
                             min={1}
                             step={1}
                             className="pr-16"
-                            placeholder="Ex: 6"
+                            placeholder={t("marinheiro.capacityPh")}
                             value={Math.max(1, newBoatForm.capacidade)}
                             onChange={(e) =>
                               setNewBoatForm({
@@ -354,16 +361,16 @@ const Marinheiro_Page = () => {
                               })
                             }
                           />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">pessoas</span>
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{t("common.people")}</span>
                         </div>
                       </div>
                     </div>
                   </div>
-                  <Textarea placeholder="Descrição da embarcação" value={newBoatForm.descricao} onChange={(e) => setNewBoatForm({ ...newBoatForm, descricao: e.target.value })} />
+                  <Textarea placeholder={t("marinheiro.descriptionPh")} value={newBoatForm.descricao} onChange={(e) => setNewBoatForm({ ...newBoatForm, descricao: e.target.value })} />
                   <div className="space-y-1">
-                    <Label className="text-sm font-semibold text-foreground">Rotas disponíveis (ilhas)</Label>
+                    <Label className="text-sm font-semibold text-foreground">{t("marinheiro.routes")}</Label>
                     <Input
-                      placeholder="Ex: Ilhas Botinas, Ilha da Gipóia, Praia do Dentista"
+                      placeholder={t("marinheiro.routesPh")}
                       value={newRouteIslandsText}
                       onChange={(e) => {
                         const text = e.target.value;
@@ -377,16 +384,14 @@ const Marinheiro_Page = () => {
                         });
                       }}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      O app reconhece os nomes e calcula tempo estimado do roteiro automaticamente.
-                    </p>
+                    <p className="text-xs text-muted-foreground">{t("marinheiro.routesHint")}</p>
                   </div>
                   <div className="space-y-1">
-                    <Label>Vídeo da embarcação (link)</Label>
-                    <Input placeholder="https://youtube.com/..." value={newBoatForm.videoUrl || ""} onChange={(e) => setNewBoatForm({ ...newBoatForm, videoUrl: e.target.value })} />
+                    <Label>{t("marinheiro.video")}</Label>
+                    <Input placeholder={t("marinheiro.videoPh")} value={newBoatForm.videoUrl || ""} onChange={(e) => setNewBoatForm({ ...newBoatForm, videoUrl: e.target.value })} />
                   </div>
                   <div className="space-y-1">
-                    <Label>Fotos da embarcação (upload)</Label>
+                    <Label>{t("marinheiro.photos")}</Label>
                     <Input
                       type="file"
                       accept="image/*"
@@ -398,27 +403,27 @@ const Marinheiro_Page = () => {
                       }}
                     />
                     {newBoatForm.imagens.length > 0 && (
-                      <p className="text-xs text-muted-foreground">{newBoatForm.imagens.length} foto(s) anexada(s)</p>
+                      <p className="text-xs text-muted-foreground">{t("marinheiro.photosCount", { n: newBoatForm.imagens.length })}</p>
                     )}
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-sm font-semibold text-foreground">Documentação da embarcação</Label>
+                    <Label className="text-sm font-semibold text-foreground">{t("marinheiro.docs")}</Label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <Input placeholder="TIE digital (link)" value={newBoatForm.tieDocumentUrl || ""} onChange={(e) => setNewBoatForm({ ...newBoatForm, tieDocumentUrl: e.target.value })} />
-                      <Input placeholder="TIEM digital (link)" value={newBoatForm.tiemDocumentUrl || ""} onChange={(e) => setNewBoatForm({ ...newBoatForm, tiemDocumentUrl: e.target.value })} />
+                      <Input placeholder={t("marinheiro.tie")} value={newBoatForm.tieDocumentUrl || ""} onChange={(e) => setNewBoatForm({ ...newBoatForm, tieDocumentUrl: e.target.value })} />
+                      <Input placeholder={t("marinheiro.tiem")} value={newBoatForm.tiemDocumentUrl || ""} onChange={(e) => setNewBoatForm({ ...newBoatForm, tiemDocumentUrl: e.target.value })} />
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button onClick={registrarEmbarcacao} disabled={loading}>Salvar embarcação</Button>
+                    <Button onClick={registrarEmbarcacao} disabled={loading}>{t("marinheiro.saveBoat")}</Button>
                     <Button variant="secondary" onClick={() => { setRegistering(false); setNewBoatForm(emptyBoatForm); setNewRouteIslandsText(""); }}>
-                      Cancelar
+                      {t("common.cancel")}
                     </Button>
                   </div>
                 </div>
               )}
 
               {boats.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">Nenhum barco vinculado à sua conta.</p>
+                <p className="text-center text-muted-foreground py-8">{t("marinheiro.noBoats")}</p>
               ) : (
                 <div className="space-y-3">
                   {boats.map((boat) => {
@@ -431,16 +436,16 @@ const Marinheiro_Page = () => {
                               <div className="min-w-0">
                                 <p className="text-sm font-semibold text-foreground truncate">{boat.nome}</p>
                                 <p className="text-xs text-muted-foreground">
-                                  {boat.tipo} • {boat.tamanho} • {boat.capacidade} pessoas
+                                  {boat.tipo} • {boat.tamanho} • {boat.capacidade} {t("common.people")}
                                 </p>
                                 <p className="text-xs text-muted-foreground">{boat.distancia}</p>
                                 <p className="text-xs text-muted-foreground">
-                                  {boat.preco} • Nota {boat.nota}
+                                  {boat.preco} • {t("marinheiro.ratingLabel")} {boat.nota}
                                 </p>
                               </div>
                               <Button variant="secondary" size="sm" onClick={() => iniciarEdicao(boat)}>
                                 <Pencil className="w-4 h-4 mr-1" />
-                                Editar
+                                {t("marinheiro.edit")}
                               </Button>
                             </div>
                             <p className="text-xs text-muted-foreground line-clamp-3">{boat.descricao}</p>
@@ -449,21 +454,21 @@ const Marinheiro_Page = () => {
                           <div className="space-y-3">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div className="space-y-1">
-                                <Label>Nome</Label>
+                                <Label>{t("common.name")}</Label>
                                 <Input value={boatForm.nome} onChange={(e) => setBoatForm({ ...boatForm, nome: e.target.value })} />
                               </div>
                               <div className="space-y-1">
-                                <Label>Tipo</Label>
+                                <Label>{t("marinheiro.type")}</Label>
                                 <Input value={boatForm.tipo} onChange={(e) => setBoatForm({ ...boatForm, tipo: e.target.value })} />
                               </div>
                               <div className="space-y-1">
-                                <Label>Localização</Label>
+                                <Label>{t("marinheiro.location")}</Label>
                                 <Input value={boatForm.distancia} onChange={(e) => setBoatForm({ ...boatForm, distancia: e.target.value })} />
                               </div>
                               <div className="space-y-1">
-                                <Label>Preço (R$)</Label>
+                                <Label>{t("marinheiro.priceReaisShort")}</Label>
                                 <div className="relative">
-                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{t("common.currency")}</span>
                                   <Input
                                     type="number"
                                     min={1}
@@ -480,7 +485,7 @@ const Marinheiro_Page = () => {
                                 </div>
                               </div>
                               <div className="space-y-1">
-                                <Label>Tamanho (pés)</Label>
+                                <Label>{t("marinheiro.sizeFeetShort")}</Label>
                                 <div className="relative">
                                   <Input
                                     type="number"
@@ -495,11 +500,11 @@ const Marinheiro_Page = () => {
                                       })
                                     }
                                   />
-                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">pés</span>
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{t("common.feet")}</span>
                                 </div>
                               </div>
                               <div className="space-y-1">
-                                <Label>Capacidade</Label>
+                                <Label>{t("marinheiro.capacityLabel")}</Label>
                                 <div className="relative">
                                   <Input
                                     type="number"
@@ -514,18 +519,18 @@ const Marinheiro_Page = () => {
                                       })
                                     }
                                   />
-                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">pessoas</span>
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{t("common.people")}</span>
                                 </div>
                               </div>
                             </div>
                             <div className="space-y-1">
-                              <Label>Descrição</Label>
+                              <Label>{t("detalhes.description")}</Label>
                               <Textarea rows={3} value={boatForm.descricao} onChange={(e) => setBoatForm({ ...boatForm, descricao: e.target.value })} />
                             </div>
                             <div className="space-y-1">
-                              <Label>Rotas disponíveis (ilhas)</Label>
+                              <Label>{t("marinheiro.routes")}</Label>
                               <Input
-                                placeholder="Ex: Ilhas Botinas, Ilha da Gipóia, Praia do Dentista"
+                                placeholder={t("marinheiro.routesPh")}
                                 value={editRouteIslandsText}
                                 onChange={(e) =>
                                   {
@@ -541,15 +546,15 @@ const Marinheiro_Page = () => {
                                   }
                                 }
                               />
-                              <p className="text-xs text-muted-foreground">Avaliações são geradas pelos usuários após as reservas.</p>
+                              <p className="text-xs text-muted-foreground">{t("marinheiro.editRatingHint")}</p>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <Input placeholder="TIE digital (link)" value={boatForm.tieDocumentUrl || ""} onChange={(e) => setBoatForm({ ...boatForm, tieDocumentUrl: e.target.value })} />
-                              <Input placeholder="TIEM digital (link)" value={boatForm.tiemDocumentUrl || ""} onChange={(e) => setBoatForm({ ...boatForm, tiemDocumentUrl: e.target.value })} />
+                              <Input placeholder={t("marinheiro.tie")} value={boatForm.tieDocumentUrl || ""} onChange={(e) => setBoatForm({ ...boatForm, tieDocumentUrl: e.target.value })} />
+                              <Input placeholder={t("marinheiro.tiem")} value={boatForm.tiemDocumentUrl || ""} onChange={(e) => setBoatForm({ ...boatForm, tiemDocumentUrl: e.target.value })} />
                             </div>
-                            <Input placeholder="Vídeo da embarcação (link)" value={boatForm.videoUrl || ""} onChange={(e) => setBoatForm({ ...boatForm, videoUrl: e.target.value })} />
+                            <Input placeholder={t("marinheiro.video")} value={boatForm.videoUrl || ""} onChange={(e) => setBoatForm({ ...boatForm, videoUrl: e.target.value })} />
                             <div className="space-y-1">
-                              <Label>Fotos da embarcação</Label>
+                              <Label>{t("marinheiro.photosEdit")}</Label>
                               <Input
                                 type="file"
                                 accept="image/*"
@@ -560,14 +565,14 @@ const Marinheiro_Page = () => {
                                   setBoatForm({ ...boatForm, imagens: [...(boatForm.imagens || []), ...urls] });
                                 }}
                               />
-                              <p className="text-xs text-muted-foreground">{(boatForm.imagens || []).length} foto(s)</p>
+                              <p className="text-xs text-muted-foreground">{t("marinheiro.photoCountEdit", { n: (boatForm.imagens || []).length })}</p>
                             </div>
                             <div className="flex gap-2">
                               <Button className="flex-1" onClick={salvarEdicao} disabled={loading}>
-                                Salvar edição
+                                {t("marinheiro.saveEdit")}
                               </Button>
                               <Button className="flex-1" variant="secondary" onClick={() => { setEditingBoatId(null); setBoatForm(null); setEditRouteIslandsText(""); }} disabled={loading}>
-                                Cancelar
+                                {t("common.cancel")}
                               </Button>
                             </div>
                           </div>
@@ -581,12 +586,12 @@ const Marinheiro_Page = () => {
 
             <section className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-foreground">Reservas pendentes</h2>
+                <h2 className="text-lg font-semibold text-foreground">{t("marinheiro.pendingTitle")}</h2>
                 <Badge variant="outline">{pendentes.length}</Badge>
               </div>
 
               {pendentes.length === 0 ? (
-                <p className="text-center text-muted-foreground py-12">Nenhuma reserva pendente.</p>
+                <p className="text-center text-muted-foreground py-12">{t("marinheiro.noPending")}</p>
               ) : (
                 <div className="space-y-3">
                   {pendentes.map((b) => (
@@ -595,36 +600,37 @@ const Marinheiro_Page = () => {
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-foreground truncate">{b.boat.nome}</p>
                           <p className="text-xs text-muted-foreground">
-                            Cliente: {b.renter.nome} ({b.renter.email})
+                            {t("marinheiro.client")} {b.renter.nome} ({b.renter.email})
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Embarque: {b.embarkLocation} • Total: R$ {(b.totalCents / 100).toLocaleString("pt-BR")}
+                            {t("marinheiro.embark")} {b.embarkLocation} • {t("marinheiro.total")}{" "}
+                            {currencyFmt.format(b.totalCents / 100)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Passageiros: {b.passengersAdults} adultos
-                            {b.hasKids ? ` + ${b.passengersChildren} crianças` : ""}
-                            {b.bbqKit ? " • Kit churrasco" : ""}
+                            {t("marinheiro.passengers")} {b.passengersAdults} {t("marinheiro.adults")}
+                            {b.hasKids ? ` + ${b.passengersChildren} ${t("marinheiro.kids")}` : ""}
+                            {b.bbqKit ? ` • ${t("marinheiro.bbq")}` : ""}
                           </p>
                         </div>
-                        <Badge className="bg-accent text-accent-foreground">Pendente</Badge>
+                        <Badge className="bg-accent text-accent-foreground">{t("marinheiro.pendingBadge")}</Badge>
                       </div>
 
                       <div className="space-y-1">
-                        <Label>Observação (opcional)</Label>
+                        <Label>{t("marinheiro.noteLabel")}</Label>
                         <Textarea
                           value={noteById[b.id] || ""}
                           onChange={(e) => setNoteById((p) => ({ ...p, [b.id]: e.target.value }))}
-                          placeholder="Ex: Confirmado, horário de embarque às 09:00."
+                          placeholder={t("marinheiro.notePh")}
                           rows={2}
                         />
                       </div>
 
                       <div className="flex gap-2">
                         <Button className="flex-1" onClick={() => decidir(b.id, "accept")} disabled={loading}>
-                          Aceitar
+                          {t("marinheiro.accept")}
                         </Button>
                         <Button className="flex-1" variant="destructive" onClick={() => decidir(b.id, "decline")} disabled={loading}>
-                          Recusar
+                          {t("marinheiro.decline")}
                         </Button>
                       </div>
                     </div>

@@ -1,10 +1,13 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import logo from "@/assets/logo-altomar.png";
 import { getStoredUser } from "@/lib/auth";
 
 const Home = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const user = getStoredUser();
 
@@ -13,13 +16,17 @@ const Home = () => {
     navigate(user.role === "locatario" ? "/marinheiro" : "/explorar", { replace: true });
   }, [navigate, user]);
 
-  const handleMarinheiro = () => {
-    if (!user) {
-      navigate("/login", { state: { from: "/marinheiro" } });
+  const goBanhista = () => {
+    if (!getStoredUser()) {
+      navigate("/login", { state: { from: "/explorar" } });
       return;
     }
-    if (user.role === "locatario") {
-      navigate("/marinheiro");
+    navigate("/explorar");
+  };
+
+  const goMarinheiro = () => {
+    if (!getStoredUser()) {
+      navigate("/login", { state: { from: "/marinheiro" } });
       return;
     }
     navigate("/marinheiro");
@@ -27,24 +34,25 @@ const Home = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
+      <div className="absolute top-4 right-4">
+        <HeaderSettingsMenu />
+      </div>
       <img src={logo} alt="Alto Mar" className="h-64 mb-8" />
-      <h1 className="text-2xl font-bold text-foreground mb-8">
-        Seja bem-vindo. Você é?
-      </h1>
+      <h1 className="text-2xl font-bold text-foreground mb-8 text-center">{t("home.welcome")}</h1>
       <div className="flex flex-col gap-4 w-full max-w-xs">
         <Button
           size="lg"
           className="bg-primary text-primary-foreground hover:bg-primary/90"
-          onClick={() => navigate("/explorar")}
+          onClick={goBanhista}
         >
-          SOU BANHISTA
+          {t("home.banhista")}
         </Button>
         <Button
           size="lg"
           className="bg-primary text-primary-foreground hover:bg-primary/90"
-          onClick={handleMarinheiro}
+          onClick={goMarinheiro}
         >
-          SOU MARINHEIRO
+          {t("home.marinheiro")}
         </Button>
       </div>
     </div>

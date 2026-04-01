@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { apiUrl, setSession, type UserRole } from "@/lib/auth";
 
 const Signup = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from;
@@ -28,14 +31,14 @@ const Signup = () => {
       });
       if (!resp.ok) {
         const text = await resp.text().catch(() => "");
-        throw new Error(text || "Falha ao criar conta.");
+        throw new Error(text || t("signup.toastFail"));
       }
       const data = (await resp.json()) as { token: string; user: any };
       setSession(data.token, data.user);
-      toast.success("Conta criada.");
+      toast.success(t("signup.toastOk"));
       navigate(from || "/", { replace: true });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Falha ao criar conta.");
+      toast.error(err instanceof Error ? err.message : t("signup.toastFail"));
     } finally {
       setLoading(false);
     }
@@ -43,25 +46,28 @@ const Signup = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
+      <div className="absolute top-4 right-4">
+        <HeaderSettingsMenu />
+      </div>
       <div className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-card space-y-4">
         <div>
-          <h1 className="text-xl font-bold text-foreground">Criar conta</h1>
-          <p className="text-sm text-muted-foreground">Escolha seu perfil e comece.</p>
+          <h1 className="text-xl font-bold text-foreground">{t("signup.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("signup.subtitle")}</p>
         </div>
 
         <form className="space-y-3" onSubmit={onSubmit}>
           <div className="space-y-1">
-            <Label htmlFor="name">Nome</Label>
+            <Label htmlFor="name">{t("common.name")}</Label>
             <Input
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Seu nome"
+              placeholder={t("signup.namePh")}
               required
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("common.email")}</Label>
             <Input
               id="email"
               type="email"
@@ -72,47 +78,47 @@ const Signup = () => {
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="password">Senha</Label>
+            <Label htmlFor="password">{t("common.password")}</Label>
             <Input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="mínimo 6 caracteres"
+              placeholder={t("signup.passwordPh")}
               required
               minLength={6}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Você é</Label>
+            <Label>{t("signup.youAre")}</Label>
             <RadioGroup value={role} onValueChange={(v) => setRole(v as UserRole)} className="space-y-2">
               <label className="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3 cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/5">
                 <RadioGroupItem value="banhista" id="banhista" />
                 <div>
-                  <span className="text-sm font-semibold text-foreground">Banhista</span>
-                  <p className="text-xs text-muted-foreground">Quero reservar embarcações</p>
+                  <span className="text-sm font-semibold text-foreground">{t("signup.banhista")}</span>
+                  <p className="text-xs text-muted-foreground">{t("signup.banhistaHint")}</p>
                 </div>
               </label>
               <label className="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3 cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/5">
                 <RadioGroupItem value="locatario" id="locatario" />
                 <div>
-                  <span className="text-sm font-semibold text-foreground">Locatário</span>
-                  <p className="text-xs text-muted-foreground">Tenho barcos e recebo reservas</p>
+                  <span className="text-sm font-semibold text-foreground">{t("signup.locatario")}</span>
+                  <p className="text-xs text-muted-foreground">{t("signup.locatarioHint")}</p>
                 </div>
               </label>
             </RadioGroup>
           </div>
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Criando..." : "Criar conta"}
+            {loading ? t("signup.submitting") : t("signup.submit")}
           </Button>
         </form>
 
         <p className="text-sm text-muted-foreground">
-          Já tem conta?{" "}
+          {t("signup.hasAccount")}{" "}
           <Link className="text-primary font-semibold hover:underline" to="/login" state={location.state}>
-            Entrar
+            {t("signup.login")}
           </Link>
         </p>
       </div>
@@ -121,4 +127,3 @@ const Signup = () => {
 };
 
 export default Signup;
-

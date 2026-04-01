@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -12,21 +13,23 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { useBarcos } from "@/hooks/useBarcos";
 import { BoatRoutes } from "@/components/BoatRoutes";
 import { getStoredUser } from "@/lib/auth";
 
 const DetalhesBarco = () => {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { boats: barcos, isLoading: barcosLoading, isError: barcosError, error: barcosErr } = useBarcos();
+  const { boats: barcos, isLoading: barcosLoading, isError: barcosError } = useBarcos();
   const barco = barcos.find((b) => b.id === id);
   const [imgIndex, setImgIndex] = useState(0);
 
   if (barcosLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <p className="text-muted-foreground">Carregando…</p>
+        <p className="text-muted-foreground">{t("detalhes.loading")}</p>
       </div>
     );
   }
@@ -34,8 +37,8 @@ const DetalhesBarco = () => {
   if (barcosError) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 gap-3 text-center">
-        <p className="text-destructive font-medium">Não foi possível carregar os barcos.</p>
-        <p className="text-sm text-muted-foreground max-w-md">{barcosErr?.message}</p>
+        <p className="text-foreground font-medium">{t("detalhes.loadError")}</p>
+        <p className="text-sm text-muted-foreground max-w-md">{t("common.boatsUnavailable")}</p>
       </div>
     );
   }
@@ -43,7 +46,7 @@ const DetalhesBarco = () => {
   if (!barco) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <p className="text-muted-foreground">Embarcação não encontrada.</p>
+        <p className="text-muted-foreground">{t("detalhes.notFound")}</p>
       </div>
     );
   }
@@ -64,13 +67,14 @@ const DetalhesBarco = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-4 py-3">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
           <button
             onClick={() => navigate(-1)}
             className="text-foreground hover:text-primary transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
+          <HeaderSettingsMenu />
         </div>
       </header>
 
@@ -128,25 +132,25 @@ const DetalhesBarco = () => {
               <Ruler className="w-4 h-4" /> {barco.tamanho}
             </span>
             <span className="flex items-center gap-1 bg-secondary px-3 py-1 rounded-full">
-              <Users className="w-4 h-4" /> {barco.capacidade} pessoas
+              <Users className="w-4 h-4" /> {t("detalhes.people", { count: barco.capacidade })}
             </span>
           </div>
 
           {barco.verificado ? (
             <div className="flex items-center gap-1.5">
               <BadgeCheck className="w-5 h-5 text-verified" />
-              <span className="text-sm font-bold text-verified">Verificado pela Alto Mar</span>
+              <span className="text-sm font-bold text-verified">{t("detalhes.verified")}</span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5 text-accent">
               <AlertTriangle className="w-5 h-5" />
-              <span className="text-sm font-bold">Validação pendente</span>
+              <span className="text-sm font-bold">{t("detalhes.pending")}</span>
             </div>
           )}
 
           <hr className="border-border" />
 
-          <h2 className="text-lg font-bold text-foreground">Descrição</h2>
+          <h2 className="text-lg font-bold text-foreground">{t("detalhes.description")}</h2>
           <p className="text-foreground/80 leading-relaxed">{barco.descricao}</p>
 
           <hr className="border-border" />
@@ -162,7 +166,7 @@ const DetalhesBarco = () => {
             className="bg-accent text-accent-foreground hover:bg-accent/90"
             onClick={handleReservar}
           >
-            Reservar agora
+            {t("detalhes.bookNow")}
           </Button>
         </div>
       </div>

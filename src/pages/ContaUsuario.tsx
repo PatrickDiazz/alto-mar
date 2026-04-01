@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, LogOut, Trash2, UserRound, CircleHelp, Heart } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { authFetch, clearSession, getStoredUser } from "@/lib/auth";
 
 type MeResponse = {
@@ -16,6 +18,7 @@ type MeResponse = {
 };
 
 const ContaUsuario = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const currentUser = getStoredUser();
   const [me, setMe] = useState<MeResponse["user"] | null>(null);
@@ -52,14 +55,14 @@ const ContaUsuario = () => {
         setFavoriteIds(new Set(favData.boatIds));
         setFavoriteBoats(favData.boats || []);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Falha ao carregar conta.");
+        toast.error(e instanceof Error ? e.message : t("conta.toastLoad"));
       }
     };
     run();
     return () => {
       active = false;
     };
-  }, [currentUser?.id, navigate]);
+  }, [currentUser?.id, navigate, t]);
 
   const toggleFavorite = async (boatId: string) => {
     const has = favoriteIds.has(boatId);
@@ -75,32 +78,28 @@ const ContaUsuario = () => {
       }
     } catch (e) {
       setFavoriteIds(new Set(favoriteIds));
-      toast.error(e instanceof Error ? e.message : "Falha ao atualizar favorito.");
+      toast.error(e instanceof Error ? e.message : t("conta.toastFav"));
     }
   };
 
   const logout = () => {
     clearSession();
-    const goHome = window.confirm(
-      "Você saiu da conta. Clique em OK para ir à tela inicial ou Cancelar para ficar no Explorar."
-    );
+    const goHome = window.confirm(t("conta.logoutConfirm"));
     navigate(goHome ? "/" : "/explorar", { replace: true });
   };
 
   const deleteAccount = async () => {
-    const ok = window.confirm(
-      "Tem certeza que deseja excluir sua conta? Esta ação remove sua conta e não pode ser desfeita."
-    );
+    const ok = window.confirm(t("conta.deleteConfirm"));
     if (!ok) return;
     setLoading(true);
     try {
       const resp = await authFetch("/api/me", { method: "DELETE" });
       if (!resp.ok) throw new Error(await resp.text());
       clearSession();
-      toast.success("Conta excluída.");
+      toast.success(t("conta.toastDeleted"));
       navigate("/", { replace: true });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha ao excluir conta.");
+      toast.error(e instanceof Error ? e.message : t("conta.toastDeleteFail"));
     } finally {
       setLoading(false);
     }
@@ -109,17 +108,20 @@ const ContaUsuario = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-4 py-3">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate(-1)} className="text-foreground hover:text-primary transition-colors">
+        <div className="max-w-2xl mx-auto flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={() => navigate(-1)} className="text-foreground hover:text-primary transition-colors shrink-0">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h1 className="text-lg font-semibold text-foreground">Minha conta</h1>
+            <h1 className="text-lg font-semibold text-foreground truncate">{t("conta.title")}</h1>
           </div>
-          <Button size="sm" variant="secondary" onClick={logout}>
-            <LogOut className="w-4 h-4 mr-1" />
-            Sair
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <HeaderSettingsMenu />
+            <Button size="sm" variant="secondary" onClick={logout}>
+              <LogOut className="w-4 h-4 mr-1" />
+              {t("conta.logout")}
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -132,22 +134,22 @@ const ContaUsuario = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Button variant="secondary" onClick={() => navigate("/conta/dados")}>
               <UserRound className="w-4 h-4 mr-1" />
-              Dados da conta
+              {t("conta.accountData")}
             </Button>
             <Button variant="secondary" onClick={() => navigate("/conta/ajuda-teste")}>
               <CircleHelp className="w-4 h-4 mr-1" />
-              Ajuda de teste
+              {t("conta.helpTest")}
             </Button>
           </div>
         </section>
 
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-foreground">Meus favoritos</h2>
-            <span className="text-xs text-muted-foreground">{favoriteBoats.length} barco(s)</span>
+            <h2 className="text-lg font-semibold text-foreground">{t("conta.favorites")}</h2>
+            <span className="text-xs text-muted-foreground">{t("conta.boatsCount", { n: favoriteBoats.length })}</span>
           </div>
           {favoriteBoats.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">Você ainda não favoritou nenhum barco.</p>
+            <p className="text-center text-muted-foreground py-8">{t("conta.noFavorites")}</p>
           ) : (
             <div className="space-y-2">
               {favoriteBoats.map((barco) => (
@@ -175,24 +177,20 @@ const ContaUsuario = () => {
         </section>
 
         <section className="rounded-xl border border-border bg-card p-4 shadow-card">
-          <h2 className="text-base font-semibold text-foreground mb-1">Ajuda de teste</h2>
-          <p className="text-xs text-muted-foreground mb-3">
-            Dicas rápidas para testar login, favoritos, reservas e painel de locatário.
-          </p>
+          <h2 className="text-base font-semibold text-foreground mb-1">{t("conta.helpSectionTitle")}</h2>
+          <p className="text-xs text-muted-foreground mb-3">{t("conta.helpSectionDesc")}</p>
           <Button variant="secondary" onClick={() => navigate("/conta/ajuda-teste")}>
             <CircleHelp className="w-4 h-4 mr-1" />
-            Abrir ajuda de teste
+            {t("conta.openHelp")}
           </Button>
         </section>
 
         <section className="rounded-xl border border-red-200/50 bg-card p-4 shadow-card">
-          <h2 className="text-base font-semibold text-foreground mb-1">Zona de risco</h2>
-          <p className="text-xs text-muted-foreground mb-3">
-            Excluir conta remove seus dados de acesso e não pode ser desfeito.
-          </p>
+          <h2 className="text-base font-semibold text-foreground mb-1">{t("conta.riskTitle")}</h2>
+          <p className="text-xs text-muted-foreground mb-3">{t("conta.riskDesc")}</p>
           <Button variant="destructive" onClick={deleteAccount} disabled={loading}>
             <Trash2 className="w-4 h-4 mr-1" />
-            {loading ? "Excluindo..." : "Deletar conta"}
+            {loading ? t("conta.deleting") : t("conta.delete")}
           </Button>
         </section>
       </div>
@@ -201,4 +199,3 @@ const ContaUsuario = () => {
 };
 
 export default ContaUsuario;
-

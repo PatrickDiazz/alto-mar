@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { apiUrl } from "@/lib/auth";
 
 const RecuperarSenha = () => {
+  const { t } = useTranslation();
   const location = useLocation();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,14 +26,12 @@ const RecuperarSenha = () => {
       });
       if (!resp.ok) {
         const text = await resp.text().catch(() => "");
-        throw new Error(text || "Não foi possível enviar o pedido.");
+        throw new Error(text || t("recuperar.toastFail"));
       }
-      toast.success(
-        "Se esse email estiver cadastrado, geramos um link de recuperação. Em desenvolvimento, o link aparece no terminal onde a API está rodando."
-      );
+      toast.success(t("recuperar.toastOk"));
       setEmail("");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao solicitar recuperação.");
+      toast.error(err instanceof Error ? err.message : t("recuperar.toastFail"));
     } finally {
       setLoading(false);
     }
@@ -38,6 +39,9 @@ const RecuperarSenha = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
+      <div className="absolute top-4 right-4">
+        <HeaderSettingsMenu />
+      </div>
       <div className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-card space-y-4">
         <Link
           to="/login"
@@ -45,19 +49,17 @@ const RecuperarSenha = () => {
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="w-4 h-4" />
-          Voltar ao login
+          {t("recuperar.back")}
         </Link>
 
         <div>
-          <h1 className="text-xl font-bold text-foreground">Esqueci minha senha</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Informe o email da sua conta. Se ele existir, você poderá redefinir a senha pelo link gerado.
-          </p>
+          <h1 className="text-xl font-bold text-foreground">{t("recuperar.title")}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t("recuperar.subtitle")}</p>
         </div>
 
         <form className="space-y-3" onSubmit={onSubmit}>
           <div className="space-y-1">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("common.email")}</Label>
             <Input
               id="email"
               type="email"
@@ -68,14 +70,11 @@ const RecuperarSenha = () => {
             />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Enviando..." : "Enviar link de recuperação"}
+            {loading ? t("recuperar.submitting") : t("recuperar.submit")}
           </Button>
         </form>
 
-        <p className="text-xs text-muted-foreground rounded-lg bg-muted/50 p-3">
-          <strong>Dica:</strong> com a API rodando no seu PC, abra o terminal do servidor Node após enviar — o link completo
-          para criar uma senha nova é impresso lá (válido por 1 hora).
-        </p>
+        <p className="text-xs text-muted-foreground rounded-lg bg-muted/50 p-3">{t("recuperar.tip")}</p>
       </div>
     </div>
   );

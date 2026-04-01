@@ -12,15 +12,22 @@ const USER_KEY = "alto_mar_user";
 
 /**
  * Monta a URL da API.
- * Em produção no navegador (qualquer host que não seja localhost), usa caminho relativo
- * (`/api/...`) para o mesmo domínio do site — no Vercel, `vercel.json` faz proxy para a Railway
- * e evita CORS / "Failed to fetch".
- * Em dev (localhost), usa `VITE_API_BASE_URL` se existir, senão `/api` + proxy do Vite.
- * Para forçar URL absoluta em produção (ex.: deploy sem proxy), defina `VITE_API_ALWAYS_DIRECT=1`.
+ *
+ * **Desenvolvimento (`npm run dev`):** usa sempre `/api/...` relativo ao Vite, para o proxy em
+ * `vite.config.ts` encaminhar a `localhost:3001`. Assim evita falhas por CORS e por `VITE_API_BASE_URL`
+ * apontando direto para a API (comum no `.env` local e que quebrava só em alguns PCs/navegadores).
+ * Para testar URL absoluta no dev, defina `VITE_API_ALWAYS_DIRECT=1`.
+ *
+ * **Produção:** em hosts que não são localhost/127.0.0.1, usa `/api` no mesmo domínio (ex.: Vercel + rewrite).
+ * Com `VITE_API_BASE_URL` + build, comportamento anterior continua disponível quando não é DEV.
  */
 export function apiUrl(path: string) {
   const pathNorm = path.startsWith("/") ? path : `/${path}`;
   const forceDirect = import.meta.env.VITE_API_ALWAYS_DIRECT === "1" || import.meta.env.VITE_API_ALWAYS_DIRECT === "true";
+
+  if (import.meta.env.DEV && !forceDirect) {
+    return pathNorm;
+  }
 
   if (!forceDirect && typeof window !== "undefined") {
     const h = window.location.hostname;

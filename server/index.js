@@ -278,150 +278,180 @@ app.delete("/api/me", requireAuth, async (req, res) => {
 });
 
 // --- Boats (public) ---
+function formatBoatPreco(priceCents) {
+  const n = Number(priceCents);
+  const reais = Number.isFinite(n) ? n / 100 : 0;
+  return `R$ ${reais.toLocaleString("pt-BR")}`;
+}
+
+function formatBoatNota(rating) {
+  const n = Number(rating);
+  const v = Number.isFinite(n) ? n : 0;
+  return v.toFixed(1).replace(".", ",");
+}
+
+function normalizeRouteIslands(v) {
+  return Array.isArray(v) ? v : [];
+}
+
 app.get("/api/boats", async (_req, res) => {
-  const boats = await query(
-    `select
-       b.id,
-       b.name,
-       b.location_text,
-       b.price_cents,
-       b.rating,
-       b.size_feet,
-       b.capacity,
-       b.type,
-       b.description,
-       b.verified,
-       b.route_islands
-     from boats b
-     order by b.created_at desc`
-  );
+  try {
+    const boats = await query(
+      `select
+         b.id,
+         b.name,
+         b.location_text,
+         b.price_cents,
+         b.rating,
+         b.size_feet,
+         b.capacity,
+         b.type,
+         b.description,
+         b.verified,
+         coalesce(b.route_islands, '{}'::text[]) as route_islands
+       from boats b
+       order by b.created_at desc`
+    );
 
-  const boatIds = boats.rows.map((b) => b.id);
-  const images =
-    boatIds.length === 0
-      ? { rows: [] }
-      : await query(
-          `select boat_id, url, sort
-           from boat_images
-           where boat_id = any($1::uuid[])
-           order by boat_id, sort asc`,
-          [boatIds]
-        );
+    const boatIds = boats.rows.map((b) => b.id);
+    const images =
+      boatIds.length === 0
+        ? { rows: [] }
+        : await query(
+            `select boat_id, url, sort
+             from boat_images
+             where boat_id = any($1::uuid[])
+             order by boat_id, sort asc`,
+            [boatIds]
+          );
 
-  const locations =
-    boatIds.length === 0
-      ? { rows: [] }
-      : await query(
-          `select boat_id, name
-           from embark_locations
-           where boat_id = any($1::uuid[])
-           order by boat_id, name asc`,
-          [boatIds]
-        );
+    const locations =
+      boatIds.length === 0
+        ? { rows: [] }
+        : await query(
+            `select boat_id, name
+             from embark_locations
+             where boat_id = any($1::uuid[])
+             order by boat_id, name asc`,
+            [boatIds]
+          );
 
-  const amenityRows =
-    boatIds.length === 0
-      ? { rows: [] }
-      : await query(
-          `select ba.boat_id, a.name, ba.included
-           from boat_amenities ba
-           join amenities a on a.id = ba.amenity_id
-           where ba.boat_id = any($1::uuid[])
-           order by ba.boat_id, a.name asc`,
-          [boatIds]
-        );
+    const amenityRows =
+      boatIds.length === 0
+        ? { rows: [] }
+        : await query(
+            `select ba.boat_id, a.name, ba.included
+             from boat_amenities ba
+             join amenities a on a.id = ba.amenity_id
+             where ba.boat_id = any($1::uuid[])
+             order by ba.boat_id, a.name asc`,
+            [boatIds]
+          );
 
-  const byBoat = (rows, key) =>
-    rows.reduce((acc, r) => {
-      (acc[r.boat_id] ||= []).push(r[key]);
+    const byBoat = (rows, key) =>
+      rows.reduce((acc, r) => {
+        (acc[r.boat_id] ||= []).push(r[key]);
+        return acc;
+      }, {});
+    const imagesByBoat = images.rows.reduce((acc, r) => {
+      (acc[r.boat_id] ||= []).push(r.url);
       return acc;
     }, {});
-  const imagesByBoat = images.rows.reduce((acc, r) => {
-    (acc[r.boat_id] ||= []).push(r.url);
-    return acc;
-  }, {});
-  const locationsByBoat = byBoat(locations.rows, "name");
-  const amenitiesByBoat = amenityRows.rows.reduce((acc, r) => {
-    (acc[r.boat_id] ||= []).push({ nome: r.name, incluido: r.included });
-    return acc;
-  }, {});
+    const locationsByBoat = byBoat(locations.rows, "name");
+    const amenitiesByBoat = amenityRows.rows.reduce((acc, r) => {
+      (acc[r.boat_id] ||= []).push({ nome: r.name, incluido: r.included });
+      return acc;
+    }, {});
 
-  const payload = boats.rows.map((b) => ({
-    id: b.id,
-    nome: b.name,
-    distancia: b.location_text,
-    preco: `R$ ${(b.price_cents / 100).toLocaleString("pt-BR")}`,
-    nota: Number(b.rating).toFixed(1).replace(".", ","),
-    imagens: imagesByBoat[b.id] || [],
-    descricao: b.description,
-    verificado: b.verified,
-    tamanho: `${b.size_feet} pés`,
-    capacidade: b.capacity,
-    tipo: b.type,
-    amenidades: amenitiesByBoat[b.id] || [],
-    locaisEmbarque: locationsByBoat[b.id] || [],
-    routeIslands: Array.isArray(b.route_islands) ? b.route_islands : [],
-  }));
+    const payload = boats.rows.map((b) => ({
+      id: b.id,
+      nome: b.name,
+      distancia: b.location_text,
+      preco: formatBoatPreco(b.price_cents),
+      nota: formatBoatNota(b.rating),
+      imagens: imagesByBoat[b.id] || [],
+      descricao: b.description ?? "",
+      verificado: Boolean(b.verified),
+      tamanho: `${b.size_feet ?? 0} pés`,
+      capacidade: b.capacity ?? 0,
+      tipo: b.type,
+      amenidades: amenitiesByBoat[b.id] || [],
+      locaisEmbarque: locationsByBoat[b.id] || [],
+      routeIslands: normalizeRouteIslands(b.route_islands),
+    }));
 
-  return res.json({ boats: payload });
+    return res.json({ boats: payload });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // eslint-disable-next-line no-console
+    console.error("[GET /api/boats]", msg);
+    return res.status(503).json({ ok: false });
+  }
 });
 
 app.get("/api/boats/:id", async (req, res) => {
   const boatId = req.params.id;
-  const boat = await query(
-    `select
-       b.id,
-       b.owner_user_id,
-       b.name,
-       b.location_text,
-       b.price_cents,
-       b.rating,
-       b.size_feet,
-       b.capacity,
-       b.type,
-       b.description,
-       b.verified,
-       b.route_islands
-     from boats b
-     where b.id = $1
-     limit 1`,
-    [boatId]
-  );
-  const b = boat.rows[0];
-  if (!b) return res.status(404).send("Barco não encontrado.");
-
-  const [images, locations, amenities] = await Promise.all([
-    query(`select url, sort from boat_images where boat_id = $1 order by sort asc`, [boatId]),
-    query(`select name from embark_locations where boat_id = $1 order by name asc`, [boatId]),
-    query(
-      `select a.name, ba.included
-       from boat_amenities ba
-       join amenities a on a.id = ba.amenity_id
-       where ba.boat_id = $1
-       order by a.name asc`,
+  try {
+    const boat = await query(
+      `select
+         b.id,
+         b.owner_user_id,
+         b.name,
+         b.location_text,
+         b.price_cents,
+         b.rating,
+         b.size_feet,
+         b.capacity,
+         b.type,
+         b.description,
+         b.verified,
+         coalesce(b.route_islands, '{}'::text[]) as route_islands
+       from boats b
+       where b.id = $1
+       limit 1`,
       [boatId]
-    ),
-  ]);
+    );
+    const b = boat.rows[0];
+    if (!b) return res.status(404).send("Barco não encontrado.");
 
-  return res.json({
-    boat: {
-      id: b.id,
-      ownerUserId: b.owner_user_id,
-      nome: b.name,
-      distancia: b.location_text,
-      preco: `R$ ${(b.price_cents / 100).toLocaleString("pt-BR")}`,
-      nota: Number(b.rating).toFixed(1).replace(".", ","),
-      imagens: images.rows.map((r) => r.url),
-      descricao: b.description,
-      verificado: b.verified,
-      tamanho: `${b.size_feet} pés`,
-      capacidade: b.capacity,
-      tipo: b.type,
-      amenidades: amenities.rows.map((r) => ({ nome: r.name, incluido: r.included })),
-      locaisEmbarque: locations.rows.map((r) => r.name),
-      routeIslands: Array.isArray(b.route_islands) ? b.route_islands : [],
-    },
-  });
+    const [images, locations, amenities] = await Promise.all([
+      query(`select url, sort from boat_images where boat_id = $1 order by sort asc`, [boatId]),
+      query(`select name from embark_locations where boat_id = $1 order by name asc`, [boatId]),
+      query(
+        `select a.name, ba.included
+         from boat_amenities ba
+         join amenities a on a.id = ba.amenity_id
+         where ba.boat_id = $1
+         order by a.name asc`,
+        [boatId]
+      ),
+    ]);
+
+    return res.json({
+      boat: {
+        id: b.id,
+        ownerUserId: b.owner_user_id,
+        nome: b.name,
+        distancia: b.location_text,
+        preco: formatBoatPreco(b.price_cents),
+        nota: formatBoatNota(b.rating),
+        imagens: images.rows.map((r) => r.url),
+        descricao: b.description ?? "",
+        verificado: Boolean(b.verified),
+        tamanho: `${b.size_feet ?? 0} pés`,
+        capacidade: b.capacity ?? 0,
+        tipo: b.type,
+        amenidades: amenities.rows.map((r) => ({ nome: r.name, incluido: r.included })),
+        locaisEmbarque: locations.rows.map((r) => r.name),
+        routeIslands: normalizeRouteIslands(b.route_islands),
+      },
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // eslint-disable-next-line no-console
+    console.error("[GET /api/boats/:id]", boatId, msg);
+    return res.status(503).json({ ok: false });
+  }
 });
 
 // --- Favorites (por usuário logado) ---
@@ -445,7 +475,7 @@ app.get("/api/favorites", requireAuth, async (req, res) => {
         id: r.boat_id,
         nome: r.name,
         distancia: r.location_text,
-        preco: `R$ ${(r.price_cents / 100).toLocaleString("pt-BR")}`,
+        preco: formatBoatPreco(r.price_cents),
       })),
     });
   } catch (e) {

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import L from "leaflet";
 
@@ -128,16 +129,26 @@ function estimateDurationHours(locationText: string, route: RouteItem, boatId: s
   return Math.max(1, Math.round((sailHours + stopHours) * 10) / 10);
 }
 
-function customRouteFromIslands(routeIslands: string[] | undefined, locationText: string, boatId: string): RouteItem | null {
+function customRouteFromIslands(
+  routeIslands: string[] | undefined,
+  locationText: string,
+  boatId: string,
+  customTitle: string
+): RouteItem | null {
   const stops = (routeIslands || []).map((ilha) => ilha.trim()).filter(Boolean).map((ilha) => ({ ilha, paradaMin: 40 }));
   if (stops.length === 0) return null;
-  const custom: RouteItem = { nome: "Roteiro personalizado do locatário", duracaoHoras: 0, stops };
+  const custom: RouteItem = { nome: customTitle, duracaoHoras: 0, stops };
   custom.duracaoHoras = estimateDurationHours(locationText, custom, boatId);
   return custom;
 }
 
-function getRoutesForBoat(boatId: string, locationText: string, routeIslands?: string[]): RouteItem[] {
-  const custom = customRouteFromIslands(routeIslands, locationText, boatId);
+function getRoutesForBoat(
+  boatId: string,
+  locationText: string,
+  routeIslands: string[] | undefined,
+  customOwnerRouteTitle: string
+): RouteItem[] {
+  const custom = customRouteFromIslands(routeIslands, locationText, boatId, customOwnerRouteTitle);
   if (custom) return [custom];
   const base = ROUTES_BY_REGION[locationText] || ROUTES_BY_REGION["Angra dos Reis/RJ"];
   if (base.length <= 1) return base;
@@ -228,7 +239,11 @@ function makeStopIcon(n: number) {
 }
 
 export function BoatRoutes({ boatId, locationText, routeIslands }: BoatRoutesProps) {
-  const routes = getRoutesForBoat(boatId, locationText, routeIslands);
+  const { t, i18n } = useTranslation();
+  const routes = useMemo(
+    () => getRoutesForBoat(boatId, locationText, routeIslands, t("boatRoutes.customName")),
+    [boatId, locationText, routeIslands, t, i18n.language]
+  );
   const [selectedIdx, setSelectedIdx] = useState(0);
   const selected = routes[selectedIdx] || routes[0];
   const coords = useMemo(
@@ -239,13 +254,9 @@ export function BoatRoutes({ boatId, locationText, routeIslands }: BoatRoutesPro
   return (
     <section className="bg-card rounded-xl border border-border p-4 space-y-3">
       <div>
-        <h3 className="text-base font-bold text-foreground">Roteiros sugeridos</h3>
-        <p className="text-xs text-muted-foreground">
-          Rotas fictícias com navegação de ilha em ilha para este passeio.
-        </p>
-        <p className="text-[11px] text-muted-foreground mt-1">
-          Trajeto marítimo estimado, podendo contornar costa e ilhas durante a navegação.
-        </p>
+        <h3 className="text-base font-bold text-foreground">{t("boatRoutes.title")}</h3>
+        <p className="text-xs text-muted-foreground">{t("boatRoutes.subtitle")}</p>
+        <p className="text-[11px] text-muted-foreground mt-1">{t("boatRoutes.hint")}</p>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border">
@@ -262,7 +273,10 @@ export function BoatRoutes({ boatId, locationText, routeIslands }: BoatRoutesPro
           {coords.slice(1).map((p, i) => (
             <Marker key={`stop-${i}`} position={[p.lat, p.lng]} icon={makeStopIcon(i + 1)}>
               <Popup>
-                {selected.stops[i]?.ilha} • parada ~{selected.stops[i]?.paradaMin}min
+                {t("boatRoutes.stopPopup", {
+                  place: selected.stops[i]?.ilha ?? "",
+                  min: selected.stops[i]?.paradaMin ?? 0,
+                })}
               </Popup>
             </Marker>
           ))}
@@ -280,7 +294,9 @@ export function BoatRoutes({ boatId, locationText, routeIslands }: BoatRoutesPro
           >
             <div className="flex items-center justify-between gap-2 mb-2">
               <h4 className="text-sm font-semibold text-foreground">{route.nome}</h4>
-              <span className="text-xs text-muted-foreground">{route.duracaoHoras}h</span>
+              <span className="text-xs text-muted-foreground">
+                {t("boatRoutes.hours", { h: route.duracaoHoras })}
+              </span>
             </div>
 
             <div className="space-y-2">
@@ -290,7 +306,9 @@ export function BoatRoutes({ boatId, locationText, routeIslands }: BoatRoutesPro
                     {idx + 1}
                   </span>
                   <span className="text-foreground">{stop.ilha}</span>
-                  <span className="text-muted-foreground">• parada ~{stop.paradaMin}min</span>
+                  <span className="text-muted-foreground">
+                    {t("boatRoutes.stopLine", { min: stop.paradaMin })}
+                  </span>
                 </div>
               ))}
             </div>

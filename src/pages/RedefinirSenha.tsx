@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { apiUrl } from "@/lib/auth";
 
 const RedefinirSenha = () => {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get("token") || "";
@@ -45,11 +48,11 @@ const RedefinirSenha = () => {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirm) {
-      toast.error("As senhas não coincidem.");
+      toast.error(t("redefinir.toastMismatch"));
       return;
     }
     if (password.length < 6) {
-      toast.error("A senha deve ter pelo menos 6 caracteres.");
+      toast.error(t("redefinir.toastShort"));
       return;
     }
     setLoading(true);
@@ -61,12 +64,12 @@ const RedefinirSenha = () => {
       });
       if (!resp.ok) {
         const text = await resp.text().catch(() => "");
-        throw new Error(text || "Não foi possível redefinir a senha.");
+        throw new Error(text || t("redefinir.toastResetFail"));
       }
-      toast.success("Senha alterada. Faça login com a nova senha.");
+      toast.success(t("redefinir.toastOk"));
       navigate("/login", { replace: true });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao redefinir.");
+      toast.error(err instanceof Error ? err.message : t("redefinir.toastResetFail"));
     } finally {
       setLoading(false);
     }
@@ -75,7 +78,10 @@ const RedefinirSenha = () => {
   if (checking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-4">
-        <p className="text-muted-foreground">Verificando link...</p>
+        <div className="absolute top-4 right-4">
+          <HeaderSettingsMenu />
+        </div>
+        <p className="text-muted-foreground">{t("redefinir.checking")}</p>
       </div>
     );
   }
@@ -83,16 +89,17 @@ const RedefinirSenha = () => {
   if (!token || !valid) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <div className="absolute top-4 right-4">
+          <HeaderSettingsMenu />
+        </div>
         <div className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-card space-y-4 text-center">
-          <h1 className="text-xl font-bold text-foreground">Link inválido ou expirado</h1>
-          <p className="text-sm text-muted-foreground">
-            Solicite um novo link em &quot;Esqueci minha senha&quot; na tela de login.
-          </p>
+          <h1 className="text-xl font-bold text-foreground">{t("redefinir.invalidTitle")}</h1>
+          <p className="text-sm text-muted-foreground">{t("redefinir.invalidHint")}</p>
           <Button asChild className="w-full">
-            <Link to="/recuperar-senha">Pedir novo link</Link>
+            <Link to="/recuperar-senha">{t("redefinir.newLink")}</Link>
           </Button>
           <Button variant="ghost" asChild className="w-full">
-            <Link to="/login">Ir para login</Link>
+            <Link to="/login">{t("redefinir.goLogin")}</Link>
           </Button>
         </div>
       </div>
@@ -101,44 +108,47 @@ const RedefinirSenha = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
+      <div className="absolute top-4 right-4">
+        <HeaderSettingsMenu />
+      </div>
       <div className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-card space-y-4">
         <div>
-          <h1 className="text-xl font-bold text-foreground">Nova senha</h1>
-          <p className="text-sm text-muted-foreground">Escolha uma senha nova para sua conta.</p>
+          <h1 className="text-xl font-bold text-foreground">{t("redefinir.newPassTitle")}</h1>
+          <p className="text-sm text-muted-foreground">{t("redefinir.newPassSubtitle")}</p>
         </div>
 
         <form className="space-y-3" onSubmit={onSubmit}>
           <div className="space-y-1">
-            <Label htmlFor="password">Nova senha</Label>
+            <Label htmlFor="password">{t("redefinir.newPass")}</Label>
             <Input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="mínimo 6 caracteres"
+              placeholder={t("redefinir.passPh")}
               required
               minLength={6}
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="confirm">Confirmar senha</Label>
+            <Label htmlFor="confirm">{t("redefinir.confirm")}</Label>
             <Input
               id="confirm"
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              placeholder="repita a senha"
+              placeholder={t("redefinir.confirmPh")}
               required
               minLength={6}
             />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Salvando..." : "Salvar nova senha"}
+            {loading ? t("redefinir.saving") : t("redefinir.save")}
           </Button>
         </form>
 
         <Button variant="ghost" asChild className="w-full">
-          <Link to="/login">Voltar ao login</Link>
+          <Link to="/login">{t("redefinir.backLogin")}</Link>
         </Button>
       </div>
     </div>

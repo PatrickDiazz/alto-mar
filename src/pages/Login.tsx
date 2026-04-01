@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { apiUrl, setSession } from "@/lib/auth";
 
 const Login = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState("");
@@ -27,14 +30,14 @@ const Login = () => {
       });
       if (!resp.ok) {
         const text = await resp.text().catch(() => "");
-        throw new Error(text || "Falha no login.");
+        throw new Error(text || t("login.toastFail"));
       }
       const data = (await resp.json()) as { token: string; user: any };
       setSession(data.token, data.user);
-      toast.success("Login realizado.");
+      toast.success(t("login.toastOk"));
       navigate(from, { replace: true });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Falha no login.");
+      toast.error(err instanceof Error ? err.message : t("login.toastFail"));
     } finally {
       setLoading(false);
     }
@@ -42,17 +45,20 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
+      <div className="absolute top-4 right-4">
+        <HeaderSettingsMenu />
+      </div>
       <div className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-card space-y-4">
         <div>
-          <h1 className="text-xl font-bold text-foreground">Entrar</h1>
+          <h1 className="text-xl font-bold text-foreground">{t("login.title")}</h1>
           <p className="text-sm text-muted-foreground">
-            {isMarinheiroLogin ? "Área do locatário — acesse seu painel de reservas." : "Acesse sua conta."}
+            {isMarinheiroLogin ? t("login.subtitleRenter") : t("login.subtitleDefault")}
           </p>
         </div>
 
         <form className="space-y-3" onSubmit={onSubmit}>
           <div className="space-y-1">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("common.email")}</Label>
             <Input
               id="email"
               type="email"
@@ -63,7 +69,7 @@ const Login = () => {
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="password">Senha</Label>
+            <Label htmlFor="password">{t("common.password")}</Label>
             <Input
               id="password"
               type="password"
@@ -74,24 +80,20 @@ const Login = () => {
             />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Entrando..." : "Entrar"}
+            {loading ? t("login.submitting") : t("login.submit")}
           </Button>
         </form>
 
         <p className="text-sm text-center">
-          <Link
-            className="text-primary font-semibold hover:underline"
-            to="/recuperar-senha"
-            state={location.state}
-          >
-            Esqueci minha senha
+          <Link className="text-primary font-semibold hover:underline" to="/recuperar-senha" state={location.state}>
+            {t("login.forgot")}
           </Link>
         </p>
 
         <p className="text-sm text-muted-foreground">
-          Não tem conta?{" "}
+          {t("login.noAccount")}{" "}
           <Link className="text-primary font-semibold hover:underline" to="/signup" state={location.state}>
-            {isMarinheiroLogin ? "Criar conta como locatário" : "Criar conta"}
+            {isMarinheiroLogin ? t("login.signupRenter") : t("login.signup")}
           </Link>
         </p>
       </div>
@@ -100,4 +102,3 @@ const Login = () => {
 };
 
 export default Login;
-

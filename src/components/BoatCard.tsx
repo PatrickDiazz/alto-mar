@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { BadgeCheck, Heart } from "lucide-react";
 import type { Boat } from "@/lib/types";
 
@@ -10,6 +11,7 @@ interface BoatCardProps {
 }
 
 const BoatCard = ({ barco, isFavorited = false, onToggleFavorite }: BoatCardProps) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [currentImage, setCurrentImage] = useState(0);
 
@@ -41,7 +43,7 @@ const BoatCard = ({ barco, isFavorited = false, onToggleFavorite }: BoatCardProp
               onToggleFavorite(barco.id);
             }}
             className="absolute top-2 right-2 rounded-full bg-background/85 p-2 text-foreground hover:bg-background transition"
-            aria-label={isFavorited ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+            aria-label={isFavorited ? t("boatCard.favRemove") : t("boatCard.favAdd")}
           >
             <Heart
               className={`w-4 h-4 ${isFavorited ? "fill-red-500 text-red-500" : "text-foreground"}`}
