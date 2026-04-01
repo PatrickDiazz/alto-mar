@@ -122,10 +122,13 @@ Só avance para a **Parte C** (API) quando o schema tiver rodado **sem erro** e 
 ## Parte D — Front no Vercel
 
 1. [vercel.com](https://vercel.com) → **Add New** → **Project** → importe o mesmo repositório GitHub.  
-2. **Framework Preset**: **Vite** (ou “Other” com build `npm run build` e pasta de saída `dist`).  
-3. **Root Directory**: **vazio** ou **`.`** — tem de ser a raiz do monorepo onde está o `package.json` com o script `"build": "vite build"`. **Não** use `server` aqui (isso é só no Railway).  
-4. **Build Command**: `npm run build` · **Output Directory**: `dist` (a Vercel costuma preencher sozinha para Vite).  
-5. Em **Environment Variables** (para **Production**):
+2. No menu lateral do projeto, abra **Settings** (Definições).  
+3. Vá a **Build and Deployment** (pode aparecer como **Build & Development** ou **Compilação** — **não** está só em “General”). Lá estão:
+   - **Root Directory** — deixe **vazio** ou **`.`** (raiz do repo onde está o `package.json` com `vite`). **Não** use `server` (isso é só no Railway).  
+   - **Framework Preset** — **Vite** (ou “Other” com build `npm run build` e saída `dist`).  
+   - **Build Command** — `npm run build`  
+   - **Output Directory** — `dist` (muitas vezes preenchido automaticamente para Vite).  
+4. **Environment Variables** (no mesmo **Settings**, secção **Environment Variables**; para **Production**):
 
    ```
    VITE_API_BASE_URL = https://SUA-API.up.railway.app
@@ -133,11 +136,11 @@ Só avance para a **Parte C** (API) quando o schema tiver rodado **sem erro** e 
 
    Sem barra no final. Use exatamente a URL HTTPS que o Railway mostra para o serviço da API.
 
-6. **Deploy**.
+5. **Deploy**.
 
-7. Abra a URL do Vercel (ex. `https://alto-mar.vercel.app`). Teste login e listagem de barcos.
+6. Abra a URL do Vercel (ex. `https://alto-mar.vercel.app`). Teste login e listagem de barcos.
 
-8. Volte no **Railway** → variável **`FRONTEND_URL`** = URL final do Vercel (com `https://`) → **Redeploy** a API para o CORS aceitar o front.
+7. Volte no **Railway** → variável **`FRONTEND_URL`** = URL final do Vercel (com `https://`) → **Redeploy** a API para o CORS aceitar o front.
 
 ### D.1 — Erro “The page could not be found” / `NOT_FOUND` (Vercel)
 
@@ -145,7 +148,7 @@ Isso é **404 da Vercel**, não do React. Quase sempre é **configuração do pr
 
 | Verificar | O que deve estar |
 |-----------|------------------|
-| **Root Directory** (Settings → General) | Vazio ou `.` — **não** `server`. |
+| **Root Directory** (**Settings → Build and Deployment**) | Vazio ou `.` — **não** `server`. |
 | **Build** | Último deploy com **Build** verde; abra os logs e confirme `vite build` e pasta `dist/`. |
 | **Output Directory** | `dist` (só o front; não confundir com a API). |
 | **Framework** | Vite, ou comando de build explícito. |
