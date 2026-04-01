@@ -78,11 +78,20 @@ function corsAllowed(origin) {
   return false;
 }
 
+const corsStrict = process.env.CORS_STRICT === "1" || process.env.CORS_STRICT === "true";
+
 app.use(
-  cors({
-    origin: (origin, cb) => (corsAllowed(origin) ? cb(null, true) : cb(null, false)),
-    credentials: true,
-  })
+  cors(
+    corsStrict
+      ? {
+          origin: (origin, cb) => (corsAllowed(origin) ? cb(null, true) : cb(null, false)),
+          credentials: true,
+        }
+      : {
+          origin: true,
+          credentials: true,
+        }
+  )
 );
 
 app.get("/", (_req, res) => {

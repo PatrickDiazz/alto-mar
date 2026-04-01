@@ -134,7 +134,10 @@ Só avance para a **Parte C** (API) quando o schema tiver rodado **sem erro** e 
    VITE_API_BASE_URL = https://SUA-API.up.railway.app
    ```
 
-   Sem barra no final. Use exatamente a URL HTTPS que o Railway mostra para o serviço da API.
+   - **Sem** barra no fim. **Sem** `/api` no fim (o app já envia `/api/auth/login`, etc.).  
+   - Marque a variável para **Production** e para **Preview** se usar previews.  
+   - **Redeploy** depois de criar ou alterar (o Vite “cozinha” isto no build).  
+   - Se o login falhar com “Failed to fetch”, abra no browser `https://SUA-API.up.railway.app/api/health` — tem de devolver JSON `{"ok":true,...}`.
 
 5. **Deploy**.
 

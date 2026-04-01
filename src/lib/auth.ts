@@ -10,6 +10,16 @@ export type AuthUser = {
 const TOKEN_KEY = "alto_mar_token";
 const USER_KEY = "alto_mar_user";
 
+/** Evita `...railway.app/api` + `/api/auth/login` → URL com `/api` duplicado. */
+function normalizeApiBase(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  let b = raw.trim().replace(/\/$/, "");
+  if (b.endsWith("/api")) {
+    b = b.slice(0, -4);
+  }
+  return b.replace(/\/$/, "");
+}
+
 /**
  * Monta a URL da API.
  *
@@ -24,7 +34,7 @@ export function apiUrl(path: string) {
   const pathNorm = path.startsWith("/") ? path : `/${path}`;
   const forceDirect =
     import.meta.env.VITE_API_ALWAYS_DIRECT === "1" || import.meta.env.VITE_API_ALWAYS_DIRECT === "true";
-  const base = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim().replace(/\/$/, "");
+  const base = normalizeApiBase(import.meta.env.VITE_API_BASE_URL as string | undefined);
 
   if (import.meta.env.DEV) {
     if (base && forceDirect) return `${base}${pathNorm}`;
