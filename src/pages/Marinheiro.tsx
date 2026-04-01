@@ -32,6 +32,19 @@ type OwnerBoat = {
   imagens: string[];
 };
 
+type OwnerBookingRow = {
+  id: string;
+  status: string;
+  passengersAdults: number;
+  passengersChildren: number;
+  hasKids: boolean;
+  bbqKit: boolean;
+  embarkLocation: string;
+  totalCents: number;
+  boat: { id: string; nome: string };
+  renter: { id: string; nome: string; email: string };
+};
+
 const emptyBoatForm: Omit<OwnerBoat, "id" | "preco" | "nota" | "tamanho"> = {
   nome: "",
   distancia: "",
@@ -68,7 +81,7 @@ const Marinheiro_Page = () => {
   const user = getStoredUser();
   const [noteById, setNoteById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
-  const [bookings, setBookings] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<OwnerBookingRow[]>([]);
   const [boats, setBoats] = useState<OwnerBoat[]>([]);
   const [editingBoatId, setEditingBoatId] = useState<string | null>(null);
   const [boatForm, setBoatForm] = useState<OwnerBoat | null>(null);
@@ -95,7 +108,7 @@ const Marinheiro_Page = () => {
     try {
       const resp = await authFetch("/api/owner/bookings?status=PENDING");
       if (!resp.ok) throw new Error(await resp.text());
-      const data = (await resp.json()) as { bookings: any[] };
+      const data = (await resp.json()) as { bookings: OwnerBookingRow[] };
       setBookings(data.bookings);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("marinheiro.toastBookings"));

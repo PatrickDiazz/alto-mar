@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
-import { apiUrl, setSession } from "@/lib/auth";
+import { apiUrl, setSession, type AuthUser } from "@/lib/auth";
 
 const Login = () => {
   const { t } = useTranslation();
@@ -52,7 +52,7 @@ const Login = () => {
         }
         throw new Error(msg);
       }
-      const data = (await resp.json()) as { token: string; user: any };
+      const data = (await resp.json()) as { token: string; user: AuthUser };
       setSession(data.token, data.user);
       toast.success(t("login.toastOk"));
       navigate(from, { replace: true });

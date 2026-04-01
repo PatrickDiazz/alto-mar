@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
-import { apiUrl, setSession, type UserRole } from "@/lib/auth";
+import { apiUrl, setSession, type AuthUser, type UserRole } from "@/lib/auth";
 
 const Signup = () => {
   const { t } = useTranslation();
@@ -33,7 +33,7 @@ const Signup = () => {
         const text = await resp.text().catch(() => "");
         throw new Error(text || t("signup.toastFail"));
       }
-      const data = (await resp.json()) as { token: string; user: any };
+      const data = (await resp.json()) as { token: string; user: AuthUser };
       setSession(data.token, data.user);
       toast.success(t("signup.toastOk"));
       navigate(from || "/", { replace: true });
