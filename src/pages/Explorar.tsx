@@ -70,8 +70,9 @@ const Explorar = () => {
       try {
         const resp = await authFetch("/api/favorites");
         if (!resp.ok) throw new Error(await resp.text());
-        const data = (await resp.json()) as { boatIds: string[] };
-        if (active) setFavoriteIds(new Set(data.boatIds));
+        const data = (await resp.json()) as { boatIds?: string[] };
+        const ids = Array.isArray(data.boatIds) ? data.boatIds : [];
+        if (active) setFavoriteIds(new Set(ids));
       } catch (e) {
         const msg = e instanceof Error ? e.message : t("explorar.favLoadError");
         if (!msg.includes("user_boat_favorites")) {
@@ -88,6 +89,7 @@ const Explorar = () => {
   const toggleFavorite = async (boatId: string) => {
     if (!user) return;
     const already = favoriteIds.has(boatId);
+    const before = new Set(favoriteIds);
     const next = new Set(favoriteIds);
     if (already) next.delete(boatId);
     else next.add(boatId);
@@ -99,7 +101,7 @@ const Explorar = () => {
       });
       if (!resp.ok) throw new Error(await resp.text());
     } catch (e) {
-      setFavoriteIds(new Set(favoriteIds));
+      setFavoriteIds(before);
       toast.error(e instanceof Error ? e.message : t("explorar.favToggleError"));
     }
   };

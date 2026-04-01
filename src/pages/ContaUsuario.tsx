@@ -52,7 +52,8 @@ const ContaUsuario = () => {
         };
         if (!active) return;
         setMe(meData.user);
-        setFavoriteIds(new Set(favData.boatIds));
+        const ids = Array.isArray(favData.boatIds) ? favData.boatIds : [];
+        setFavoriteIds(new Set(ids));
         setFavoriteBoats(favData.boats || []);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : t("conta.toastLoad"));
@@ -66,6 +67,7 @@ const ContaUsuario = () => {
 
   const toggleFavorite = async (boatId: string) => {
     const has = favoriteIds.has(boatId);
+    const before = new Set(favoriteIds);
     const next = new Set(favoriteIds);
     if (has) next.delete(boatId);
     else next.add(boatId);
@@ -77,7 +79,7 @@ const ContaUsuario = () => {
         setFavoriteBoats((prev) => prev.filter((b) => b.id !== boatId));
       }
     } catch (e) {
-      setFavoriteIds(new Set(favoriteIds));
+      setFavoriteIds(before);
       toast.error(e instanceof Error ? e.message : t("conta.toastFav"));
     }
   };

@@ -14,15 +14,22 @@ const BoatCard = ({ barco, isFavorited = false, onToggleFavorite }: BoatCardProp
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [currentImage, setCurrentImage] = useState(0);
-
-  const nextImage = useCallback(() => {
-    setCurrentImage((prev) => (prev + 1) % barco.imagens.length);
-  }, [barco.imagens.length]);
+  const n = barco.imagens?.length ?? 0;
 
   useEffect(() => {
+    setCurrentImage(0);
+  }, [barco.id]);
+
+  const nextImage = useCallback(() => {
+    if (n <= 0) return;
+    setCurrentImage((prev) => (prev + 1) % n);
+  }, [n]);
+
+  useEffect(() => {
+    if (n <= 0) return;
     const timer = setInterval(nextImage, 3000);
     return () => clearInterval(timer);
-  }, [nextImage]);
+  }, [nextImage, n]);
 
   return (
     <div
@@ -30,11 +37,17 @@ const BoatCard = ({ barco, isFavorited = false, onToggleFavorite }: BoatCardProp
       onClick={() => navigate(`/barco/${barco.id}`)}
     >
       <div className="aspect-square overflow-hidden rounded-lg relative">
-        <img
-          src={barco.imagens[currentImage]}
-          alt={barco.nome}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-        />
+        {n > 0 ? (
+          <img
+            src={barco.imagens[Math.min(currentImage, n - 1)]}
+            alt={barco.nome}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="w-full h-full bg-muted flex items-center justify-center text-[10px] text-muted-foreground px-2 text-center">
+            {barco.nome}
+          </div>
+        )}
         {onToggleFavorite && (
           <button
             type="button"
