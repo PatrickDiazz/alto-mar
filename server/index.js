@@ -65,9 +65,22 @@ const allowedOrigins = [
   "http://127.0.0.1:8081",
   ...extraCors,
 ].filter(Boolean);
+
+function corsAllowed(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  try {
+    const host = new URL(origin).hostname;
+    if (host.endsWith(".vercel.app")) return true;
+  } catch {
+    /* ignore */
+  }
+  return false;
+}
+
 app.use(
   cors({
-    origin: (origin, cb) => (origin && allowedOrigins.includes(origin) ? cb(null, true) : cb(null, allowedOrigins[0])),
+    origin: (origin, cb) => (corsAllowed(origin) ? cb(null, true) : cb(null, false)),
     credentials: true,
   })
 );

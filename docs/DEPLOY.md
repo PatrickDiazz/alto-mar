@@ -18,7 +18,8 @@ Variáveis importantes:
 | Railway (API) | `JWT_SECRET` | string longa e aleatória (não compartilhe) |
 | Railway (API) | `FRONTEND_URL` | URL do Vercel, ex. `https://alto-mar.vercel.app` |
 | Railway (API) | `PORT` | **não defina** — o Railway define sozinho |
-| Vercel (build) | `VITE_API_BASE_URL` | URL pública da API, ex. `https://alto-mar-api.up.railway.app` |
+| Vercel (**Build** / Production) | `VITE_API_BASE_URL` | **Recomendado:** URL pública da API na Railway, ex. `https://alto-mar-production.up.railway.app` (sem `/` no fim). O front passa a chamar a API **diretamente**; evita depender do proxy. |
+| Vercel (Runtime) | `ALTO_MAR_API_ORIGIN` | Só se **não** usares `VITE_API_BASE_URL` no build: mesma URL da API, para o proxy em `api/[...path].js`. |
 
 ---
 
