@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Anchor, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, Anchor, Pencil, Plus, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,6 +15,28 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { readResponseErrorMessage } from "@/lib/responseError";
 import { BoatCalendarPanel } from "@/components/BoatCalendarPanel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+
+const OWNER_BOOKINGS_SEEN_FP_KEY = "alto_mar_owner_bookings_seen_fp";
+
+function ownerBookingsFingerprint(rows: OwnerBookingRow[]): string {
+  return [...rows]
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map((b) =>
+      [
+        b.id,
+        b.status,
+        b.bookingDate ?? "",
+        b.totalCents,
+        b.passengersAdults,
+        b.passengersChildren,
+        b.bbqKit ? "1" : "0",
+        (b.routeIslands || []).join("\u001f"),
+        b.embarkLocation,
+      ].join("\u0001")
+    )
+    .join("\u0002");
+}
 
 type OwnerBoat = {
   id: string;
@@ -105,6 +127,8 @@ const Marinheiro_Page = () => {
   const [routePhotoRights, setRoutePhotoRights] = useState(false);
   const [routeIslandImagesNew, setRouteIslandImagesNew] = useState<Record<string, string[]>>({});
   const [calendarBoatId, setCalendarBoatId] = useState<string | null>(null);
+  /** True quando a lista de reservas mudou face ao último “visto” guardado em sessionStorage */
+  const [hasUnseenReservationActivity, setHasUnseenReservationActivity] = useState(false);
 
   const isLocatario = user?.role === "locatario";
   const pendentes = useMemo(() => bookings.filter((b) => b.status === "PENDING"), [bookings]);
@@ -135,7 +159,7 @@ const Marinheiro_Page = () => {
     navigate(goHome ? "/" : "/explorar", { replace: true });
   };
 
-  const carregarPendentes = async () => {
+  const carregarPendentes = async (opts?: { ownerCausedUpdate?: boolean }) => {
     setLoading(true);
     try {
       const resp = await authFetch("/api/owner/bookings");
@@ -144,7 +168,25 @@ const Marinheiro_Page = () => {
         throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastBookings")));
       }
       const data = (await resp.json()) as { bookings: OwnerBookingRow[] };
-      setBookings(data.bookings);
+      const list = data.bookings || [];
+      setBookings(list);
+      const fp = ownerBookingsFingerprint(list);
+      try {
+        if (opts?.ownerCausedUpdate) {
+          sessionStorage.setItem(OWNER_BOOKINGS_SEEN_FP_KEY, fp);
+          setHasUnseenReservationActivity(false);
+        } else {
+          const prev = sessionStorage.getItem(OWNER_BOOKINGS_SEEN_FP_KEY);
+          if (prev === null) {
+            sessionStorage.setItem(OWNER_BOOKINGS_SEEN_FP_KEY, fp);
+            setHasUnseenReservationActivity(false);
+          } else {
+            setHasUnseenReservationActivity(prev !== fp);
+          }
+        }
+      } catch {
+        setHasUnseenReservationActivity(false);
+      }
     } catch (e) {
       const m = (e instanceof Error ? e.message : t("marinheiro.toastBookings")).trim();
       toast.error(m || t("marinheiro.toastBookings"), { id: "owner-bookings" });
@@ -162,7 +204,7 @@ const Marinheiro_Page = () => {
         throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastCompleteFail")));
       }
       toast.success(t("marinheiro.toastCompleteOk"));
-      await carregarPendentes();
+      await carregarPendentes({ ownerCausedUpdate: true });
     } catch (e) {
       const m = (e instanceof Error ? e.message : t("marinheiro.toastCompleteFail")).trim();
       toast.error(m || t("marinheiro.toastCompleteFail"));
@@ -199,13 +241,24 @@ const Marinheiro_Page = () => {
         throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastBookingUpdate")));
       }
       toast.success(action === "accept" ? t("marinheiro.toastAccept") : t("marinheiro.toastDecline"));
-      await carregarPendentes();
+      await carregarPendentes({ ownerCausedUpdate: true });
     } catch (e) {
       const m = (e instanceof Error ? e.message : t("marinheiro.toastBookingUpdate")).trim();
       toast.error(m || t("marinheiro.toastBookingUpdate"));
     } finally {
       setLoading(false);
     }
+  };
+
+  const acknowledgeReservationsView = () => {
+    const fp = ownerBookingsFingerprint(bookings);
+    try {
+      sessionStorage.setItem(OWNER_BOOKINGS_SEEN_FP_KEY, fp);
+    } catch {
+      /* ignore */
+    }
+    setHasUnseenReservationActivity(false);
+    document.getElementById("marinheiro-reservas-pendente")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const iniciarEdicao = (boat: OwnerBoat) => {
@@ -408,6 +461,152 @@ const Marinheiro_Page = () => {
           </div>
         ) : (
           <>
+            <section id="marinheiro-reservas" className="space-y-5 rounded-xl border border-primary/25 bg-card p-4 shadow-card">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <ClipboardList className="w-5 h-5 text-primary shrink-0" />
+                  <h2 className="text-lg font-semibold text-foreground truncate">{t("marinheiro.bookingsHubTitle")}</h2>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={hasUnseenReservationActivity ? "default" : "secondary"}
+                  className={cn(
+                    "relative gap-2 shrink-0",
+                    hasUnseenReservationActivity && "ring-2 ring-primary/70 shadow-sm"
+                  )}
+                  onClick={acknowledgeReservationsView}
+                  title={t("marinheiro.reservationsButtonTitle")}
+                >
+                  <ClipboardList className="w-4 h-4 shrink-0" />
+                  <span className="relative inline-flex items-center">
+                    {t("marinheiro.reservationsButton")}
+                    {pendentes.length > 0 ? (
+                      <Badge
+                        variant="secondary"
+                        className="ml-2 h-5 min-w-[1.25rem] justify-center bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        {pendentes.length > 99 ? "99+" : pendentes.length}
+                      </Badge>
+                    ) : null}
+                    {hasUnseenReservationActivity ? (
+                      <span
+                        className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-card"
+                        aria-hidden
+                      />
+                    ) : null}
+                  </span>
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-2">{t("marinheiro.bookingsHubHint")}</p>
+
+              <div id="marinheiro-reservas-pendente" className="space-y-3 scroll-mt-24">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-base font-semibold text-foreground">{t("marinheiro.pendingTitle")}</h3>
+                  <Badge variant="outline">{pendentes.length}</Badge>
+                </div>
+
+                {pendentes.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">{t("marinheiro.noPending")}</p>
+                ) : (
+                  <div className="space-y-3">
+                    {pendentes.map((b) => (
+                      <div key={b.id} className="border border-border rounded-xl bg-card p-4 shadow-card space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-foreground truncate">{b.boat.nome}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {t("marinheiro.client")} {b.renter.nome} ({b.renter.email})
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {t("marinheiro.embark")} {b.embarkLocation} • {t("marinheiro.total")}{" "}
+                              {currencyFmt.format(b.totalCents / 100)}
+                            </p>
+                            {b.bookingDate ? (
+                              <p className="text-xs font-medium text-foreground">
+                                {t("marinheiro.bookingDateLabel")}: {b.bookingDate}
+                              </p>
+                            ) : null}
+                            <p className="text-xs text-muted-foreground">
+                              {t("marinheiro.passengers")} {b.passengersAdults} {t("marinheiro.adults")}
+                              {b.hasKids ? ` + ${b.passengersChildren} ${t("marinheiro.kids")}` : ""}
+                              {b.bbqKit ? ` • ${t("marinheiro.bbq")}` : ""}
+                            </p>
+                            {b.routeIslands && b.routeIslands.length > 0 ? (
+                              <p className="text-xs text-muted-foreground">
+                                {t("marinheiro.bookingRoute")}: {b.routeIslands.join(", ")}
+                              </p>
+                            ) : null}
+                          </div>
+                          <Badge className="bg-accent text-accent-foreground">{t("marinheiro.pendingBadge")}</Badge>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label>{t("marinheiro.noteLabel")}</Label>
+                          <Textarea
+                            value={noteById[b.id] || ""}
+                            onChange={(e) => setNoteById((p) => ({ ...p, [b.id]: e.target.value }))}
+                            placeholder={t("marinheiro.notePh")}
+                            rows={2}
+                          />
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button className="flex-1" onClick={() => decidir(b.id, "accept")} disabled={loading}>
+                            {t("marinheiro.accept")}
+                          </Button>
+                          <Button className="flex-1" variant="destructive" onClick={() => decidir(b.id, "decline")} disabled={loading}>
+                            {t("marinheiro.decline")}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div id="marinheiro-reservas-curso" className="space-y-3 border-t border-border pt-4 scroll-mt-24">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-base font-semibold text-foreground">{t("marinheiro.acceptedTitle")}</h3>
+                  <Badge variant="outline">{aceitas.length}</Badge>
+                </div>
+                {aceitas.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-6">{t("marinheiro.noAccepted")}</p>
+                ) : (
+                  <div className="space-y-3">
+                    {aceitas.map((b) => (
+                      <div key={b.id} className="border border-border rounded-xl bg-card p-4 shadow-card space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-foreground truncate">{b.boat.nome}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {t("marinheiro.client")} {b.renter.nome}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {t("marinheiro.total")} {currencyFmt.format(b.totalCents / 100)}
+                            </p>
+                            {b.bookingDate ? (
+                              <p className="text-xs font-medium text-foreground">
+                                {t("marinheiro.bookingDateLabel")}: {b.bookingDate}
+                              </p>
+                            ) : null}
+                            {b.routeIslands && b.routeIslands.length > 0 ? (
+                              <p className="text-xs text-muted-foreground">
+                                {t("marinheiro.bookingRoute")}: {b.routeIslands.join(", ")}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                        <Button onClick={() => concluirReserva(b.id)} disabled={loading} className="w-full">
+                          {t("marinheiro.completeBooking")}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+
             <section className="space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-foreground">{t("marinheiro.myBoats")}</h2>
@@ -841,112 +1040,6 @@ const Marinheiro_Page = () => {
                 {calendarBoatId ? <BoatCalendarPanel variant="readonly" boatId={calendarBoatId} /> : null}
               </section>
             ) : null}
-
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-foreground">{t("marinheiro.pendingTitle")}</h2>
-                <Badge variant="outline">{pendentes.length}</Badge>
-              </div>
-
-              {pendentes.length === 0 ? (
-                <p className="text-center text-muted-foreground py-12">{t("marinheiro.noPending")}</p>
-              ) : (
-                <div className="space-y-3">
-                  {pendentes.map((b) => (
-                    <div key={b.id} className="border border-border rounded-xl bg-card p-4 shadow-card space-y-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-foreground truncate">{b.boat.nome}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {t("marinheiro.client")} {b.renter.nome} ({b.renter.email})
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {t("marinheiro.embark")} {b.embarkLocation} • {t("marinheiro.total")}{" "}
-                            {currencyFmt.format(b.totalCents / 100)}
-                          </p>
-                          {b.bookingDate ? (
-                            <p className="text-xs font-medium text-foreground">
-                              {t("marinheiro.bookingDateLabel")}: {b.bookingDate}
-                            </p>
-                          ) : null}
-                          <p className="text-xs text-muted-foreground">
-                            {t("marinheiro.passengers")} {b.passengersAdults} {t("marinheiro.adults")}
-                            {b.hasKids ? ` + ${b.passengersChildren} ${t("marinheiro.kids")}` : ""}
-                            {b.bbqKit ? ` • ${t("marinheiro.bbq")}` : ""}
-                          </p>
-                          {b.routeIslands && b.routeIslands.length > 0 ? (
-                            <p className="text-xs text-muted-foreground">
-                              {t("marinheiro.bookingRoute")}: {b.routeIslands.join(", ")}
-                            </p>
-                          ) : null}
-                        </div>
-                        <Badge className="bg-accent text-accent-foreground">{t("marinheiro.pendingBadge")}</Badge>
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label>{t("marinheiro.noteLabel")}</Label>
-                        <Textarea
-                          value={noteById[b.id] || ""}
-                          onChange={(e) => setNoteById((p) => ({ ...p, [b.id]: e.target.value }))}
-                          placeholder={t("marinheiro.notePh")}
-                          rows={2}
-                        />
-                      </div>
-
-                      <div className="flex gap-2">
-                        <Button className="flex-1" onClick={() => decidir(b.id, "accept")} disabled={loading}>
-                          {t("marinheiro.accept")}
-                        </Button>
-                        <Button className="flex-1" variant="destructive" onClick={() => decidir(b.id, "decline")} disabled={loading}>
-                          {t("marinheiro.decline")}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-foreground">{t("marinheiro.acceptedTitle")}</h2>
-                <Badge variant="outline">{aceitas.length}</Badge>
-              </div>
-              {aceitas.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">{t("marinheiro.noAccepted")}</p>
-              ) : (
-                <div className="space-y-3">
-                  {aceitas.map((b) => (
-                    <div key={b.id} className="border border-border rounded-xl bg-card p-4 shadow-card space-y-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-foreground truncate">{b.boat.nome}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {t("marinheiro.client")} {b.renter.nome}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {t("marinheiro.total")} {currencyFmt.format(b.totalCents / 100)}
-                          </p>
-                          {b.bookingDate ? (
-                            <p className="text-xs font-medium text-foreground">
-                              {t("marinheiro.bookingDateLabel")}: {b.bookingDate}
-                            </p>
-                          ) : null}
-                          {b.routeIslands && b.routeIslands.length > 0 ? (
-                            <p className="text-xs text-muted-foreground">
-                              {t("marinheiro.bookingRoute")}: {b.routeIslands.join(", ")}
-                            </p>
-                          ) : null}
-                        </div>
-                      </div>
-                      <Button onClick={() => concluirReserva(b.id)} disabled={loading} className="w-full">
-                        {t("marinheiro.completeBooking")}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
           </>
         )}
       </div>

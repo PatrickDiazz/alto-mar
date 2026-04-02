@@ -8,6 +8,19 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
+## [0.10.2] — 2026-04-02
+
+### Alterado
+
+- **Painel do locatário (Marinheiro)**: secção **Reservas** (pendentes + em curso) movida para o **topo** do painel.
+- Botão **Reservas** com indicador visual: realça quando a lista de reservas muda (nova reserva ou alteração), **badge** com quantidade de pendentes e ponto de atenção; estado “visto” persistido em `sessionStorage` (sem notificação push). Aceitar/recusar/concluir não dispara o indicador pela própria acção do locatário.
+
+### Adicionado
+
+- Chaves i18n **pt / en / es**: `bookingsHubTitle`, `reservationsButton`, `reservationsButtonTitle`, `bookingsHubHint`.
+
+---
+
 ## [0.10.1] — 2026-04-02
 
 ### Alterado
@@ -149,5 +162,5 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ## Tags Git e releases
 
-- A tag **`v0.10.1`** marca o estado actual do código alinhado a este changelog.
+- A tag **`v0.10.2`** marca o estado actual do código alinhado a este changelog.
 - Versões **0.1.0–0.9.0** são documentais (histórico retroactivo); pode criar tags adicionais nos commits antigos se precisar de comparações no GitHub.
