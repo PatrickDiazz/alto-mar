@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
+import { format } from "date-fns";
+import { ptBR, enUS, es } from "date-fns/locale";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -35,6 +37,7 @@ import { toast } from "sonner";
 import i18n from "@/i18n";
 import { bcp47FromAppLang } from "@/lib/localeFormat";
 import { apiUrl, authFetch, getStoredUser } from "@/lib/auth";
+import { BoatCalendarPanel } from "@/components/BoatCalendarPanel";
 
 const KIT_CHURRASCO_PRECO = 250;
 
@@ -100,6 +103,7 @@ async function criarPreferenciaMercadoPago(input: {
 
 async function criarReserva(input: {
   boatId: string;
+  bookingDate: string;
   passengersAdults: number;
   passengersChildren: number;
   hasKids: boolean;
@@ -123,6 +127,8 @@ async function criarReserva(input: {
 const Reservar = () => {
   const { t, i18n: i18nReact } = useTranslation();
   const locale = bcp47FromAppLang(i18nReact.language);
+  const dateFnsLocale =
+    i18nReact.language.startsWith("pt") ? ptBR : i18nReact.language.startsWith("es") ? es : enUS;
   const currencyFmt = useMemo(
     () =>
       new Intl.NumberFormat(locale, {
@@ -156,6 +162,8 @@ const Reservar = () => {
   const [pagando, setPagando] = useState(false);
   /** Paradas do roteiro selecionadas para o passeio */
   const [paradasRoteiro, setParadasRoteiro] = useState<string[]>([]);
+  /** Data do passeio (YYYY-MM-DD) */
+  const [dataPasseio, setDataPasseio] = useState<string | null>(null);
 
   useEffect(() => {
     if (!barco) return;
@@ -255,6 +263,10 @@ const Reservar = () => {
       toast.error(t("reservar.toastRoute"));
       return;
     }
+    if (!dataPasseio) {
+      toast.error(t("reservar.toastDate"));
+      return;
+    }
     if (pessoas + criancas > barco.capacidade) {
       toast.error(t("reservar.toastCapacity", { n: barco.capacidade }));
       return;
@@ -265,6 +277,7 @@ const Reservar = () => {
       const totalCents = total * 100;
       const booking = await criarReserva({
         boatId: barco.id,
+        bookingDate: dataPasseio,
         passengersAdults: pessoas,
         passengersChildren: criancas,
         hasKids: temCriancas,
@@ -449,9 +462,26 @@ const Reservar = () => {
           </div>
         </section>
 
+        <section className="space-y-2">
+          <h3 className="text-base font-bold text-foreground">{t("reservar.tripDate")}</h3>
+          <p className="text-xs text-muted-foreground">{t("reservar.tripDateHint")}</p>
+          <BoatCalendarPanel
+            variant="picker"
+            boatId={barco.id}
+            selectedDate={dataPasseio}
+            onSelectDate={setDataPasseio}
+          />
+        </section>
+
         <section className="rounded-xl border border-dashed border-border bg-muted/30 p-4 space-y-2">
           <h3 className="text-sm font-semibold text-foreground">{t("reservar.reviewTitle")}</h3>
           <ul className="text-xs text-muted-foreground space-y-1">
+            <li>
+              <strong className="text-foreground">{t("reservar.reviewDate")}</strong>{" "}
+              {dataPasseio
+                ? format(new Date(`${dataPasseio}T12:00:00`), "PPP", { locale: dateFnsLocale })
+                : "—"}
+            </li>
             <li>
               <strong className="text-foreground">{t("reservar.reviewRoute")}</strong>{" "}
               {paradasRoteiro.length ? paradasRoteiro.join(", ") : "—"}

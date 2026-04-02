@@ -113,9 +113,26 @@ CREATE TABLE IF NOT EXISTS bookings (
   bbq_kit boolean NOT NULL DEFAULT false,
   embark_location text NOT NULL,
   total_cents integer NOT NULL CHECK (total_cents >= 0),
+  route_islands text[] NOT NULL DEFAULT '{}'::text[],
+  booking_date date NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date,
   created_at timestamptz NOT NULL DEFAULT now(),
   decided_at timestamptz NULL,
   decision_note text NULL
+);
+
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS route_islands text[] NOT NULL DEFAULT '{}'::text[];
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_date date;
+
+CREATE TABLE IF NOT EXISTS boat_date_locks (
+  boat_id uuid NOT NULL REFERENCES boats(id) ON DELETE CASCADE,
+  locked_date date NOT NULL,
+  PRIMARY KEY (boat_id, locked_date)
+);
+
+CREATE TABLE IF NOT EXISTS boat_weekday_locks (
+  boat_id uuid NOT NULL REFERENCES boats(id) ON DELETE CASCADE,
+  weekday smallint NOT NULL CHECK (weekday >= 0 AND weekday <= 6),
+  PRIMARY KEY (boat_id, weekday)
 );
 
 CREATE TABLE IF NOT EXISTS payments (
@@ -147,6 +164,7 @@ CREATE TABLE IF NOT EXISTS user_boat_favorites (
 CREATE INDEX IF NOT EXISTS idx_boats_owner ON boats(owner_user_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_owner_status ON bookings(owner_user_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bookings_renter ON bookings(renter_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bookings_boat_date ON bookings(boat_id, booking_date);
 CREATE INDEX IF NOT EXISTS idx_boat_images_boat_sort ON boat_images(boat_id, sort);
 CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_boat_favorites_user ON user_boat_favorites(user_id, created_at DESC);

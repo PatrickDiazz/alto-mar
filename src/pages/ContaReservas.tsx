@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { format } from "date-fns";
+import { ptBR, enUS, es } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
@@ -11,11 +13,13 @@ import { Switch } from "@/components/ui/switch";
 import { authFetch, getStoredUser } from "@/lib/auth";
 import { readResponseErrorMessage } from "@/lib/responseError";
 import { bcp47FromAppLang } from "@/lib/localeFormat";
+import { BoatCalendarPanel } from "@/components/BoatCalendarPanel";
 
 type RenterBooking = {
   id: string;
   status: string;
   createdAt: string;
+  bookingDate?: string;
   passengersAdults: number;
   passengersChildren: number;
   hasKids: boolean;
@@ -23,7 +27,7 @@ type RenterBooking = {
   embarkLocation: string;
   totalCents: number;
   routeIslands: string[];
-  boat: { id: string; nome: string; distancia: string };
+  boat: { id: string; nome: string; distancia: string; capacidade?: number };
 };
 
 const KIT_CHURRASCO_PRECO = 250;
@@ -84,6 +88,17 @@ const ContaReservas = () => {
     if (!editingId || !editDraft) return;
     const original = list.find((x) => x.id === editingId);
     if (!original) return;
+    const cap = original.boat.capacidade ?? 99;
+    const adults = editDraft.passengersAdults ?? original.passengersAdults;
+    const children = editDraft.passengersChildren ?? original.passengersChildren;
+    if (adults + children > cap) {
+      toast.error(t("reservar.toastCapacity", { n: cap }));
+      return;
+    }
+    if (!editDraft.bookingDate?.trim()) {
+      toast.error(t("reservar.toastDate"));
+      return;
+    }
     try {
       const oldR = original.totalCents / 100;
       const base = oldR - (original.bbqKit ? KIT_CHURRASCO_PRECO : 0);
@@ -99,6 +114,7 @@ const ContaReservas = () => {
           embarkLocation: editDraft.embarkLocation,
           totalCents: Math.round(newTotalReais * 100),
           routeIslands: editDraft.routeIslands,
+          bookingDate: editDraft.bookingDate,
         }),
       });
       if (resp.status === 401) return;
@@ -231,8 +247,12 @@ function BookingCard({
   onCancelEdit?: () => void;
   readOnly?: boolean;
 }) {
+  const { i18n } = useTranslation();
+  const dateFnsLocale = i18n.language.startsWith("pt") ? ptBR : i18n.language.startsWith("es") ? es : enUS;
   const d = editing && editDraft ? editDraft : b;
   const canEdit = !readOnly && b.status !== "COMPLETED" && b.status !== "DECLINED" && b.status !== "CANCELLED";
+  const cap = b.boat.capacidade ?? 99;
+  const showDate = d.bookingDate;
 
   return (
     <div className="rounded-xl border border-border bg-card p-4 space-y-2 text-sm">
@@ -243,15 +263,119 @@ function BookingCard({
         </div>
         <span className="text-xs font-medium text-muted-foreground shrink-0">{b.status}</span>
       </div>
+      {showDate ? (
+        <p className="text-xs text-foreground">
+          {t("reservasConta.bookingDate")}:{" "}
+          {format(new Date(`${showDate}T12:00:00`), "PPP", { locale: dateFnsLocale })}
+        </p>
+      ) : null}
       <p className="text-xs text-muted-foreground">
         {t("reservasConta.route")}: {(d.routeIslands || []).length ? (d.routeIslands || []).join(", ") : "—"}
       </p>
       <p>
         {currencyFmt.format((d.totalCents || 0) / 100)} · {d.embarkLocation}
       </p>
+      <p className="text-xs text-muted-foreground">
+        {t("reservar.passengers")}: {d.passengersAdults} {t("reservar.adults")}
+        {d.hasKids ? ` + ${d.passengersChildren} ${t("reservar.kids")}` : ""} · {t("reservar.maxCap", { n: cap })}
+      </p>
 
       {editing && editDraft && setEditDraft ? (
         <div className="space-y-2 pt-2 border-t border-border">
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold">{t("reservar.tripDate")}</Label>
+            <BoatCalendarPanel
+              variant="picker"
+              boatId={b.boat.id}
+              selectedDate={editDraft.bookingDate ?? null}
+              onSelectDate={(iso) => setEditDraft({ ...editDraft, bookingDate: iso })}
+              excludeBookingId={b.id}
+            />
+          </div>
+          <div>
+            <Label>{t("reservar.passengers")}</Label>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-sm">{t("reservar.adults")}</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center"
+                  onClick={() =>
+                    setEditDraft({
+                      ...editDraft,
+                      passengersAdults: Math.max(1, (editDraft.passengersAdults ?? 1) - 1),
+                    })
+                  }
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <span className="w-6 text-center font-medium">{editDraft.passengersAdults ?? 1}</span>
+                <button
+                  type="button"
+                  className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center"
+                  onClick={() =>
+                    setEditDraft({
+                      ...editDraft,
+                      passengersAdults: Math.min(
+                        cap - (editDraft.passengersChildren ?? 0),
+                        (editDraft.passengersAdults ?? 1) + 1
+                      ),
+                    })
+                  }
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-sm">{t("reservar.kidsQuestion")}</span>
+              <Switch
+                checked={Boolean(editDraft.hasKids)}
+                onCheckedChange={(v) =>
+                  setEditDraft({
+                    ...editDraft,
+                    hasKids: v,
+                    passengersChildren: v ? (editDraft.passengersChildren ?? 0) : 0,
+                  })
+                }
+              />
+            </div>
+            {editDraft.hasKids ? (
+              <div className="flex items-center justify-between mt-2 pl-1">
+                <span className="text-sm text-muted-foreground">{t("reservar.kids")}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center"
+                    onClick={() =>
+                      setEditDraft({
+                        ...editDraft,
+                        passengersChildren: Math.max(0, (editDraft.passengersChildren ?? 0) - 1),
+                      })
+                    }
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <span className="w-6 text-center font-medium">{editDraft.passengersChildren ?? 0}</span>
+                  <button
+                    type="button"
+                    className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center"
+                    onClick={() =>
+                      setEditDraft({
+                        ...editDraft,
+                        passengersChildren: Math.min(
+                          cap - (editDraft.passengersAdults ?? 1),
+                          (editDraft.passengersChildren ?? 0) + 1
+                        ),
+                      })
+                    }
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
           <div>
             <Label>{t("reservar.embark")}</Label>
             <Input

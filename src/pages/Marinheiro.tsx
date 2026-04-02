@@ -13,6 +13,8 @@ import { bcp47FromAppLang } from "@/lib/localeFormat";
 import { authFetch, clearSession, getStoredUser, apiUrl } from "@/lib/auth";
 import { Checkbox } from "@/components/ui/checkbox";
 import { readResponseErrorMessage } from "@/lib/responseError";
+import { BoatCalendarPanel } from "@/components/BoatCalendarPanel";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type OwnerBoat = {
   id: string;
@@ -39,6 +41,7 @@ type OwnerBoat = {
 type OwnerBookingRow = {
   id: string;
   status: string;
+  bookingDate?: string;
   passengersAdults: number;
   passengersChildren: number;
   hasKids: boolean;
@@ -101,6 +104,7 @@ const Marinheiro_Page = () => {
   const [uploadRoutePhotos, setUploadRoutePhotos] = useState(false);
   const [routePhotoRights, setRoutePhotoRights] = useState(false);
   const [routeIslandImagesNew, setRouteIslandImagesNew] = useState<Record<string, string[]>>({});
+  const [calendarBoatId, setCalendarBoatId] = useState<string | null>(null);
 
   const isLocatario = user?.role === "locatario";
   const pendentes = useMemo(() => bookings.filter((b) => b.status === "PENDING"), [bookings]);
@@ -330,6 +334,10 @@ const Marinheiro_Page = () => {
     carregarPendentes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLocatario]);
+
+  useEffect(() => {
+    if (boats.length > 0 && !calendarBoatId) setCalendarBoatId(boats[0].id);
+  }, [boats, calendarBoatId]);
 
   useEffect(() => {
     if (!isLocatario) return;
@@ -774,6 +782,10 @@ const Marinheiro_Page = () => {
                                 ))}
                               </div>
                             </div>
+                            <div className="space-y-2 rounded-xl border border-border bg-muted/20 p-3">
+                              <Label className="text-sm font-semibold text-foreground">{t("calendar.title")}</Label>
+                              <BoatCalendarPanel variant="owner" boatId={boat.id} />
+                            </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <Input placeholder={t("marinheiro.tie")} value={boatForm.tieDocumentUrl || ""} onChange={(e) => setBoatForm({ ...boatForm, tieDocumentUrl: e.target.value })} />
                               <Input placeholder={t("marinheiro.tiem")} value={boatForm.tiemDocumentUrl || ""} onChange={(e) => setBoatForm({ ...boatForm, tiemDocumentUrl: e.target.value })} />
@@ -810,6 +822,26 @@ const Marinheiro_Page = () => {
               )}
             </section>
 
+            {boats.length > 0 ? (
+              <section className="space-y-3 rounded-xl border border-border bg-card p-4">
+                <h2 className="text-lg font-semibold text-foreground">{t("calendar.title")}</h2>
+                <p className="text-xs text-muted-foreground">{t("calendar.panelHint")}</p>
+                <Select value={calendarBoatId ?? ""} onValueChange={(v) => setCalendarBoatId(v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("calendar.pickBoat")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {boats.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {calendarBoatId ? <BoatCalendarPanel variant="readonly" boatId={calendarBoatId} /> : null}
+              </section>
+            ) : null}
+
             <section className="space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-foreground">{t("marinheiro.pendingTitle")}</h2>
@@ -832,6 +864,11 @@ const Marinheiro_Page = () => {
                             {t("marinheiro.embark")} {b.embarkLocation} • {t("marinheiro.total")}{" "}
                             {currencyFmt.format(b.totalCents / 100)}
                           </p>
+                          {b.bookingDate ? (
+                            <p className="text-xs font-medium text-foreground">
+                              {t("marinheiro.bookingDateLabel")}: {b.bookingDate}
+                            </p>
+                          ) : null}
                           <p className="text-xs text-muted-foreground">
                             {t("marinheiro.passengers")} {b.passengersAdults} {t("marinheiro.adults")}
                             {b.hasKids ? ` + ${b.passengersChildren} ${t("marinheiro.kids")}` : ""}
@@ -890,6 +927,11 @@ const Marinheiro_Page = () => {
                           <p className="text-xs text-muted-foreground">
                             {t("marinheiro.total")} {currencyFmt.format(b.totalCents / 100)}
                           </p>
+                          {b.bookingDate ? (
+                            <p className="text-xs font-medium text-foreground">
+                              {t("marinheiro.bookingDateLabel")}: {b.bookingDate}
+                            </p>
+                          ) : null}
                           {b.routeIslands && b.routeIslands.length > 0 ? (
                             <p className="text-xs text-muted-foreground">
                               {t("marinheiro.bookingRoute")}: {b.routeIslands.join(", ")}

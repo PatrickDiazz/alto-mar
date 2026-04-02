@@ -26,6 +26,29 @@
     "es": "Español",
     "label": "Language"
   },
+  "calendar": {
+    "title": "Boat calendar",
+    "loadFail": "Could not load the calendar.",
+    "saveFail": "Could not save locks.",
+    "saveLocks": "Save locks",
+    "legendLock": "Lock (owner)",
+    "legendConfirmed": "Confirmed booking",
+    "legendPending": "Pending request",
+    "weekdayLocks": "Block by weekday",
+    "weekdays": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
+    },
+    "ownerHint": "Lock specific dates or weekdays to stop new bookings. Pending requests do not block the day until accepted.",
+    "pickerHint": "Green: confirmed trip. Amber: pending request (another guest may still book). Red: blocked by owner.",
+    "panelHint": "View bookings and locks. To edit locks, open the boat editor.",
+    "pickBoat": "Choose a boat"
+  },
   "theme": {
     "toggle": "Switch between light and dark mode"
   },
@@ -178,10 +201,14 @@
     "toastCpf": "Invalid CPF. Check and try again.",
     "toastPhone": "Invalid phone. Use area code + number.",
     "toastEmbark": "Select boarding location.",
+    "toastDate": "Choose the trip date on the calendar.",
+    "tripDate": "Trip date",
+    "tripDateHint": "Green: confirmed. Amber: pending request (another guest). Red: blocked by owner.",
     "toastRoute": "Select at least one route stop.",
     "routeStops": "Trip route",
     "routeStopsHint": "Choose the stops you want. Review below before paying.",
     "reviewTitle": "Order review",
+    "reviewDate": "Date:",
     "reviewRoute": "Stops:",
     "routeFallback": "Route",
     "toastCapacity": "Maximum capacity: {{n}} people.",
@@ -251,6 +278,7 @@
     "noAccepted": "No accepted bookings yet.",
     "completeBooking": "Mark trip as completed",
     "bookingRoute": "Route",
+    "bookingDateLabel": "Trip date",
     "video": "Boat video (link)",
     "videoPh": "https://youtube.com/...",
     "photos": "Boat photos (upload)",
@@ -334,7 +362,8 @@
     "save": "Save changes",
     "route": "Route",
     "routeStops": "Stops (comma-separated)",
-    "editHint": "If you change an accepted booking, it becomes pending for the owner again."
+    "editHint": "If you change an accepted booking, it becomes pending for the owner again.",
+    "bookingDate": "Trip date"
   },
   "contaDados": {
     "title": "Account details",

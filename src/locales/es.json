@@ -26,6 +26,29 @@
     "es": "Español",
     "label": "Idioma"
   },
+  "calendar": {
+    "title": "Calendario del barco",
+    "loadFail": "No se pudo cargar el calendario.",
+    "saveFail": "No se pudieron guardar los bloqueos.",
+    "saveLocks": "Guardar bloqueos",
+    "legendLock": "Bloqueo (armador)",
+    "legendConfirmed": "Reserva confirmada",
+    "legendPending": "Solicitud pendiente",
+    "weekdayLocks": "Bloquear por día de la semana",
+    "weekdays": {
+      "sun": "Dom",
+      "mon": "Lun",
+      "tue": "Mar",
+      "wed": "Mié",
+      "thu": "Jue",
+      "fri": "Vie",
+      "sat": "Sáb"
+    },
+    "ownerHint": "Marque días o días de la semana para no aceptar nuevas reservas. Las solicitudes pendientes no bloquean el día hasta ser aceptadas.",
+    "pickerHint": "Verde: viaje confirmado. Ámbar: solicitud pendiente (otro puede reservar). Rojo: bloqueado por el armador.",
+    "panelHint": "Vea reservas y bloqueos. Para editar bloqueos, abra la edición del barco.",
+    "pickBoat": "Elija el barco"
+  },
   "theme": {
     "toggle": "Cambiar entre modo claro y oscuro"
   },
@@ -178,10 +201,14 @@
     "toastCpf": "CPF inválido. Revisa e inténtalo de nuevo.",
     "toastPhone": "Teléfono inválido. Usa DDD + número.",
     "toastEmbark": "Selecciona el lugar de embarque.",
+    "toastDate": "Elige la fecha del paseo en el calendario.",
+    "tripDate": "Fecha del paseo",
+    "tripDateHint": "Verde: confirmado. Ámbar: pendiente (otro puede reservar). Rojo: bloqueado por el armador.",
     "toastRoute": "Selecciona al menos una parada del itinerario.",
     "routeStops": "Itinerario del paseo",
     "routeStopsHint": "Marca las paradas deseadas. Puedes revisarlas abajo antes de pagar.",
     "reviewTitle": "Revisión del pedido",
+    "reviewDate": "Fecha:",
     "reviewRoute": "Paradas:",
     "routeFallback": "Itinerario",
     "toastCapacity": "Capacidad máxima: {{n}} personas.",
@@ -251,6 +278,7 @@
     "noAccepted": "Ninguna reserva aceptada por ahora.",
     "completeBooking": "Marcar paseo como completado",
     "bookingRoute": "Itinerario",
+    "bookingDateLabel": "Fecha del paseo",
     "video": "Vídeo de la embarcación (enlace)",
     "videoPh": "https://youtube.com/...",
     "photos": "Fotos de la embarcación (subir)",
@@ -334,7 +362,8 @@
     "save": "Guardar cambios",
     "route": "Itinerario",
     "routeStops": "Paradas (separadas por coma)",
-    "editHint": "Si cambias una reserva ya aceptada, volverá a quedar pendiente para el armador."
+    "editHint": "Si cambias una reserva ya aceptada, volverá a quedar pendiente para el armador.",
+    "bookingDate": "Fecha del paseo"
   },
   "contaDados": {
     "title": "Datos de la cuenta",

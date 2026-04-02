@@ -87,6 +87,73 @@ async function ensureSeedAmenities() {
   }
 }
 
+async function ensureBookingDateColumn() {
+  await query(`alter table bookings add column if not exists booking_date date`);
+  await query(
+    `update bookings set booking_date = coalesce(booking_date, (created_at at time zone 'UTC')::date) where booking_date is null`
+  );
+  await query(`update bookings set booking_date = current_date where booking_date is null`);
+  await query(`alter table bookings alter column booking_date set not null`);
+}
+
+async function ensureBoatCalendarTables() {
+  await query(`
+    create table if not exists boat_date_locks (
+      boat_id uuid not null references boats(id) on delete cascade,
+      locked_date date not null,
+      primary key (boat_id, locked_date)
+    )
+  `);
+  await query(`
+    create table if not exists boat_weekday_locks (
+      boat_id uuid not null references boats(id) on delete cascade,
+      weekday smallint not null check (weekday >= 0 and weekday <= 6),
+      primary key (boat_id, weekday)
+    )
+  `);
+  await query(`create index if not exists idx_bookings_boat_date on bookings(boat_id, booking_date)`);
+}
+
+/**
+ * @param {string} boatId
+ * @param {string} bookingDateStr YYYY-MM-DD
+ * @param {string | null | undefined} excludeBookingId
+ */
+async function assertBookingSlotAvailable(boatId, bookingDateStr, excludeBookingId) {
+  const dl = await query(
+    `select 1 from boat_date_locks where boat_id = $1 and locked_date = $2::date limit 1`,
+    [boatId, bookingDateStr]
+  );
+  if (dl.rows[0]) {
+    const e = new Error("Este dia está bloqueado pelo armador.");
+    e.code = "DATE_LOCKED";
+    throw e;
+  }
+  const wd = await query(
+    `select 1 from boat_weekday_locks where boat_id = $1 and weekday = extract(dow from $2::date)::smallint limit 1`,
+    [boatId, bookingDateStr]
+  );
+  if (wd.rows[0]) {
+    const e = new Error("Este dia da semana está bloqueado pelo armador.");
+    e.code = "WEEKDAY_LOCKED";
+    throw e;
+  }
+  const params = [boatId, bookingDateStr];
+  let sql = `select id from bookings where boat_id = $1 and booking_date = $2::date
+    and status in ('ACCEPTED','COMPLETED')`;
+  if (excludeBookingId) {
+    sql += ` and id <> $3::uuid`;
+    params.push(excludeBookingId);
+  }
+  sql += ` limit 1`;
+  const cf = await query(sql, params);
+  if (cf.rows[0]) {
+    const e = new Error("Já existe passeio confirmado neste dia para este barco.");
+    e.code = "DATE_OCCUPIED";
+    throw e;
+  }
+}
+
 const app = express();
 app.use(express.json());
 const extraCors = (process.env.EXTRA_CORS_ORIGINS || "")
@@ -557,6 +624,50 @@ app.get("/api/boats/:id", async (req, res) => {
   }
 });
 
+app.get("/api/boats/:id/calendar", async (req, res) => {
+  const boatId = req.params.id;
+  const from = req.query.from;
+  const to = req.query.to;
+  if (!from || !to || typeof from !== "string" || typeof to !== "string") {
+    return res.status(400).send("Informe from e to (YYYY-MM-DD).");
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    return res.status(400).send("Datas inválidas.");
+  }
+  try {
+    const ex = await query(`select id from boats where id = $1 limit 1`, [boatId]);
+    if (!ex.rows[0]) return res.status(404).send("Barco não encontrado.");
+
+    const [dateLocks, weekdayLocks, bookingRows] = await Promise.all([
+      query(
+        `select locked_date::text as d from boat_date_locks where boat_id = $1 order by locked_date`,
+        [boatId]
+      ),
+      query(`select weekday from boat_weekday_locks where boat_id = $1 order by weekday`, [boatId]),
+      query(
+        `select bk.id, bk.booking_date::text as d, bk.status
+         from bookings bk
+         where bk.boat_id = $1
+           and bk.booking_date >= $2::date
+           and bk.booking_date <= $3::date
+           and bk.status not in ('DECLINED','CANCELLED')`,
+        [boatId, from, to]
+      ),
+    ]);
+
+    return res.json({
+      dateLocks: dateLocks.rows.map((r) => r.d),
+      weekdayLocks: weekdayLocks.rows.map((r) => Number(r.weekday)),
+      bookings: bookingRows.rows.map((r) => ({ id: r.id, date: r.d, status: r.status })),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // eslint-disable-next-line no-console
+    console.error("[GET /api/boats/:id/calendar]", boatId, msg);
+    return res.status(503).send(msg);
+  }
+});
+
 // --- Favorites (por usuário logado) ---
 app.get("/api/favorites", requireAuth, async (req, res) => {
   try {
@@ -923,9 +1034,43 @@ app.put("/api/owner/boats/:id/amenities", requireAuth, requireRole("locatario"),
   }
 });
 
+const putCalendarLocksSchema = z.object({
+  dateLocks: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
+  weekdayLocks: z.array(z.number().int().min(0).max(6)),
+});
+
+app.put("/api/owner/boats/:id/calendar-locks", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const boatId = req.params.id;
+    const body = putCalendarLocksSchema.parse(req.body || {});
+    const own = await query(`select id from boats where id = $1 and owner_user_id = $2`, [boatId, req.user.sub]);
+    if (!own.rows[0]) return res.status(404).send("Barco não encontrado.");
+
+    await query(`delete from boat_date_locks where boat_id = $1`, [boatId]);
+    await query(`delete from boat_weekday_locks where boat_id = $1`, [boatId]);
+    const seenD = new Set();
+    for (const d of body.dateLocks) {
+      if (seenD.has(d)) continue;
+      seenD.add(d);
+      await query(`insert into boat_date_locks (boat_id, locked_date) values ($1, $2::date)`, [boatId, d]);
+    }
+    const seenW = new Set();
+    for (const w of body.weekdayLocks) {
+      if (seenW.has(w)) continue;
+      seenW.add(w);
+      await query(`insert into boat_weekday_locks (boat_id, weekday) values ($1, $2)`, [boatId, w]);
+    }
+    return res.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao salvar travas.";
+    return res.status(400).send(msg);
+  }
+});
+
 // --- Bookings ---
 const createBookingSchema = z.object({
   boatId: z.string().uuid(),
+  bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   passengersAdults: z.number().int().min(1),
   passengersChildren: z.number().int().min(0),
   hasKids: z.boolean(),
@@ -939,16 +1084,21 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
   try {
     const body = createBookingSchema.parse(req.body);
 
-    const boat = await query(`select id, owner_user_id from boats where id = $1`, [body.boatId]);
+    const boat = await query(`select id, owner_user_id, capacity from boats where id = $1`, [body.boatId]);
     const b = boat.rows[0];
     if (!b) return res.status(404).send("Barco não encontrado.");
+    if (body.passengersAdults + body.passengersChildren > Number(b.capacity ?? 0)) {
+      return res.status(400).send("Número de passageiros acima da capacidade do barco.");
+    }
+
+    await assertBookingSlotAvailable(body.boatId, body.bookingDate, null);
 
     const created = await query(
       `insert into bookings
         (boat_id, renter_user_id, owner_user_id, status,
          passengers_adults, passengers_children, has_kids, bbq_kit,
-         embark_location, total_cents, route_islands)
-       values ($1,$2,$3,'PENDING',$4,$5,$6,$7,$8,$9,$10)
+         embark_location, total_cents, route_islands, booking_date)
+       values ($1,$2,$3,'PENDING',$4,$5,$6,$7,$8,$9,$10,$11)
        returning id, status, created_at`,
       [
         body.boatId,
@@ -961,6 +1111,7 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
         body.embarkLocation,
         body.totalCents,
         body.routeIslands ?? [],
+        body.bookingDate,
       ]
     );
 
@@ -975,6 +1126,15 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro ao criar reserva.";
+    if (e && typeof e === "object" && "code" in e && e.code === "DATE_LOCKED") {
+      return res.status(400).send(msg);
+    }
+    if (e && typeof e === "object" && "code" in e && e.code === "WEEKDAY_LOCKED") {
+      return res.status(400).send(msg);
+    }
+    if (e && typeof e === "object" && "code" in e && e.code === "DATE_OCCUPIED") {
+      return res.status(400).send(msg);
+    }
     return res.status(400).send(msg);
   }
 });
@@ -987,6 +1147,7 @@ const renterUpdateBookingSchema = z.object({
   embarkLocation: z.string().min(1).max(200).optional(),
   totalCents: z.number().int().min(0).optional(),
   routeIslands: z.array(z.string().min(1).max(200)).max(30).optional(),
+  bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req, res) => {
@@ -1004,10 +1165,12 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
          bk.bbq_kit,
          bk.embark_location,
          bk.total_cents,
+         bk.booking_date::text as booking_date,
          coalesce(bk.route_islands, '{}'::text[]) as route_islands,
          b.id as boat_id,
          b.name as boat_name,
-         b.location_text as boat_location
+         b.location_text as boat_location,
+         b.capacity as boat_capacity
        from bookings bk
        join boats b on b.id = bk.boat_id
        where bk.renter_user_id = $1
@@ -1028,8 +1191,9 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
         bbqKit: r.bbq_kit,
         embarkLocation: r.embark_location,
         totalCents: r.total_cents,
+        bookingDate: r.booking_date,
         routeIslands: Array.isArray(r.route_islands) ? r.route_islands : [],
-        boat: { id: r.boat_id, nome: r.boat_name, distancia: r.boat_location },
+        boat: { id: r.boat_id, nome: r.boat_name, distancia: r.boat_location, capacidade: r.boat_capacity },
       })),
     });
   } catch (e) {
@@ -1043,13 +1207,28 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
     const bookingId = req.params.id;
     const body = renterUpdateBookingSchema.parse(req.body || {});
     const cur = await query(
-      `select status from bookings where id = $1 and renter_user_id = $2 limit 1`,
+      `select bk.status, bk.boat_id, bk.passengers_adults, bk.passengers_children, bk.booking_date::text as bd
+       from bookings bk
+       where bk.id = $1 and bk.renter_user_id = $2 limit 1`,
       [bookingId, req.user.sub]
     );
     const st = cur.rows[0]?.status;
     if (!st) return res.status(404).send("Reserva não encontrada.");
     if (st === "DECLINED" || st === "CANCELLED" || st === "COMPLETED") {
       return res.status(400).send("Esta reserva não pode ser alterada.");
+    }
+
+    const boatId = cur.rows[0].boat_id;
+    const capRow = await query(`select capacity from boats where id = $1`, [boatId]);
+    const cap = Number(capRow.rows[0]?.capacity ?? 0);
+    const adults = body.passengersAdults ?? cur.rows[0].passengers_adults;
+    const children = body.passengersChildren ?? cur.rows[0].passengers_children;
+    if (adults + children > cap) {
+      return res.status(400).send("Número de passageiros acima da capacidade do barco.");
+    }
+
+    if (body.bookingDate && body.bookingDate !== cur.rows[0].bd) {
+      await assertBookingSlotAvailable(boatId, body.bookingDate, bookingId);
     }
 
     const sets = [];
@@ -1090,6 +1269,11 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
       vals.push(body.routeIslands);
       n += 1;
     }
+    if (body.bookingDate !== undefined) {
+      sets.push(`booking_date = $${n}::date`);
+      vals.push(body.bookingDate);
+      n += 1;
+    }
     if (sets.length === 0) return res.status(400).send("Nada para atualizar.");
 
     sets.push(`status = 'PENDING'`);
@@ -1106,6 +1290,14 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
     return res.json({ booking: row });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro ao atualizar reserva.";
+    if (
+      e &&
+      typeof e === "object" &&
+      "code" in e &&
+      ["DATE_LOCKED", "WEEKDAY_LOCKED", "DATE_OCCUPIED"].includes(String(e.code))
+    ) {
+      return res.status(400).send(msg);
+    }
     return res.status(400).send(msg);
   }
 });
@@ -1142,6 +1334,7 @@ app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req
          bk.bbq_kit,
          bk.embark_location,
          bk.total_cents,
+         bk.booking_date::text as booking_date,
          coalesce(bk.route_islands, '{}'::text[]) as route_islands,
          b.id as boat_id,
          b.name as boat_name,
@@ -1169,6 +1362,7 @@ app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req
         bbqKit: r.bbq_kit,
         embarkLocation: r.embark_location,
         totalCents: r.total_cents,
+        bookingDate: r.booking_date,
         routeIslands: Array.isArray(r.route_islands) ? r.route_islands : [],
         boat: { id: r.boat_id, nome: r.boat_name },
         renter: { id: r.renter_id, nome: r.renter_name, email: r.renter_email },
@@ -1194,6 +1388,27 @@ app.post(
     try {
       const bookingId = req.params.id;
       const body = decideSchema.parse(req.body || {});
+      const pending = await query(
+        `select bk.boat_id, bk.booking_date::text as bd
+         from bookings bk
+         where bk.id = $1 and bk.owner_user_id = $2 and bk.status = 'PENDING'`,
+        [bookingId, req.user.sub]
+      );
+      const pr = pending.rows[0];
+      if (!pr) return res.status(404).send("Reserva não encontrada ou já decidida.");
+
+      const conflict = await query(
+        `select id from bookings
+         where boat_id = $1 and booking_date = $2::date
+           and status in ('ACCEPTED','COMPLETED')
+           and id <> $3::uuid
+         limit 1`,
+        [pr.boat_id, pr.bd, bookingId]
+      );
+      if (conflict.rows[0]) {
+        return res.status(400).send("Já existe reserva confirmada neste dia para este barco.");
+      }
+
       const updated = await query(
         `update bookings
          set status = 'ACCEPTED', decided_at = now(), decision_note = $3
@@ -1341,6 +1556,8 @@ async function startServer() {
     await ensureBookingsRouteIslandsColumn();
     await ensureBookingStatusCompleted();
     await ensureSeedAmenities();
+    await ensureBookingDateColumn();
+    await ensureBoatCalendarTables();
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
     // eslint-disable-next-line no-console
