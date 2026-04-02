@@ -130,7 +130,11 @@ const ContaUsuario = () => {
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-2">
           <div className="flex items-center gap-3 min-w-0">
-            <button onClick={() => navigate(-1)} className="text-foreground hover:text-primary transition-colors shrink-0">
+            <button
+              type="button"
+              onClick={() => navigate("/explorar")}
+              className="text-foreground hover:text-primary transition-colors shrink-0"
+            >
               <ArrowLeft className="w-5 h-5" />
             </button>
             <h1 className="text-lg font-semibold text-foreground truncate">{t("conta.title")}</h1>

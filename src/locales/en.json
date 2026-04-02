@@ -31,7 +31,7 @@
     "loadFail": "Could not load the calendar.",
     "saveFail": "Could not save locks.",
     "saveLocks": "Save locks",
-    "legendLock": "Lock (owner)",
+    "legendLock": "Unavailable",
     "legendConfirmed": "Confirmed booking",
     "legendPending": "Pending request",
     "weekdayLocks": "Block by weekday",

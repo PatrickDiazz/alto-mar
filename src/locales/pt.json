@@ -31,7 +31,7 @@
     "loadFail": "Não foi possível carregar o calendário.",
     "saveFail": "Não foi possível salvar as travas.",
     "saveLocks": "Salvar travas",
-    "legendLock": "Bloqueio (armador)",
+    "legendLock": "Indisponível",
     "legendConfirmed": "Reserva confirmada",
     "legendPending": "Pedido pendente",
     "weekdayLocks": "Bloquear por dia da semana",

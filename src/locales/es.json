@@ -31,7 +31,7 @@
     "loadFail": "No se pudo cargar el calendario.",
     "saveFail": "No se pudieron guardar los bloqueos.",
     "saveLocks": "Guardar bloqueos",
-    "legendLock": "Bloqueo (armador)",
+    "legendLock": "No disponible",
     "legendConfirmed": "Reserva confirmada",
     "legendPending": "Solicitud pendiente",
     "weekdayLocks": "Bloquear por día de la semana",

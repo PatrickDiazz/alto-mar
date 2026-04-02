@@ -8,6 +8,15 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
+## [0.10.1] — 2026-04-02
+
+### Alterado
+
+- Legenda do calendário: texto **«Indisponível»** (pt), **«Unavailable»** (en), **«No disponible»** (es) em substituição de «Bloqueio (armador)» / equivalentes.
+- **Minha conta**: o botão voltar passa a ir sempre para **`/explorar`** (em vez do histórico do browser).
+
+---
+
 ## [0.10.0] — 2026-04-01
 
 ### Adicionado
@@ -140,5 +149,5 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ## Tags Git e releases
 
-- A tag **`v0.10.0`** marca o estado actual do código alinhado a este changelog.
+- A tag **`v0.10.1`** marca o estado actual do código alinhado a este changelog.
 - Versões **0.1.0–0.9.0** são documentais (histórico retroactivo); pode criar tags adicionais nos commits antigos se precisar de comparações no GitHub.
