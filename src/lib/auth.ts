@@ -1,3 +1,5 @@
+import i18n from "@/i18n";
+
 export type UserRole = "banhista" | "locatario";
 
 export type AuthUser = {
@@ -11,16 +13,27 @@ const TOKEN_KEY = "alto_mar_token";
 const USER_KEY = "alto_mar_user";
 
 /**
- * - Sem `https://`, o browser trata o valor como caminho relativo ao site (ex.: Vercel + host Railway → 405).
+ * - Sem esquema, o browser trata como caminho relativo ao site (ex.: Vercel + host Railway → 405).
+ * - `localhost` / `127.0.0.1` sem esquema → **http** (API local é quase sempre HTTP); resto → **https**.
  * - Evita `...railway.app/api` + `/api/...` duplicado.
  */
+function schemeForHostWithoutProtocol(hostPort: string): "http" | "https" {
+  const host = (hostPort.split(":")[0] || "").toLowerCase();
+  if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0") {
+    return "http";
+  }
+  return "https";
+}
+
 function normalizeApiBase(raw: string | undefined): string | undefined {
   if (raw == null) return undefined;
   const trimmed = raw.trim();
   if (!trimmed) return undefined;
   let b = trimmed.replace(/\/$/, "");
   if (!/^https?:\/\//i.test(b)) {
-    b = `https://${b.replace(/^\/+/, "")}`;
+    const rest = b.replace(/^\/+/, "");
+    const scheme = schemeForHostWithoutProtocol(rest);
+    b = `${scheme}://${rest}`;
   }
   if (b.endsWith("/api")) {
     b = b.slice(0, -4);
@@ -63,6 +76,9 @@ export function getToken() {
 export function setSession(token: string, user: AuthUser) {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+  if (typeof sessionStorage !== "undefined") {
+    sessionStorage.removeItem("alto_mar_401_once");
+  }
 }
 
 export function clearSession() {
@@ -80,6 +96,18 @@ export function getStoredUser(): AuthUser | null {
   }
 }
 
+const PUBLIC_PATH_PREFIXES = ["/login", "/signup", "/recuperar-senha", "/redefinir-senha"];
+
+function shouldRedirect401(): boolean {
+  if (typeof window === "undefined") return false;
+  const path = window.location.pathname || "";
+  return !PUBLIC_PATH_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
+}
+
+/**
+ * Pedidos autenticados. Se a API responder 401 (token expirado ou inválido), limpa a sessão
+ * e envia para o login — evita “falha em tudo” com utilizador ainda no localStorage.
+ */
 export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   const token = getToken();
   const headers = new Headers(init.headers);
@@ -90,6 +118,29 @@ export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}
       : input instanceof URL
         ? new URL(apiUrl(input.toString()))
         : input;
-  return fetch(url, { ...init, headers });
+  let resp: Response;
+  try {
+    resp = await fetch(url, { ...init, headers });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const isNetwork =
+      e instanceof TypeError ||
+      /failed to fetch|networkerror|load failed|network request failed/i.test(msg);
+    if (isNetwork) {
+      throw new Error(i18n.t("common.networkUnavailable"));
+    }
+    throw e;
+  }
+  const hadToken = Boolean(token);
+
+  if (resp.status === 401 && hadToken && shouldRedirect401()) {
+    clearSession();
+    if (typeof sessionStorage !== "undefined" && !sessionStorage.getItem("alto_mar_401_once")) {
+      sessionStorage.setItem("alto_mar_401_once", "1");
+      window.location.assign("/login?expired=1");
+    }
+  }
+
+  return resp;
 }
 

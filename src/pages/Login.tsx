@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -19,6 +19,16 @@ const Login = () => {
 
   const from = (location.state as { from?: string } | null)?.from || "/";
   const isMarinheiroLogin = from === "/marinheiro";
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("expired") !== "1") return;
+    toast.info(t("login.sessionExpired"), { id: "session-expired" });
+    params.delete("expired");
+    const q = params.toString();
+    const next = `${window.location.pathname}${q ? `?${q}` : ""}${window.location.hash || ""}`;
+    window.history.replaceState(null, "", next);
+  }, [t]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,8 +74,9 @@ const Login = () => {
       const isNetwork =
         err instanceof TypeError &&
         (err.message === "Failed to fetch" || err.message.includes("fetch") || err.message.includes("NetworkError"));
+      const apiMsg = err instanceof Error ? err.message.trim() : "";
       toast.error(
-        isNetwork ? t("login.failNetwork") : err instanceof Error ? err.message : t("login.toastFail")
+        isNetwork ? t("login.failNetwork") : apiMsg || t("login.toastFail")
       );
     } finally {
       setLoading(false);

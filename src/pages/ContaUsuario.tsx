@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { authFetch, clearSession, getStoredUser } from "@/lib/auth";
+import { readResponseErrorMessage } from "@/lib/responseError";
 
 type MeResponse = {
   user: {
@@ -43,8 +44,13 @@ const ContaUsuario = () => {
     const run = async () => {
       try {
         const [meResp, favResp] = await Promise.all([authFetch("/api/me"), authFetch("/api/favorites")]);
-        if (!meResp.ok) throw new Error(await meResp.text());
-        if (!favResp.ok) throw new Error(await favResp.text());
+        if (meResp.status === 401 || favResp.status === 401) return;
+        if (!meResp.ok) {
+          throw new Error(await readResponseErrorMessage(meResp, t("conta.toastLoad")));
+        }
+        if (!favResp.ok) {
+          throw new Error(await readResponseErrorMessage(favResp, t("conta.toastLoad")));
+        }
         const meData = (await meResp.json()) as MeResponse;
         const favData = (await favResp.json()) as {
           boatIds: string[];
@@ -56,7 +62,8 @@ const ContaUsuario = () => {
         setFavoriteIds(new Set(ids));
         setFavoriteBoats(favData.boats || []);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : t("conta.toastLoad"));
+        const m = (e instanceof Error ? e.message : t("conta.toastLoad")).trim();
+        toast.error(m || t("conta.toastLoad"));
       }
     };
     run();
@@ -74,13 +81,20 @@ const ContaUsuario = () => {
     setFavoriteIds(next);
     try {
       const resp = await authFetch(`/api/favorites/${boatId}`, { method: has ? "DELETE" : "POST" });
-      if (!resp.ok) throw new Error(await resp.text());
+      if (resp.status === 401) {
+        setFavoriteIds(before);
+        return;
+      }
+      if (!resp.ok) {
+        throw new Error(await readResponseErrorMessage(resp, t("conta.toastFav")));
+      }
       if (has) {
         setFavoriteBoats((prev) => prev.filter((b) => b.id !== boatId));
       }
     } catch (e) {
       setFavoriteIds(before);
-      toast.error(e instanceof Error ? e.message : t("conta.toastFav"));
+      const m = (e instanceof Error ? e.message : t("conta.toastFav")).trim();
+      toast.error(m || t("conta.toastFav"));
     }
   };
 
@@ -96,12 +110,16 @@ const ContaUsuario = () => {
     setLoading(true);
     try {
       const resp = await authFetch("/api/me", { method: "DELETE" });
-      if (!resp.ok) throw new Error(await resp.text());
+      if (resp.status === 401) return;
+      if (!resp.ok) {
+        throw new Error(await readResponseErrorMessage(resp, t("conta.toastDeleteFail")));
+      }
       clearSession();
       toast.success(t("conta.toastDeleted"));
       navigate("/", { replace: true });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("conta.toastDeleteFail"));
+      const m = (e instanceof Error ? e.message : t("conta.toastDeleteFail")).trim();
+      toast.error(m || t("conta.toastDeleteFail"));
     } finally {
       setLoading(false);
     }

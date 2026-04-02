@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { bcp47FromAppLang } from "@/lib/localeFormat";
 import { authFetch, getStoredUser } from "@/lib/auth";
+import { readResponseErrorMessage } from "@/lib/responseError";
 
 type MeResponse = {
   user: {
@@ -32,11 +33,15 @@ const ContaDados = () => {
     (async () => {
       try {
         const resp = await authFetch("/api/me");
-        if (!resp.ok) throw new Error(await resp.text());
+        if (resp.status === 401) return;
+        if (!resp.ok) {
+          throw new Error(await readResponseErrorMessage(resp, t("contaDados.toastLoad")));
+        }
         const data = (await resp.json()) as MeResponse;
         setMe(data.user);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : t("contaDados.toastLoad"));
+        const m = (e instanceof Error ? e.message : t("contaDados.toastLoad")).trim();
+        toast.error(m || t("contaDados.toastLoad"));
       }
     })();
   }, [currentUser?.id, navigate, t]);

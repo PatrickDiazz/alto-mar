@@ -12,12 +12,15 @@ import {
   Users,
   AlertTriangle,
   Heart,
+  Check,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { useBarcos } from "@/hooks/useBarcos";
 import { BoatRoutes } from "@/components/BoatRoutes";
 import { getStoredUser, authFetch } from "@/lib/auth";
+import { readResponseErrorMessage } from "@/lib/responseError";
 import { toast } from "sonner";
 import i18n from "@/i18n";
 
@@ -25,7 +28,13 @@ const DetalhesBarco = () => {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { boats: barcos, isLoading: barcosLoading, isError: barcosError } = useBarcos();
+  const {
+    boats: barcos,
+    isLoading: barcosLoading,
+    isError: barcosError,
+    refetch: refetchBarcos,
+    isRefetching: barcosRefetching,
+  } = useBarcos();
   const barco = barcos.find((b) => b.id === id);
   const [imgIndex, setImgIndex] = useState(0);
   const [isFavorited, setIsFavorited] = useState(false);
@@ -41,14 +50,17 @@ const DetalhesBarco = () => {
       }
       try {
         const resp = await authFetch("/api/favorites");
-        if (!resp.ok) throw new Error(await resp.text());
+        if (resp.status === 401) return;
+        if (!resp.ok) {
+          throw new Error(await readResponseErrorMessage(resp, i18n.t("explorar.favLoadError")));
+        }
         const data = (await resp.json()) as { boatIds?: string[] };
         const ids = Array.isArray(data.boatIds) ? data.boatIds : [];
         if (active) setIsFavorited(ids.includes(id));
       } catch (e) {
-        const msg = e instanceof Error ? e.message : i18n.t("explorar.favLoadError");
-        if (!msg.includes("user_boat_favorites")) {
-          toast.error(msg);
+        const msg = (e instanceof Error ? e.message : i18n.t("explorar.favLoadError")).trim();
+        if (msg && !msg.includes("user_boat_favorites")) {
+          toast.error(msg, { id: "favorites-load" });
         }
       }
     };
@@ -73,10 +85,17 @@ const DetalhesBarco = () => {
       const resp = await authFetch(`/api/favorites/${id}`, {
         method: previous ? "DELETE" : "POST",
       });
-      if (!resp.ok) throw new Error(await resp.text());
+      if (resp.status === 401) {
+        setIsFavorited(previous);
+        return;
+      }
+      if (!resp.ok) {
+        throw new Error(await readResponseErrorMessage(resp, i18n.t("explorar.favToggleError")));
+      }
     } catch (e) {
       setIsFavorited(previous);
-      toast.error(e instanceof Error ? e.message : i18n.t("explorar.favToggleError"));
+      const m = (e instanceof Error ? e.message : i18n.t("explorar.favToggleError")).trim();
+      toast.error(m || i18n.t("explorar.favToggleError"));
     }
   }, [id]);
 
@@ -90,9 +109,17 @@ const DetalhesBarco = () => {
 
   if (barcosError) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 gap-3 text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 gap-4 text-center">
         <p className="text-foreground font-medium">{t("detalhes.loadError")}</p>
         <p className="text-sm text-muted-foreground max-w-md">{t("common.boatsUnavailable")}</p>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={barcosRefetching}
+          onClick={() => void refetchBarcos()}
+        >
+          {barcosRefetching ? t("common.loading") : t("common.tryAgain")}
+        </Button>
       </div>
     );
   }
@@ -233,6 +260,33 @@ const DetalhesBarco = () => {
               <span className="text-sm font-bold">{t("detalhes.pending")}</span>
             </div>
           )}
+
+          {barco.amenidades?.length ? (
+            <>
+              <hr className="border-border" />
+              <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+                <h3 className="text-sm font-semibold text-foreground">{t("reservar.included")}</h3>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {barco.amenidades.map((a) => (
+                    <div key={a.nome} className="flex items-center gap-1.5 text-sm">
+                      {a.incluido ? (
+                        <Check className="w-4 h-4 text-verified shrink-0" />
+                      ) : (
+                        <X className="w-4 h-4 text-destructive shrink-0" />
+                      )}
+                      <span
+                        className={
+                          a.incluido ? "text-foreground" : "text-muted-foreground line-through"
+                        }
+                      >
+                        {a.nome}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : null}
 
           <hr className="border-border" />
 

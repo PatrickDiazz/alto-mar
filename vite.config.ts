@@ -12,8 +12,10 @@ export default defineConfig(({ mode }) => ({
     allowedHosts: true,
     proxy: {
       "/api": {
-        target: "http://localhost:3001",
+        target: "http://127.0.0.1:3001",
         changeOrigin: true,
+        timeout: 120_000,
+        proxyTimeout: 120_000,
       },
     },
     hmr: {
@@ -24,8 +26,10 @@ export default defineConfig(({ mode }) => ({
   preview: {
     proxy: {
       "/api": {
-        target: "http://localhost:3001",
+        target: "http://127.0.0.1:3001",
         changeOrigin: true,
+        timeout: 120_000,
+        proxyTimeout: 120_000,
       },
     },
   },

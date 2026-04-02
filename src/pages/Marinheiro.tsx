@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { bcp47FromAppLang } from "@/lib/localeFormat";
 import { authFetch, clearSession, getStoredUser } from "@/lib/auth";
+import { readResponseErrorMessage } from "@/lib/responseError";
 
 type OwnerBoat = {
   id: string;
@@ -107,11 +108,15 @@ const Marinheiro_Page = () => {
     setLoading(true);
     try {
       const resp = await authFetch("/api/owner/bookings?status=PENDING");
-      if (!resp.ok) throw new Error(await resp.text());
+      if (resp.status === 401) return;
+      if (!resp.ok) {
+        throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastBookings")));
+      }
       const data = (await resp.json()) as { bookings: OwnerBookingRow[] };
       setBookings(data.bookings);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("marinheiro.toastBookings"));
+      const m = (e instanceof Error ? e.message : t("marinheiro.toastBookings")).trim();
+      toast.error(m || t("marinheiro.toastBookings"), { id: "owner-bookings" });
     } finally {
       setLoading(false);
     }
@@ -120,11 +125,15 @@ const Marinheiro_Page = () => {
   const carregarMeusBarcos = async () => {
     try {
       const resp = await authFetch("/api/owner/boats");
-      if (!resp.ok) throw new Error(await resp.text());
+      if (resp.status === 401) return;
+      if (!resp.ok) {
+        throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastBoats")));
+      }
       const data = (await resp.json()) as { boats: OwnerBoat[] };
       setBoats(data.boats);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("marinheiro.toastBoats"));
+      const m = (e instanceof Error ? e.message : t("marinheiro.toastBoats")).trim();
+      toast.error(m || t("marinheiro.toastBoats"), { id: "owner-boats" });
     }
   };
 
@@ -136,11 +145,15 @@ const Marinheiro_Page = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ note: noteById[id] || "" }),
       });
-      if (!resp.ok) throw new Error(await resp.text());
+      if (resp.status === 401) return;
+      if (!resp.ok) {
+        throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastBookingUpdate")));
+      }
       toast.success(action === "accept" ? t("marinheiro.toastAccept") : t("marinheiro.toastDecline"));
       await carregarPendentes();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("marinheiro.toastBookingUpdate"));
+      const m = (e instanceof Error ? e.message : t("marinheiro.toastBookingUpdate")).trim();
+      toast.error(m || t("marinheiro.toastBookingUpdate"));
     } finally {
       setLoading(false);
     }
@@ -175,14 +188,18 @@ const Marinheiro_Page = () => {
           imagens: boatForm.imagens || [],
         }),
       });
-      if (!resp.ok) throw new Error(await resp.text());
+      if (resp.status === 401) return;
+      if (!resp.ok) {
+        throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastUpdateFail")));
+      }
       toast.success(t("marinheiro.toastUpdate"));
       setEditingBoatId(null);
       setBoatForm(null);
       setEditRouteIslandsText("");
       await carregarMeusBarcos();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("marinheiro.toastUpdateFail"));
+      const m = (e instanceof Error ? e.message : t("marinheiro.toastUpdateFail")).trim();
+      toast.error(m || t("marinheiro.toastUpdateFail"));
     } finally {
       setLoading(false);
     }
@@ -202,14 +219,18 @@ const Marinheiro_Page = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!resp.ok) throw new Error(await resp.text());
+      if (resp.status === 401) return;
+      if (!resp.ok) {
+        throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastRegisterFail")));
+      }
       toast.success(t("marinheiro.toastRegister"));
       setRegistering(false);
       setNewBoatForm(emptyBoatForm);
       setNewRouteIslandsText("");
       await carregarMeusBarcos();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("marinheiro.toastRegisterFail"));
+      const m = (e instanceof Error ? e.message : t("marinheiro.toastRegisterFail")).trim();
+      toast.error(m || t("marinheiro.toastRegisterFail"));
     } finally {
       setLoading(false);
     }

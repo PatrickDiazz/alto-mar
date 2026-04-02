@@ -18,6 +18,7 @@ import {
   type SeatsFilterKey,
   type PriceFilterKey,
 } from "@/lib/exploreFilters";
+import { readResponseErrorMessage } from "@/lib/responseError";
 
 const Explorar = () => {
   const { t } = useTranslation();
@@ -28,7 +29,13 @@ const Explorar = () => {
   const [tamFiltro, setTamFiltro] = useState<SizeFilterKey>("all");
   const [vagasFiltro, setVagasFiltro] = useState<SeatsFilterKey>("all");
   const [precoFiltro, setPrecoFiltro] = useState<PriceFilterKey>("all");
-  const { boats: listaBarcos, isLoading: barcosLoading, isError: barcosError, refetch: refetchBarcos } = useBarcos();
+  const {
+    boats: listaBarcos,
+    isLoading: barcosLoading,
+    isError: barcosError,
+    refetch: refetchBarcos,
+    isRefetching: barcosRefetching,
+  } = useBarcos();
   const user = getStoredUser();
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
 
@@ -70,14 +77,17 @@ const Explorar = () => {
       }
       try {
         const resp = await authFetch("/api/favorites");
-        if (!resp.ok) throw new Error(await resp.text());
+        if (resp.status === 401) return;
+        if (!resp.ok) {
+          throw new Error(await readResponseErrorMessage(resp, i18n.t("explorar.favLoadError")));
+        }
         const data = (await resp.json()) as { boatIds?: string[] };
         const ids = Array.isArray(data.boatIds) ? data.boatIds : [];
         if (active) setFavoriteIds(new Set(ids));
       } catch (e) {
-        const msg = e instanceof Error ? e.message : i18n.t("explorar.favLoadError");
-        if (!msg.includes("user_boat_favorites")) {
-          toast.error(msg);
+        const msg = (e instanceof Error ? e.message : i18n.t("explorar.favLoadError")).trim();
+        if (msg && !msg.includes("user_boat_favorites")) {
+          toast.error(msg, { id: "favorites-load" });
         }
       }
     };
@@ -100,10 +110,17 @@ const Explorar = () => {
       const resp = await authFetch(`/api/favorites/${boatId}`, {
         method: already ? "DELETE" : "POST",
       });
-      if (!resp.ok) throw new Error(await resp.text());
+      if (resp.status === 401) {
+        setFavoriteIds(before);
+        return;
+      }
+      if (!resp.ok) {
+        throw new Error(await readResponseErrorMessage(resp, t("explorar.favToggleError")));
+      }
     } catch (e) {
       setFavoriteIds(before);
-      toast.error(e instanceof Error ? e.message : t("explorar.favToggleError"));
+      const m = (e instanceof Error ? e.message : t("explorar.favToggleError")).trim();
+      toast.error(m || t("explorar.favToggleError"));
     }
   };
 
@@ -174,8 +191,14 @@ const Explorar = () => {
             <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-2 text-sm">
               <p className="font-medium text-foreground">{t("explorar.loadErrorTitle")}</p>
               <p className="text-muted-foreground">{t("common.boatsUnavailable")}</p>
-              <Button type="button" variant="secondary" size="sm" onClick={() => refetchBarcos()}>
-                {t("common.tryAgain")}
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={barcosRefetching}
+                onClick={() => void refetchBarcos()}
+              >
+                {barcosRefetching ? t("common.loading") : t("common.tryAgain")}
               </Button>
             </div>
           )}
@@ -199,7 +222,18 @@ const Explorar = () => {
           <h2 className="text-lg font-semibold text-foreground mb-3">{t("explorar.sectionAngrenses")}</h2>
           <p className="text-xs text-muted-foreground mb-3">{t("explorar.sectionAngrensesHint")}</p>
           {barcosError ? (
-            <p className="text-center text-muted-foreground py-8 text-sm">{t("explorar.fixLoadAbove")}</p>
+            <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-2 text-sm text-center">
+              <p className="text-muted-foreground">{t("explorar.fixLoadAbove")}</p>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={barcosRefetching}
+                onClick={() => void refetchBarcos()}
+              >
+                {barcosRefetching ? t("common.loading") : t("common.tryAgain")}
+              </Button>
+            </div>
           ) : favoritosAngrenses.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">{t("explorar.noHighRating")}</p>
           ) : (

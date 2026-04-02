@@ -18,11 +18,26 @@ import ContaDados from "./pages/ContaDados";
 import AjudaTeste from "./pages/AjudaTeste";
 import NotFound from "./pages/NotFound";
 import { RequireAuth } from "@/components/RequireAuth";
+import { BoatsQueryRecovery } from "@/components/BoatsQueryRecovery";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      gcTime: 10 * 60_000,
+      retry: 3,
+      retryDelay: (i) => Math.min(3000, 400 + 500 * 2 ** i),
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+      refetchOnMount: true,
+      networkMode: "online",
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <BoatsQueryRecovery />
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem storageKey="alto-mar-theme" disableTransitionOnChange>
       <TooltipProvider>
         <Toaster />

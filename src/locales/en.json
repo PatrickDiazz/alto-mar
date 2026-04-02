@@ -12,6 +12,7 @@
     "all": "All",
     "errorUnknown": "Unknown error.",
     "boatsUnavailable": "We couldn’t load boats right now. Please try again in a moment.",
+    "networkUnavailable": "Could not reach the server. Check your connection and try again.",
     "tryAgain": "Try again",
     "total": "Total",
     "optional": "optional",
@@ -47,6 +48,7 @@
     "searchPlaceholder": "Search boats",
     "searchLocationPlaceholder": "Region, city or boarding location…",
     "searchLocationAria": "Search by location, boat name or type",
+    "searchSuggestionsListLabel": "Beach and location suggestions",
     "filtersHeading": "Filters",
     "login": "Log in",
     "signup": "Sign up",
@@ -105,7 +107,8 @@
     "toastFail": "Sign-in failed.",
     "failUnavailable": "Service unavailable. Try again shortly or check that the API is running.",
     "failNetwork": "Could not reach the server. Check your connection or that the API is running (e.g. npm run dev:server).",
-    "failCredentials": "Invalid email or password."
+    "failCredentials": "Invalid email or password.",
+    "sessionExpired": "Your session expired. Please sign in again."
   },
   "signup": {
     "title": "Sign up",

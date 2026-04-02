@@ -1,7 +1,5 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
-import L from "leaflet";
 
 type BoatRoutesProps = {
   boatId: string;
@@ -224,20 +222,6 @@ function routeCoordinates(boatId: string, locationText: string, route: RouteItem
 }
 
 
-function makeStopIcon(n: number) {
-  return L.divIcon({
-    className: "",
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
-    html: `<div style="
-      width:26px;height:26px;border-radius:9999px;
-      background:#0ea5e9;color:white;font-weight:700;font-size:12px;
-      display:grid;place-items:center;border:2px solid rgba(255,255,255,0.95);
-      box-shadow:0 4px 10px rgba(2,8,23,.25);
-    ">${n}</div>`,
-  });
-}
-
 export function BoatRoutes({ boatId, locationText, routeIslands }: BoatRoutesProps) {
   const { t, i18n } = useTranslation();
   const routes = useMemo(
@@ -246,10 +230,6 @@ export function BoatRoutes({ boatId, locationText, routeIslands }: BoatRoutesPro
   );
   const [selectedIdx, setSelectedIdx] = useState(0);
   const selected = routes[selectedIdx] || routes[0];
-  const coords = useMemo(
-    () => routeCoordinates(boatId, locationText, selected),
-    [boatId, locationText, selected]
-  );
 
   return (
     <section className="bg-card rounded-xl border border-border p-4 space-y-3">
@@ -257,30 +237,6 @@ export function BoatRoutes({ boatId, locationText, routeIslands }: BoatRoutesPro
         <h3 className="text-base font-bold text-foreground">{t("boatRoutes.title")}</h3>
         <p className="text-xs text-muted-foreground">{t("boatRoutes.subtitle")}</p>
         <p className="text-[11px] text-muted-foreground mt-1">{t("boatRoutes.hint")}</p>
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-border">
-        <MapContainer
-          center={[coords[0].lat, coords[0].lng]}
-          zoom={11}
-          scrollWheelZoom={false}
-          className="h-64 w-full relative z-0"
-        >
-          <TileLayer
-            attribution='Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-          />
-          {coords.slice(1).map((p, i) => (
-            <Marker key={`stop-${i}`} position={[p.lat, p.lng]} icon={makeStopIcon(i + 1)}>
-              <Popup>
-                {t("boatRoutes.stopPopup", {
-                  place: selected.stops[i]?.ilha ?? "",
-                  min: selected.stops[i]?.paradaMin ?? 0,
-                })}
-              </Popup>
-            </Marker>
-          ))}
-        </MapContainer>
       </div>
 
       <div className="space-y-3">

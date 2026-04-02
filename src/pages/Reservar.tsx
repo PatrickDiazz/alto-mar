@@ -132,7 +132,13 @@ const Reservar = () => {
 
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { boats: barcos, isLoading: barcosLoading, isError: barcosError } = useBarcos();
+  const {
+    boats: barcos,
+    isLoading: barcosLoading,
+    isError: barcosError,
+    refetch: refetchBarcos,
+    isRefetching: barcosRefetching,
+  } = useBarcos();
   const barco = barcos.find((b) => b.id === id);
   const user = getStoredUser();
 
@@ -172,9 +178,17 @@ const Reservar = () => {
 
   if (barcosError) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 gap-3 text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 gap-4 text-center">
         <p className="text-foreground font-medium">{t("reservar.loadError")}</p>
         <p className="text-sm text-muted-foreground max-w-md">{t("common.boatsUnavailable")}</p>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={barcosRefetching}
+          onClick={() => void refetchBarcos()}
+        >
+          {barcosRefetching ? t("common.loading") : t("common.tryAgain")}
+        </Button>
       </div>
     );
   }
@@ -282,8 +296,8 @@ const Reservar = () => {
       );
       window.open(`https://wa.me/5524999999999?text=${msg}`, "_blank", "noopener,noreferrer");
     } catch (e) {
-      const message = e instanceof Error ? e.message : t("reservar.payFail");
-      toast.error(message);
+      const message = (e instanceof Error ? e.message : t("reservar.payFail")).trim();
+      toast.error(message || t("reservar.payFail"));
     } finally {
       setPagando(false);
     }

@@ -12,6 +12,7 @@
     "all": "Todos",
     "errorUnknown": "Erro desconhecido.",
     "boatsUnavailable": "Não conseguimos carregar as embarcações agora. Tente novamente em instantes.",
+    "networkUnavailable": "Não foi possível contactar o servidor. Verifique a ligação e tente novamente.",
     "tryAgain": "Tentar de novo",
     "total": "Total",
     "optional": "opcional",
@@ -47,6 +48,7 @@
     "searchPlaceholder": "Explorar barcos",
     "searchLocationPlaceholder": "Região, cidade ou local de embarque…",
     "searchLocationAria": "Buscar por localização, nome ou tipo de embarcação",
+    "searchSuggestionsListLabel": "Sugestões de praias e localidades",
     "filtersHeading": "Filtros",
     "login": "Entrar",
     "signup": "Criar conta",
@@ -105,7 +107,8 @@
     "toastFail": "Falha no login.",
     "failUnavailable": "Serviço indisponível. Tente daqui a pouco ou confira se a API está no ar.",
     "failNetwork": "Não foi possível ligar ao servidor. Verifique a internet ou se a API está a correr (ex.: npm run dev:server).",
-    "failCredentials": "Email ou senha inválidos."
+    "failCredentials": "Email ou senha inválidos.",
+    "sessionExpired": "Sessão expirada ou inválida. Entre de novo."
   },
   "signup": {
     "title": "Criar conta",

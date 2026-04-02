@@ -1,6 +1,9 @@
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { MapPin, Ship, Ruler, Users, Tag } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { filterPraiasSugestoes } from "@/data/praiasBrasil";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -8,7 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 import {
   EXPLORE_MAIN_FILTER_KEYS,
   type ExploreMainFilter,
@@ -60,22 +62,97 @@ export function ExploreFiltersCard({
   labelTipo,
 }: ExploreFiltersCardProps) {
   const { t } = useTranslation();
+  const sugListId = useId();
+  const [locFocused, setLocFocused] = useState(false);
+  const [hi, setHi] = useState(-1);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const suggestions = useMemo(() => filterPraiasSugestoes(busca, 12), [busca]);
+  const showSug = locFocused && busca.trim().length >= 2 && suggestions.length > 0;
+
+  useEffect(() => {
+    setHi(-1);
+  }, [busca]);
+
+  useEffect(() => {
+    if (!showSug) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setLocFocused(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [showSug]);
 
   return (
     <div className="mx-auto w-full max-w-md rounded-xl border border-border bg-card shadow-card">
       <div className="p-3 space-y-3">
-        <div className="flex items-center gap-2 rounded-full border border-input bg-background px-3 py-2.5 shadow-sm">
-          <MapPin className="h-5 w-5 shrink-0 text-primary" aria-hidden />
-          <input
-            value={busca}
-            onChange={(e) => onBuscaChange(e.target.value)}
-            placeholder={t("explorar.searchLocationPlaceholder")}
-            className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-            type="search"
-            enterKeyHint="search"
-            autoComplete="off"
-            aria-label={t("explorar.searchLocationAria")}
-          />
+        <div ref={wrapRef} className="relative">
+          <div className="flex items-center gap-2 rounded-full border border-input bg-background px-3 py-2.5 shadow-sm">
+            <MapPin className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+            <input
+              value={busca}
+              onChange={(e) => onBuscaChange(e.target.value)}
+              onFocus={() => setLocFocused(true)}
+              onBlur={() => {
+                window.setTimeout(() => setLocFocused(false), 180);
+              }}
+              onKeyDown={(e) => {
+                if (!showSug) return;
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setHi((i) => Math.min(suggestions.length - 1, i + 1));
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setHi((i) => Math.max(-1, i - 1));
+                } else if (e.key === "Enter" && hi >= 0 && suggestions[hi]) {
+                  e.preventDefault();
+                  onBuscaChange(suggestions[hi]);
+                  setLocFocused(false);
+                } else if (e.key === "Escape") {
+                  setLocFocused(false);
+                }
+              }}
+              placeholder={t("explorar.searchLocationPlaceholder")}
+              className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+              type="search"
+              enterKeyHint="search"
+              autoComplete="off"
+              role="combobox"
+              aria-expanded={showSug}
+              aria-controls={sugListId}
+              aria-autocomplete="list"
+              aria-label={t("explorar.searchLocationAria")}
+            />
+          </div>
+          {showSug && (
+            <ul
+              id={sugListId}
+              role="listbox"
+              aria-label={t("explorar.searchSuggestionsListLabel")}
+              className="absolute left-0 right-0 top-[calc(100%+2px)] z-50 max-h-48 overflow-auto rounded-lg border border-border bg-popover py-1 text-sm shadow-md"
+            >
+              {suggestions.map((s, idx) => (
+                <li key={s} role="presentation">
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={idx === hi}
+                    className={cn(
+                      "flex w-full px-3 py-2 text-left text-foreground transition-colors",
+                      idx === hi ? "bg-muted" : "hover:bg-muted/70"
+                    )}
+                    onMouseDown={(ev) => ev.preventDefault()}
+                    onMouseEnter={() => setHi(idx)}
+                    onClick={() => {
+                      onBuscaChange(s);
+                      setLocFocused(false);
+                    }}
+                  >
+                    {s}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="border-t border-border pt-3">
