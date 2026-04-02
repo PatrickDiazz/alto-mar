@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
@@ -105,6 +106,7 @@ async function criarReserva(input: {
   bbqKit: boolean;
   embarkLocation: string;
   totalCents: number;
+  routeIslands: string[];
 }) {
   const resp = await authFetch("/api/bookings", {
     method: "POST",
@@ -152,6 +154,8 @@ const Reservar = () => {
   const [cpf, setCpf] = useState("");
   const [telefone, setTelefone] = useState("");
   const [pagando, setPagando] = useState(false);
+  /** Paradas do roteiro selecionadas para o passeio */
+  const [paradasRoteiro, setParadasRoteiro] = useState<string[]>([]);
 
   useEffect(() => {
     if (!barco) return;
@@ -163,6 +167,15 @@ const Reservar = () => {
       setLocalEmbarque(locais[0]);
     }
   }, [barco, localEmbarque, t]);
+
+  useEffect(() => {
+    if (!barco) return;
+    const stops =
+      barco.routeIslands && barco.routeIslands.length > 0
+        ? [...barco.routeIslands]
+        : [barco.distancia || t("reservar.routeFallback")];
+    setParadasRoteiro(stops);
+  }, [barco, t]);
 
   if (!user) {
     return null;
@@ -238,6 +251,10 @@ const Reservar = () => {
       toast.error(t("reservar.toastEmbark"));
       return;
     }
+    if (paradasRoteiro.length === 0) {
+      toast.error(t("reservar.toastRoute"));
+      return;
+    }
     if (pessoas + criancas > barco.capacidade) {
       toast.error(t("reservar.toastCapacity", { n: barco.capacidade }));
       return;
@@ -254,6 +271,7 @@ const Reservar = () => {
         bbqKit: kitChurrasco,
         embarkLocation: localEmbarque,
         totalCents,
+        routeIslands: paradasRoteiro,
       });
 
       const externalReference = booking.booking.id;
@@ -404,6 +422,55 @@ const Reservar = () => {
               </div>
             </div>
           </div>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-base font-bold text-foreground">{t("reservar.routeStops")}</h3>
+          <p className="text-xs text-muted-foreground">{t("reservar.routeStopsHint")}</p>
+          <div className="space-y-2 rounded-xl border border-border bg-card p-3">
+            {(barco.routeIslands && barco.routeIslands.length > 0
+              ? barco.routeIslands
+              : [barco.distancia]
+            ).map((stop) => (
+              <label key={stop} className="flex items-center gap-3 text-sm cursor-pointer">
+                <Checkbox
+                  checked={paradasRoteiro.includes(stop)}
+                  onCheckedChange={(c) => {
+                    if (c === true) {
+                      setParadasRoteiro((prev) => (prev.includes(stop) ? prev : [...prev, stop]));
+                    } else {
+                      setParadasRoteiro((prev) => prev.filter((s) => s !== stop));
+                    }
+                  }}
+                />
+                <span>{stop}</span>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-dashed border-border bg-muted/30 p-4 space-y-2">
+          <h3 className="text-sm font-semibold text-foreground">{t("reservar.reviewTitle")}</h3>
+          <ul className="text-xs text-muted-foreground space-y-1">
+            <li>
+              <strong className="text-foreground">{t("reservar.reviewRoute")}</strong>{" "}
+              {paradasRoteiro.length ? paradasRoteiro.join(", ") : "—"}
+            </li>
+            <li>
+              <strong className="text-foreground">{t("reservar.embark")}</strong> {localEmbarque || "—"}
+            </li>
+            <li>
+              <strong className="text-foreground">{t("reservar.passengers")}</strong>{" "}
+              {pessoas} + {criancas}
+            </li>
+            <li>
+              <strong className="text-foreground">{t("reservar.bbqTitle")}</strong>{" "}
+              {kitChurrasco ? t("common.yes") : t("common.no")}
+            </li>
+            <li>
+              <strong className="text-foreground">{t("common.total")}</strong> {currencyFmt.format(total)}
+            </li>
+          </ul>
         </section>
 
         <section className="space-y-3">

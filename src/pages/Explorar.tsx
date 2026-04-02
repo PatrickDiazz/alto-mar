@@ -6,7 +6,7 @@ import BoatCard from "@/components/BoatCard";
 import { ExploreFiltersCard, JETSKY_TYPE } from "@/components/ExploreFiltersCard";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { useBarcos } from "@/hooks/useBarcos";
-import { getStoredUser, clearSession, authFetch } from "@/lib/auth";
+import { getStoredUser, clearSession, authFetch, apiUrl } from "@/lib/auth";
 import i18n from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -29,15 +29,35 @@ const Explorar = () => {
   const [tamFiltro, setTamFiltro] = useState<SizeFilterKey>("all");
   const [vagasFiltro, setVagasFiltro] = useState<SeatsFilterKey>("all");
   const [precoFiltro, setPrecoFiltro] = useState<PriceFilterKey>("all");
+  const [amenityFiltro, setAmenityFiltro] = useState("all");
+  const [amenityNames, setAmenityNames] = useState<string[]>([]);
   const {
     boats: listaBarcos,
     isLoading: barcosLoading,
     isError: barcosError,
     refetch: refetchBarcos,
     isRefetching: barcosRefetching,
-  } = useBarcos();
+  } = useBarcos(amenityFiltro !== "all" ? amenityFiltro : null);
   const user = getStoredUser();
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const r = await fetch(apiUrl("/api/amenities"));
+        if (!r.ok) return;
+        const d = (await r.json()) as { amenities?: { name: string }[] };
+        const names = (d.amenities || []).map((a) => a.name).filter(Boolean);
+        if (active) setAmenityNames(names.sort((a, b) => a.localeCompare(b, "pt")));
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const tiposDisponiveis = useMemo(() => {
     const set = new Set(listaBarcos.map((b) => b.tipo).filter(Boolean));
@@ -53,9 +73,10 @@ const Explorar = () => {
         tamFiltro,
         vagasFiltro,
         precoFiltro,
+        amenityFiltro,
       })
     );
-  }, [busca, listaBarcos, tipoFiltro, tamFiltro, vagasFiltro, precoFiltro]);
+  }, [busca, listaBarcos, tipoFiltro, tamFiltro, vagasFiltro, precoFiltro, amenityFiltro]);
 
   const favoritosAngrenses = useMemo(
     () =>
@@ -180,6 +201,9 @@ const Explorar = () => {
           onVagasFiltroChange={setVagasFiltro}
           precoFiltro={precoFiltro}
           onPrecoFiltroChange={setPrecoFiltro}
+          amenityFiltro={amenityFiltro}
+          onAmenityFiltroChange={setAmenityFiltro}
+          amenityNames={amenityNames}
           tiposDisponiveis={tiposDisponiveis}
           labelTipo={labelTipo}
         />

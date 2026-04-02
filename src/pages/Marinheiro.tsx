@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { bcp47FromAppLang } from "@/lib/localeFormat";
-import { authFetch, clearSession, getStoredUser } from "@/lib/auth";
+import { authFetch, clearSession, getStoredUser, apiUrl } from "@/lib/auth";
+import { Checkbox } from "@/components/ui/checkbox";
 import { readResponseErrorMessage } from "@/lib/responseError";
 
 type OwnerBoat = {
@@ -30,7 +31,9 @@ type OwnerBoat = {
   tiemDocumentUrl?: string | null;
   videoUrl?: string | null;
   routeIslands?: string[];
+  routeIslandImages?: Record<string, string[]>;
   imagens: string[];
+  amenidades?: Array<{ id: string; nome: string; incluido: boolean }>;
 };
 
 type OwnerBookingRow = {
@@ -42,6 +45,7 @@ type OwnerBookingRow = {
   bbqKit: boolean;
   embarkLocation: string;
   totalCents: number;
+  routeIslands?: string[];
   boat: { id: string; nome: string };
   renter: { id: string; nome: string; email: string };
 };
@@ -59,6 +63,7 @@ const emptyBoatForm: Omit<OwnerBoat, "id" | "preco" | "nota" | "tamanho"> = {
   tiemDocumentUrl: "",
   videoUrl: "",
   routeIslands: [],
+  routeIslandImages: {},
   imagens: [],
 };
 
@@ -90,9 +95,31 @@ const Marinheiro_Page = () => {
   const [newBoatForm, setNewBoatForm] = useState(emptyBoatForm);
   const [newRouteIslandsText, setNewRouteIslandsText] = useState("");
   const [editRouteIslandsText, setEditRouteIslandsText] = useState("");
+  const [catalogAmenities, setCatalogAmenities] = useState<Array<{ id: string; name: string }>>([]);
+  const [amenityIncNew, setAmenityIncNew] = useState<Record<string, boolean>>({});
+  const [amenityIncEdit, setAmenityIncEdit] = useState<Record<string, boolean>>({});
+  const [uploadRoutePhotos, setUploadRoutePhotos] = useState(false);
+  const [routePhotoRights, setRoutePhotoRights] = useState(false);
+  const [routeIslandImagesNew, setRouteIslandImagesNew] = useState<Record<string, string[]>>({});
 
   const isLocatario = user?.role === "locatario";
   const pendentes = useMemo(() => bookings.filter((b) => b.status === "PENDING"), [bookings]);
+  const aceitas = useMemo(() => bookings.filter((b) => b.status === "ACCEPTED"), [bookings]);
+
+  const newBoatReady = useMemo(() => {
+    const f = newBoatForm;
+    const base =
+      f.nome.trim().length >= 2 &&
+      f.distancia.trim().length >= 2 &&
+      f.tipo.trim().length >= 2 &&
+      f.descricao.trim().length >= 5 &&
+      f.precoCents >= 100 &&
+      f.tamanhoPes >= 1 &&
+      f.capacidade >= 1 &&
+      f.imagens.length >= 1;
+    const routeOk = !uploadRoutePhotos || routePhotoRights;
+    return base && routeOk;
+  }, [newBoatForm, uploadRoutePhotos, routePhotoRights]);
   const precoPreview = useMemo(() => {
     const n = Math.max(0, Math.round((newBoatForm.precoCents || 0) / 100));
     return currencyFmt.format(n);
@@ -107,7 +134,7 @@ const Marinheiro_Page = () => {
   const carregarPendentes = async () => {
     setLoading(true);
     try {
-      const resp = await authFetch("/api/owner/bookings?status=PENDING");
+      const resp = await authFetch("/api/owner/bookings");
       if (resp.status === 401) return;
       if (!resp.ok) {
         throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastBookings")));
@@ -117,6 +144,24 @@ const Marinheiro_Page = () => {
     } catch (e) {
       const m = (e instanceof Error ? e.message : t("marinheiro.toastBookings")).trim();
       toast.error(m || t("marinheiro.toastBookings"), { id: "owner-bookings" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const concluirReserva = async (bookingId: string) => {
+    setLoading(true);
+    try {
+      const resp = await authFetch(`/api/owner/bookings/${bookingId}/complete`, { method: "POST" });
+      if (resp.status === 401) return;
+      if (!resp.ok) {
+        throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastCompleteFail")));
+      }
+      toast.success(t("marinheiro.toastCompleteOk"));
+      await carregarPendentes();
+    } catch (e) {
+      const m = (e instanceof Error ? e.message : t("marinheiro.toastCompleteFail")).trim();
+      toast.error(m || t("marinheiro.toastCompleteFail"));
     } finally {
       setLoading(false);
     }
@@ -163,6 +208,12 @@ const Marinheiro_Page = () => {
     setEditingBoatId(boat.id);
     setBoatForm({ ...boat });
     setEditRouteIslandsText((boat.routeIslands || []).join(", "));
+    const m: Record<string, boolean> = {};
+    catalogAmenities.forEach((a) => {
+      const found = boat.amenidades?.find((x) => x.id === a.id);
+      m[a.id] = found ? found.incluido : false;
+    });
+    setAmenityIncEdit(m);
   };
 
   const salvarEdicao = async () => {
@@ -181,6 +232,7 @@ const Marinheiro_Page = () => {
           tipo: boatForm.tipo,
           descricao: boatForm.descricao,
           routeIslands: boatForm.routeIslands || [],
+          routeIslandImages: boatForm.routeIslandImages || {},
           verificado: Boolean(boatForm.verificado),
           tieDocumentUrl: boatForm.tieDocumentUrl || null,
           tiemDocumentUrl: boatForm.tiemDocumentUrl || null,
@@ -191,6 +243,18 @@ const Marinheiro_Page = () => {
       if (resp.status === 401) return;
       if (!resp.ok) {
         throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastUpdateFail")));
+      }
+      const pairs = catalogAmenities.map((a) => ({
+        amenityId: a.id,
+        included: Boolean(amenityIncEdit[a.id]),
+      }));
+      const amResp = await authFetch(`/api/owner/boats/${editingBoatId}/amenities`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pairs }),
+      });
+      if (!amResp.ok) {
+        throw new Error(await readResponseErrorMessage(amResp, t("marinheiro.toastAmenitiesFail")));
       }
       toast.success(t("marinheiro.toastUpdate"));
       setEditingBoatId(null);
@@ -206,10 +270,15 @@ const Marinheiro_Page = () => {
   };
 
   const registrarEmbarcacao = async () => {
+    if (!newBoatReady) {
+      toast.error(t("marinheiro.newBoatBlocked"));
+      return;
+    }
     setLoading(true);
     try {
       const payload = {
         ...newBoatForm,
+        routeIslandImages: uploadRoutePhotos && routePhotoRights ? routeIslandImagesNew : {},
         tieDocumentUrl: newBoatForm.tieDocumentUrl?.trim() ? newBoatForm.tieDocumentUrl.trim() : null,
         tiemDocumentUrl: newBoatForm.tiemDocumentUrl?.trim() ? newBoatForm.tiemDocumentUrl.trim() : null,
         videoUrl: newBoatForm.videoUrl?.trim() ? newBoatForm.videoUrl.trim() : null,
@@ -223,10 +292,29 @@ const Marinheiro_Page = () => {
       if (!resp.ok) {
         throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastRegisterFail")));
       }
+      const data = (await resp.json()) as { boat?: { id: string } };
+      const boatId = data.boat?.id;
+      if (boatId && catalogAmenities.length > 0) {
+        const pairs = catalogAmenities.map((a) => ({
+          amenityId: a.id,
+          included: Boolean(amenityIncNew[a.id]),
+        }));
+        const amResp = await authFetch(`/api/owner/boats/${boatId}/amenities`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pairs }),
+        });
+        if (!amResp.ok) {
+          throw new Error(await readResponseErrorMessage(amResp, t("marinheiro.toastAmenitiesFail")));
+        }
+      }
       toast.success(t("marinheiro.toastRegister"));
       setRegistering(false);
       setNewBoatForm(emptyBoatForm);
       setNewRouteIslandsText("");
+      setUploadRoutePhotos(false);
+      setRoutePhotoRights(false);
+      setRouteIslandImagesNew({});
       await carregarMeusBarcos();
     } catch (e) {
       const m = (e instanceof Error ? e.message : t("marinheiro.toastRegisterFail")).trim();
@@ -241,6 +329,31 @@ const Marinheiro_Page = () => {
     carregarMeusBarcos();
     carregarPendentes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLocatario]);
+
+  useEffect(() => {
+    if (!isLocatario) return;
+    let active = true;
+    void (async () => {
+      try {
+        const r = await fetch(apiUrl("/api/amenities"));
+        if (!r.ok) return;
+        const d = (await r.json()) as { amenities?: Array<{ id: string; name: string }> };
+        const list = d.amenities || [];
+        if (!active) return;
+        setCatalogAmenities(list);
+        const init: Record<string, boolean> = {};
+        list.forEach((a) => {
+          init[a.id] = false;
+        });
+        setAmenityIncNew(init);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, [isLocatario]);
 
   return (
@@ -420,6 +533,57 @@ const Marinheiro_Page = () => {
                     />
                     <p className="text-xs text-muted-foreground">{t("marinheiro.routesHint")}</p>
                   </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">{t("marinheiro.amenitiesHeading")}</Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {catalogAmenities.map((a) => (
+                        <label key={a.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={Boolean(amenityIncNew[a.id])}
+                            onCheckedChange={(c) =>
+                              setAmenityIncNew((prev) => ({ ...prev, [a.id]: c === true }))
+                            }
+                          />
+                          <span>{a.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2 rounded-lg border border-border p-3">
+                    <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                      <Checkbox checked={uploadRoutePhotos} onCheckedChange={(c) => setUploadRoutePhotos(c === true)} />
+                      {t("marinheiro.routePhotosEnable")}
+                    </label>
+                    {uploadRoutePhotos ? (
+                      <>
+                        <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
+                          <Checkbox
+                            checked={routePhotoRights}
+                            onCheckedChange={(c) => setRoutePhotoRights(c === true)}
+                            className="mt-0.5"
+                          />
+                          <span>{t("marinheiro.routePhotosDisclaimer")}</span>
+                        </label>
+                        <p className="text-xs font-semibold text-foreground">{t("marinheiro.routePhotosTitle")}</p>
+                        {(newBoatForm.routeIslands || []).map((island) => (
+                          <div key={island} className="space-y-1">
+                            <Label className="text-xs">{island}</Label>
+                            <Input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              disabled={!routePhotoRights}
+                              onChange={async (e) => {
+                                const files = Array.from(e.target.files || []);
+                                const urls = await Promise.all(files.map(fileToDataUrl));
+                                setRouteIslandImagesNew((prev) => ({ ...prev, [island]: urls }));
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </>
+                    ) : null}
+                  </div>
                   <div className="space-y-1">
                     <Label>{t("marinheiro.video")}</Label>
                     <Input placeholder={t("marinheiro.videoPh")} value={newBoatForm.videoUrl || ""} onChange={(e) => setNewBoatForm({ ...newBoatForm, videoUrl: e.target.value })} />
@@ -448,8 +612,20 @@ const Marinheiro_Page = () => {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button onClick={registrarEmbarcacao} disabled={loading}>{t("marinheiro.saveBoat")}</Button>
-                    <Button variant="secondary" onClick={() => { setRegistering(false); setNewBoatForm(emptyBoatForm); setNewRouteIslandsText(""); }}>
+                    <Button onClick={registrarEmbarcacao} disabled={loading || !newBoatReady}>
+                      {t("marinheiro.saveBoat")}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setRegistering(false);
+                        setNewBoatForm(emptyBoatForm);
+                        setNewRouteIslandsText("");
+                        setUploadRoutePhotos(false);
+                        setRoutePhotoRights(false);
+                        setRouteIslandImagesNew({});
+                      }}
+                    >
                       {t("common.cancel")}
                     </Button>
                   </div>
@@ -582,6 +758,22 @@ const Marinheiro_Page = () => {
                               />
                               <p className="text-xs text-muted-foreground">{t("marinheiro.editRatingHint")}</p>
                             </div>
+                            <div className="space-y-2">
+                              <Label className="text-sm font-semibold">{t("marinheiro.amenitiesHeading")}</Label>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {catalogAmenities.map((a) => (
+                                  <label key={a.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                                    <Checkbox
+                                      checked={Boolean(amenityIncEdit[a.id])}
+                                      onCheckedChange={(c) =>
+                                        setAmenityIncEdit((prev) => ({ ...prev, [a.id]: c === true }))
+                                      }
+                                    />
+                                    <span>{a.name}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <Input placeholder={t("marinheiro.tie")} value={boatForm.tieDocumentUrl || ""} onChange={(e) => setBoatForm({ ...boatForm, tieDocumentUrl: e.target.value })} />
                               <Input placeholder={t("marinheiro.tiem")} value={boatForm.tiemDocumentUrl || ""} onChange={(e) => setBoatForm({ ...boatForm, tiemDocumentUrl: e.target.value })} />
@@ -645,6 +837,11 @@ const Marinheiro_Page = () => {
                             {b.hasKids ? ` + ${b.passengersChildren} ${t("marinheiro.kids")}` : ""}
                             {b.bbqKit ? ` • ${t("marinheiro.bbq")}` : ""}
                           </p>
+                          {b.routeIslands && b.routeIslands.length > 0 ? (
+                            <p className="text-xs text-muted-foreground">
+                              {t("marinheiro.bookingRoute")}: {b.routeIslands.join(", ")}
+                            </p>
+                          ) : null}
                         </div>
                         <Badge className="bg-accent text-accent-foreground">{t("marinheiro.pendingBadge")}</Badge>
                       </div>
@@ -667,6 +864,42 @@ const Marinheiro_Page = () => {
                           {t("marinheiro.decline")}
                         </Button>
                       </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-foreground">{t("marinheiro.acceptedTitle")}</h2>
+                <Badge variant="outline">{aceitas.length}</Badge>
+              </div>
+              {aceitas.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">{t("marinheiro.noAccepted")}</p>
+              ) : (
+                <div className="space-y-3">
+                  {aceitas.map((b) => (
+                    <div key={b.id} className="border border-border rounded-xl bg-card p-4 shadow-card space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">{b.boat.nome}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {t("marinheiro.client")} {b.renter.nome}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {t("marinheiro.total")} {currencyFmt.format(b.totalCents / 100)}
+                          </p>
+                          {b.routeIslands && b.routeIslands.length > 0 ? (
+                            <p className="text-xs text-muted-foreground">
+                              {t("marinheiro.bookingRoute")}: {b.routeIslands.join(", ")}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                      <Button onClick={() => concluirReserva(b.id)} disabled={loading} className="w-full">
+                        {t("marinheiro.completeBooking")}
+                      </Button>
                     </div>
                   ))}
                 </div>

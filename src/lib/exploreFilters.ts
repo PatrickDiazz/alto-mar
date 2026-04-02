@@ -1,7 +1,7 @@
 import type { Boat } from "@/lib/types";
 
 /** Chaves estáveis — textos vêm do i18n */
-export const EXPLORE_MAIN_FILTER_KEYS = ["type", "size", "seats", "price"] as const;
+export const EXPLORE_MAIN_FILTER_KEYS = ["type", "size", "seats", "price", "included"] as const;
 export type ExploreMainFilter = "all" | (typeof EXPLORE_MAIN_FILTER_KEYS)[number];
 export type SizeFilterKey = "all" | "upTo25" | "26to30" | "31plus";
 export type SeatsFilterKey = "all" | "upTo6" | "7to10" | "11to16" | "17plus";
@@ -15,9 +15,11 @@ export function matchesExploreFilters(
     tamFiltro: SizeFilterKey;
     vagasFiltro: SeatsFilterKey;
     precoFiltro: PriceFilterKey;
+    /** Nome do item incluso (catálogo) ou "all" */
+    amenityFiltro: string;
   }
 ): boolean {
-  const { q, tipoFiltro, tamFiltro, vagasFiltro, precoFiltro } = opts;
+  const { q, tipoFiltro, tamFiltro, vagasFiltro, precoFiltro, amenityFiltro } = opts;
   if (q.trim()) {
     const qLower = q.trim().toLowerCase();
     const locais = (barco.locaisEmbarque || []).join(" ");
@@ -49,6 +51,14 @@ export function matchesExploreFilters(
     if (precoFiltro === "2001to3000" && !(valor >= 2001 && valor <= 3000)) return false;
     if (precoFiltro === "3001to4500" && !(valor >= 3001 && valor <= 4500)) return false;
     if (precoFiltro === "4501plus" && !(valor >= 4501)) return false;
+  }
+
+  if (amenityFiltro && amenityFiltro !== "all") {
+    const want = amenityFiltro.trim().toLowerCase();
+    const ok = (barco.amenidades || []).some(
+      (a) => a.incluido && a.nome.toLowerCase() === want
+    );
+    if (!ok) return false;
   }
 
   return true;

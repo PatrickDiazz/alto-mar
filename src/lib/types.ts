@@ -1,6 +1,7 @@
 export type Amenidade = {
   nome: string;
   incluido: boolean;
+  id?: string;
 };
 
 export type Boat = {
@@ -18,5 +19,7 @@ export type Boat = {
   amenidades: Amenidade[];
   locaisEmbarque: string[];
   routeIslands?: string[];
+  /** URLs de imagens por nome da parada (praias do roteiro) */
+  routeIslandImages?: Record<string, string[]>;
 };
 

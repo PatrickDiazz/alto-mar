@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { MapPin, Ship, Ruler, Users, Tag } from "lucide-react";
+import { MapPin, Ship, Ruler, Users, Tag, Package } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { filterPraiasSugestoes } from "@/data/praiasBrasil";
@@ -24,6 +24,7 @@ const FILTER_ICONS: Record<(typeof EXPLORE_MAIN_FILTER_KEYS)[number], LucideIcon
   size: Ruler,
   seats: Users,
   price: Tag,
+  included: Package,
 };
 
 const JETSKY_TYPE = "Jetsky";
@@ -41,6 +42,9 @@ type ExploreFiltersCardProps = {
   onVagasFiltroChange: (v: SeatsFilterKey) => void;
   precoFiltro: PriceFilterKey;
   onPrecoFiltroChange: (v: PriceFilterKey) => void;
+  amenityFiltro: string;
+  onAmenityFiltroChange: (v: string) => void;
+  amenityNames: string[];
   tiposDisponiveis: string[];
   labelTipo: (tipo: string) => string;
 };
@@ -58,6 +62,9 @@ export function ExploreFiltersCard({
   onVagasFiltroChange,
   precoFiltro,
   onPrecoFiltroChange,
+  amenityFiltro,
+  onAmenityFiltroChange,
+  amenityNames,
   tiposDisponiveis,
   labelTipo,
 }: ExploreFiltersCardProps) {
@@ -159,7 +166,7 @@ export function ExploreFiltersCard({
           <p className="mb-2 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             {t("explorar.filtersHeading")}
           </p>
-          <div className="grid grid-cols-4 gap-1">
+          <div className="grid grid-cols-5 gap-0.5 sm:gap-1">
             {EXPLORE_MAIN_FILTER_KEYS.map((key) => {
               const Icon = FILTER_ICONS[key];
               const isActive = mainFilter === key;
@@ -241,6 +248,22 @@ export function ExploreFiltersCard({
                   <SelectItem value="2001to3000">{t("explorar.price.2001to3000")}</SelectItem>
                   <SelectItem value="3001to4500">{t("explorar.price.3001to4500")}</SelectItem>
                   <SelectItem value="4501plus">{t("explorar.price.4501plus")}</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+
+            {mainFilter === "included" && (
+              <Select value={amenityFiltro} onValueChange={onAmenityFiltroChange}>
+                <SelectTrigger className="w-full bg-background">
+                  <SelectValue placeholder={t("explorar.selectIncluded")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("common.all")}</SelectItem>
+                  {amenityNames.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             )}

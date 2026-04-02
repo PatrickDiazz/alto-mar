@@ -51,6 +51,42 @@ async function ensureBoatsRouteIslandsColumn() {
   await query(`alter table boats add column if not exists route_islands text[] not null default '{}'::text[]`);
 }
 
+async function ensureBoatsRouteIslandImagesColumn() {
+  await query(
+    `alter table boats add column if not exists route_island_images jsonb not null default '{}'::jsonb`
+  );
+}
+
+async function ensureBookingsRouteIslandsColumn() {
+  await query(
+    `alter table bookings add column if not exists route_islands text[] not null default '{}'::text[]`
+  );
+}
+
+async function ensureBookingStatusCompleted() {
+  try {
+    await query(`alter type booking_status add value 'COMPLETED'`);
+  } catch (e) {
+    const m = e instanceof Error ? e.message : String(e);
+    if (!/already exists|duplicate/i.test(m)) throw e;
+  }
+}
+
+async function ensureSeedAmenities() {
+  const defaults = [
+    "Banho com água doce",
+    "Carvão",
+    "Coletes salva-vidas",
+    "Cooler",
+    "Gelo",
+    "Som Bluetooth",
+    "Kit churrasco",
+  ];
+  for (const name of defaults) {
+    await query(`insert into amenities (name) values ($1) on conflict (name) do nothing`, [name]);
+  }
+}
+
 const app = express();
 app.use(express.json());
 const extraCors = (process.env.EXTRA_CORS_ORIGINS || "")
@@ -114,6 +150,17 @@ app.get("/api/health", async (_req, res) => {
       error: msg,
       ...(code ? { pgCode: code } : {}),
     });
+  }
+});
+
+// --- Amenities catalog ---
+app.get("/api/amenities", async (_req, res) => {
+  try {
+    const rows = await query(`select id, name from amenities order by name asc`);
+    return res.json({ amenities: rows.rows });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao listar itens.";
+    return res.status(503).send(msg);
   }
 });
 
@@ -325,8 +372,23 @@ function normalizeRouteIslands(v) {
   return Array.isArray(v) ? v : [];
 }
 
-app.get("/api/boats", async (_req, res) => {
+app.get("/api/boats", async (req, res) => {
   try {
+    const amenityFilter =
+      typeof req.query.amenity === "string" && req.query.amenity.trim().length > 0
+        ? req.query.amenity.trim()
+        : null;
+    const params = [];
+    let whereSql = "";
+    if (amenityFilter) {
+      params.push(amenityFilter);
+      whereSql = `where exists (
+        select 1 from boat_amenities ba
+        join amenities a on a.id = ba.amenity_id
+        where ba.boat_id = b.id and ba.included = true and a.name = $1
+      )`;
+    }
+
     const boats = await query(
       `select
          b.id,
@@ -339,9 +401,12 @@ app.get("/api/boats", async (_req, res) => {
          b.type,
          b.description,
          b.verified,
-         coalesce(b.route_islands, '{}'::text[]) as route_islands
+         coalesce(b.route_islands, '{}'::text[]) as route_islands,
+         coalesce(b.route_island_images, '{}'::jsonb) as route_island_images
        from boats b
-       order by b.created_at desc`
+       ${whereSql}
+       order by b.created_at desc`,
+      params
     );
 
     const boatIds = boats.rows.map((b) => b.id);
@@ -409,6 +474,10 @@ app.get("/api/boats", async (_req, res) => {
       amenidades: amenitiesByBoat[b.id] || [],
       locaisEmbarque: locationsByBoat[b.id] || [],
       routeIslands: normalizeRouteIslands(b.route_islands),
+      routeIslandImages:
+        b.route_island_images && typeof b.route_island_images === "object"
+          ? b.route_island_images
+          : {},
     }));
 
     return res.json({ boats: payload });
@@ -436,7 +505,8 @@ app.get("/api/boats/:id", async (req, res) => {
          b.type,
          b.description,
          b.verified,
-         coalesce(b.route_islands, '{}'::text[]) as route_islands
+         coalesce(b.route_islands, '{}'::text[]) as route_islands,
+         coalesce(b.route_island_images, '{}'::jsonb) as route_island_images
        from boats b
        where b.id = $1
        limit 1`,
@@ -475,6 +545,8 @@ app.get("/api/boats/:id", async (req, res) => {
         amenidades: amenities.rows.map((r) => ({ nome: r.name, incluido: r.included })),
         locaisEmbarque: locations.rows.map((r) => r.name),
         routeIslands: normalizeRouteIslands(b.route_islands),
+        routeIslandImages:
+          b.route_island_images && typeof b.route_island_images === "object" ? b.route_island_images : {},
       },
     });
   } catch (e) {
@@ -571,7 +643,8 @@ app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, r
          b.tie_document_url,
          b.tiem_document_url,
          b.video_url,
-         b.route_islands
+         b.route_islands,
+         coalesce(b.route_island_images, '{}'::jsonb) as route_island_images
        from boats b
        where b.owner_user_id = $1
        order by b.created_at desc`,
@@ -589,6 +662,26 @@ app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, r
              order by boat_id, sort asc`,
             [boatIds]
           );
+
+    const amenityRows =
+      boatIds.length === 0
+        ? { rows: [] }
+        : await query(
+            `select ba.boat_id, a.id as amenity_id, a.name, ba.included
+             from boat_amenities ba
+             join amenities a on a.id = ba.amenity_id
+             where ba.boat_id = any($1::uuid[])
+             order by ba.boat_id, a.name asc`,
+            [boatIds]
+          );
+    const amenitiesByBoat = amenityRows.rows.reduce((acc, r) => {
+      (acc[r.boat_id] ||= []).push({
+        id: r.amenity_id,
+        nome: r.name,
+        incluido: r.included,
+      });
+      return acc;
+    }, {});
 
     return res.json({
       boats: boats.rows.map((b) => ({
@@ -609,7 +702,10 @@ app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, r
         tiemDocumentUrl: b.tiem_document_url,
         videoUrl: b.video_url,
         routeIslands: Array.isArray(b.route_islands) ? b.route_islands : [],
+        routeIslandImages:
+          b.route_island_images && typeof b.route_island_images === "object" ? b.route_island_images : {},
         imagens: images.rows.filter((i) => i.boat_id === b.id).map((i) => i.url),
+        amenidades: amenitiesByBoat[b.id] || [],
       })),
     });
   } catch (e) {
@@ -629,6 +725,7 @@ const ownerUpdateBoatSchema = z.object({
   tipo: z.string().min(2).max(80),
   descricao: z.string().min(5).max(4000),
   routeIslands: z.array(z.string().min(2).max(120)).max(20).optional(),
+  routeIslandImages: z.record(z.string(), z.array(z.string())).optional(),
   verificado: z.boolean(),
   tieDocumentUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
   tiemDocumentUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
@@ -640,6 +737,8 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
   try {
     const boatId = req.params.id;
     const body = ownerUpdateBoatSchema.parse(req.body || {});
+
+    const riJson = body.routeIslandImages != null ? JSON.stringify(body.routeIslandImages) : "{}";
 
     const updated = await query(
       `update boats
@@ -654,9 +753,10 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
            tie_document_url = $11,
            tiem_document_url = $12,
            video_url = $13,
-           route_islands = $14
+           route_islands = $14,
+           route_island_images = $15::jsonb
        where id = $1 and owner_user_id = $2
-       returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands`,
+       returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands, route_island_images`,
       [
         boatId,
         req.user.sub,
@@ -672,6 +772,7 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
         body.tiemDocumentUrl ?? null,
         body.videoUrl ?? null,
         body.routeIslands ?? [],
+        riJson,
       ]
     );
 
@@ -710,6 +811,8 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
         tiemDocumentUrl: b.tiem_document_url,
         videoUrl: b.video_url,
         routeIslands: Array.isArray(b.route_islands) ? b.route_islands : [],
+        routeIslandImages:
+          b.route_island_images && typeof b.route_island_images === "object" ? b.route_island_images : {},
         imagens: imgs.rows.map((r) => r.url),
       },
     });
@@ -728,6 +831,7 @@ const ownerCreateBoatSchema = z.object({
   tipo: z.string().min(2).max(80),
   descricao: z.string().min(5).max(4000),
   routeIslands: z.array(z.string().min(2).max(120)).max(20).optional(),
+  routeIslandImages: z.record(z.string(), z.array(z.string())).optional(),
   tieDocumentUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
   tiemDocumentUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
   videoUrl: z.string().url().optional().nullable(),
@@ -737,11 +841,12 @@ const ownerCreateBoatSchema = z.object({
 app.post("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, res) => {
   try {
     const body = ownerCreateBoatSchema.parse(req.body || {});
+    const riJson = body.routeIslandImages != null ? JSON.stringify(body.routeIslandImages) : "{}";
     const created = await query(
       `insert into boats
-        (owner_user_id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-       returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands`,
+        (owner_user_id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands, route_island_images)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb)
+       returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands, route_island_images`,
       [
         req.user.sub,
         body.nome,
@@ -757,6 +862,7 @@ app.post("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, 
         body.tiemDocumentUrl ?? null,
         body.videoUrl ?? null,
         body.routeIslands ?? [],
+        riJson,
       ]
     );
     const b = created.rows[0];
@@ -770,6 +876,53 @@ app.post("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, 
   }
 });
 
+const postOwnerAmenitySchema = z.object({
+  name: z.string().min(2).max(120),
+});
+
+app.post("/api/owner/amenities", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const body = postOwnerAmenitySchema.parse(req.body || {});
+    const name = body.name.trim();
+    const ins = await query(
+      `insert into amenities (name) values ($1) on conflict (name) do nothing returning id, name`,
+      [name]
+    );
+    if (ins.rows[0]) return res.json(ins.rows[0]);
+    const ex = await query(`select id, name from amenities where name = $1 limit 1`, [name]);
+    return res.json(ex.rows[0]);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao criar item.";
+    return res.status(400).send(msg);
+  }
+});
+
+const putBoatAmenitiesSchema = z.object({
+  pairs: z.array(z.object({ amenityId: z.string().uuid(), included: z.boolean() })),
+});
+
+app.put("/api/owner/boats/:id/amenities", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const boatId = req.params.id;
+    const body = putBoatAmenitiesSchema.parse(req.body || {});
+    const own = await query(`select id from boats where id = $1 and owner_user_id = $2`, [boatId, req.user.sub]);
+    if (!own.rows[0]) return res.status(404).send("Barco não encontrado.");
+
+    await query(`delete from boat_amenities where boat_id = $1`, [boatId]);
+    for (const p of body.pairs) {
+      await query(`insert into boat_amenities (boat_id, amenity_id, included) values ($1, $2, $3)`, [
+        boatId,
+        p.amenityId,
+        p.included,
+      ]);
+    }
+    return res.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao salvar inclusões.";
+    return res.status(400).send(msg);
+  }
+});
+
 // --- Bookings ---
 const createBookingSchema = z.object({
   boatId: z.string().uuid(),
@@ -779,6 +932,7 @@ const createBookingSchema = z.object({
   bbqKit: z.boolean(),
   embarkLocation: z.string().min(1).max(200),
   totalCents: z.number().int().min(0),
+  routeIslands: z.array(z.string().min(1).max(200)).max(30).optional().default([]),
 });
 
 app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res) => {
@@ -793,8 +947,8 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
       `insert into bookings
         (boat_id, renter_user_id, owner_user_id, status,
          passengers_adults, passengers_children, has_kids, bbq_kit,
-         embark_location, total_cents)
-       values ($1,$2,$3,'PENDING',$4,$5,$6,$7,$8,$9)
+         embark_location, total_cents, route_islands)
+       values ($1,$2,$3,'PENDING',$4,$5,$6,$7,$8,$9,$10)
        returning id, status, created_at`,
       [
         body.boatId,
@@ -806,6 +960,7 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
         body.bbqKit,
         body.embarkLocation,
         body.totalCents,
+        body.routeIslands ?? [],
       ]
     );
 
@@ -824,11 +979,146 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
   }
 });
 
+const renterUpdateBookingSchema = z.object({
+  passengersAdults: z.number().int().min(1).optional(),
+  passengersChildren: z.number().int().min(0).optional(),
+  hasKids: z.boolean().optional(),
+  bbqKit: z.boolean().optional(),
+  embarkLocation: z.string().min(1).max(200).optional(),
+  totalCents: z.number().int().min(0).optional(),
+  routeIslands: z.array(z.string().min(1).max(200)).max(30).optional(),
+});
+
+app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req, res) => {
+  try {
+    const rows = await query(
+      `select
+         bk.id,
+         bk.status,
+         bk.created_at,
+         bk.decided_at,
+         bk.decision_note,
+         bk.passengers_adults,
+         bk.passengers_children,
+         bk.has_kids,
+         bk.bbq_kit,
+         bk.embark_location,
+         bk.total_cents,
+         coalesce(bk.route_islands, '{}'::text[]) as route_islands,
+         b.id as boat_id,
+         b.name as boat_name,
+         b.location_text as boat_location
+       from bookings bk
+       join boats b on b.id = bk.boat_id
+       where bk.renter_user_id = $1
+       order by bk.created_at desc`,
+      [req.user.sub]
+    );
+
+    return res.json({
+      bookings: rows.rows.map((r) => ({
+        id: r.id,
+        status: r.status,
+        createdAt: r.created_at,
+        decidedAt: r.decided_at,
+        decisionNote: r.decision_note,
+        passengersAdults: r.passengers_adults,
+        passengersChildren: r.passengers_children,
+        hasKids: r.has_kids,
+        bbqKit: r.bbq_kit,
+        embarkLocation: r.embark_location,
+        totalCents: r.total_cents,
+        routeIslands: Array.isArray(r.route_islands) ? r.route_islands : [],
+        boat: { id: r.boat_id, nome: r.boat_name, distancia: r.boat_location },
+      })),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao carregar reservas.";
+    return res.status(503).send(msg);
+  }
+});
+
+app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const body = renterUpdateBookingSchema.parse(req.body || {});
+    const cur = await query(
+      `select status from bookings where id = $1 and renter_user_id = $2 limit 1`,
+      [bookingId, req.user.sub]
+    );
+    const st = cur.rows[0]?.status;
+    if (!st) return res.status(404).send("Reserva não encontrada.");
+    if (st === "DECLINED" || st === "CANCELLED" || st === "COMPLETED") {
+      return res.status(400).send("Esta reserva não pode ser alterada.");
+    }
+
+    const sets = [];
+    const vals = [bookingId, req.user.sub];
+    let n = 3;
+    if (body.passengersAdults !== undefined) {
+      sets.push(`passengers_adults = $${n}`);
+      vals.push(body.passengersAdults);
+      n += 1;
+    }
+    if (body.passengersChildren !== undefined) {
+      sets.push(`passengers_children = $${n}`);
+      vals.push(body.passengersChildren);
+      n += 1;
+    }
+    if (body.hasKids !== undefined) {
+      sets.push(`has_kids = $${n}`);
+      vals.push(body.hasKids);
+      n += 1;
+    }
+    if (body.bbqKit !== undefined) {
+      sets.push(`bbq_kit = $${n}`);
+      vals.push(body.bbqKit);
+      n += 1;
+    }
+    if (body.embarkLocation !== undefined) {
+      sets.push(`embark_location = $${n}`);
+      vals.push(body.embarkLocation);
+      n += 1;
+    }
+    if (body.totalCents !== undefined) {
+      sets.push(`total_cents = $${n}`);
+      vals.push(body.totalCents);
+      n += 1;
+    }
+    if (body.routeIslands !== undefined) {
+      sets.push(`route_islands = $${n}`);
+      vals.push(body.routeIslands);
+      n += 1;
+    }
+    if (sets.length === 0) return res.status(400).send("Nada para atualizar.");
+
+    sets.push(`status = 'PENDING'`);
+    sets.push(`decided_at = NULL`);
+    sets.push(`decision_note = NULL`);
+
+    const updated = await query(
+      `update bookings set ${sets.join(", ")}
+       where id = $1 and renter_user_id = $2
+       returning id, status, created_at, decided_at`,
+      vals
+    );
+    const row = updated.rows[0];
+    return res.json({ booking: row });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao atualizar reserva.";
+    return res.status(400).send(msg);
+  }
+});
+
 app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req, res) => {
   try {
     const status = req.query.status;
     const statusFilter =
-      status === "PENDING" || status === "ACCEPTED" || status === "DECLINED" || status === "CANCELLED"
+      status === "PENDING" ||
+      status === "ACCEPTED" ||
+      status === "DECLINED" ||
+      status === "CANCELLED" ||
+      status === "COMPLETED"
         ? status
         : null;
 
@@ -852,6 +1142,7 @@ app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req
          bk.bbq_kit,
          bk.embark_location,
          bk.total_cents,
+         coalesce(bk.route_islands, '{}'::text[]) as route_islands,
          b.id as boat_id,
          b.name as boat_name,
          u.id as renter_id,
@@ -878,6 +1169,7 @@ app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req
         bbqKit: r.bbq_kit,
         embarkLocation: r.embark_location,
         totalCents: r.total_cents,
+        routeIslands: Array.isArray(r.route_islands) ? r.route_islands : [],
         boat: { id: r.boat_id, nome: r.boat_name },
         renter: { id: r.renter_id, nome: r.renter_name, email: r.renter_email },
       })),
@@ -939,6 +1231,30 @@ app.post(
       return res.json({ booking: row });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erro ao recusar reserva.";
+      return res.status(400).send(msg);
+    }
+  }
+);
+
+app.post(
+  "/api/owner/bookings/:id/complete",
+  requireAuth,
+  requireRole("locatario"),
+  async (req, res) => {
+    try {
+      const bookingId = req.params.id;
+      const updated = await query(
+        `update bookings
+         set status = 'COMPLETED', decided_at = coalesce(decided_at, now())
+         where id = $1 and owner_user_id = $2 and status = 'ACCEPTED'
+         returning id, status, decided_at`,
+        [bookingId, req.user.sub]
+      );
+      const row = updated.rows[0];
+      if (!row) return res.status(404).send("Reserva não encontrada ou não está aceita.");
+      return res.json({ booking: row });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Erro ao concluir reserva.";
       return res.status(400).send(msg);
     }
   }
@@ -1021,6 +1337,10 @@ async function startServer() {
   try {
     await ensureFavoritesTable();
     await ensureBoatsRouteIslandsColumn();
+    await ensureBoatsRouteIslandImagesColumn();
+    await ensureBookingsRouteIslandsColumn();
+    await ensureBookingStatusCompleted();
+    await ensureSeedAmenities();
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
     // eslint-disable-next-line no-console

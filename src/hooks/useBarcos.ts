@@ -16,9 +16,10 @@ function boatsRefetchInterval(query: Query<Boat[], Error, Boat[], string[]>) {
   return query.state.status === "error" ? 12_000 : false;
 }
 
-export function useBarcos() {
+export function useBarcos(amenityFilter?: string | null) {
+  const amenityNorm = amenityFilter?.trim() || null;
   const q = useQuery({
-    queryKey: ["boats"],
+    queryKey: ["boats", amenityNorm],
     retry: 5,
     retryDelay: (attempt) => Math.min(4000, 500 + 600 * 2 ** attempt),
     refetchOnWindowFocus: true,
@@ -29,7 +30,10 @@ export function useBarcos() {
     gcTime: 10 * 60_000,
     networkMode: "online",
     queryFn: async (): Promise<Boat[]> => {
-      const url = apiUrl("/api/boats");
+      const base = apiUrl("/api/boats");
+      const url = amenityNorm
+        ? `${base}?amenity=${encodeURIComponent(amenityNorm)}`
+        : base;
       let resp: Response;
       try {
         resp = await fetchBoatsResponse(url);

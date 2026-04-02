@@ -17,7 +17,7 @@ BEGIN
     CREATE TYPE user_role AS ENUM ('banhista', 'locatario');
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'booking_status') THEN
-    CREATE TYPE booking_status AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED', 'CANCELLED');
+    CREATE TYPE booking_status AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED', 'CANCELLED', 'COMPLETED');
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_provider') THEN
     CREATE TYPE payment_provider AS ENUM ('MERCADO_PAGO');
@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS boats (
   tiem_document_url text NULL,
   video_url text NULL,
   route_islands text[] NOT NULL DEFAULT '{}'::text[],
+  route_island_images jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -64,6 +65,7 @@ ALTER TABLE boats ADD COLUMN IF NOT EXISTS tie_document_url text NULL;
 ALTER TABLE boats ADD COLUMN IF NOT EXISTS tiem_document_url text NULL;
 ALTER TABLE boats ADD COLUMN IF NOT EXISTS video_url text NULL;
 ALTER TABLE boats ADD COLUMN IF NOT EXISTS route_islands text[] NOT NULL DEFAULT '{}'::text[];
+ALTER TABLE boats ADD COLUMN IF NOT EXISTS route_island_images jsonb NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS boat_images (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -105,6 +107,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   bbq_kit boolean NOT NULL DEFAULT false,
   embark_location text NOT NULL,
   total_cents integer NOT NULL CHECK (total_cents >= 0),
+  route_islands text[] NOT NULL DEFAULT '{}'::text[],
   created_at timestamptz NOT NULL DEFAULT now(),
   decided_at timestamptz NULL,
   decision_note text NULL

@@ -156,6 +156,11 @@ const ContaUsuario = () => {
               <UserRound className="w-4 h-4 mr-1" />
               {t("conta.accountData")}
             </Button>
+            {me?.role === "banhista" && (
+              <Button variant="secondary" onClick={() => navigate("/conta/reservas")}>
+                {t("conta.reservations")}
+              </Button>
+            )}
             <Button variant="secondary" onClick={() => navigate("/conta/ajuda-teste")}>
               <CircleHelp className="w-4 h-4 mr-1" />
               {t("conta.helpTest")}

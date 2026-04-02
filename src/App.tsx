@@ -14,6 +14,7 @@ import Signup from "./pages/Signup";
 import RecuperarSenha from "./pages/RecuperarSenha";
 import RedefinirSenha from "./pages/RedefinirSenha";
 import ContaUsuario from "./pages/ContaUsuario";
+import ContaReservas from "./pages/ContaReservas";
 import ContaDados from "./pages/ContaDados";
 import AjudaTeste from "./pages/AjudaTeste";
 import NotFound from "./pages/NotFound";
@@ -54,6 +55,14 @@ const App = () => (
               element={
                 <RequireAuth>
                   <ContaUsuario />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/conta/reservas"
+              element={
+                <RequireAuth>
+                  <ContaReservas />
                 </RequireAuth>
               }
             />
