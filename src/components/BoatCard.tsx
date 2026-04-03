@@ -42,6 +42,12 @@ const BoatCard = ({ barco, isFavorited = false, onToggleFavorite }: BoatCardProp
             src={barco.imagens[Math.min(currentImage, n - 1)]}
             alt={barco.nome}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            width={512}
+            height={512}
+            sizes="(max-width: 640px) 50vw, 28vw"
+            loading="lazy"
+            decoding="async"
+            fetchPriority="low"
           />
         ) : (
           <div className="w-full h-full bg-muted flex items-center justify-center text-[10px] text-muted-foreground px-2 text-center">

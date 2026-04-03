@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { useBarcos } from "@/hooks/useBarcos";
 import { BoatRoutes } from "@/components/BoatRoutes";
+import { BoatCalendarPanel } from "@/components/BoatCalendarPanel";
 import { getStoredUser, authFetch } from "@/lib/auth";
 import { readResponseErrorMessage } from "@/lib/responseError";
 import { toast } from "sonner";
@@ -191,6 +192,12 @@ const DetalhesBarco = () => {
               src={barco.imagens[safeImgIndex]}
               alt={barco.nome}
               className="w-full h-full object-cover"
+              width={512}
+              height={512}
+              sizes="(max-width: 1024px) 100vw, min(32rem, 100vw)"
+              loading={safeImgIndex === 0 ? "eager" : "lazy"}
+              decoding="async"
+              fetchPriority={safeImgIndex === 0 ? "high" : "low"}
             />
           ) : (
             <div className="w-full h-full bg-muted flex items-center justify-center text-sm text-muted-foreground px-4 text-center">
@@ -292,6 +299,14 @@ const DetalhesBarco = () => {
 
           <h2 className="text-lg font-bold text-foreground">{t("detalhes.description")}</h2>
           <p className="text-foreground/80 leading-relaxed">{barco.descricao}</p>
+
+          <hr className="border-border" />
+
+          <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+            <h2 className="text-lg font-bold text-foreground">{t("detalhes.availabilityTitle")}</h2>
+            <p className="text-xs text-muted-foreground leading-relaxed">{t("detalhes.availabilityHint")}</p>
+            <BoatCalendarPanel variant="readonly" boatId={barco.id} />
+          </div>
 
           <hr className="border-border" />
 

@@ -172,6 +172,10 @@ const Explorar = () => {
                 src={headerLogo}
                 alt=""
                 className="h-11 w-auto max-h-12 sm:h-12 sm:max-h-14 object-contain object-left bg-transparent"
+                width={180}
+                height={48}
+                decoding="async"
+                fetchPriority="low"
               />
             </button>
           </div>

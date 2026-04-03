@@ -162,6 +162,8 @@ CREATE TABLE IF NOT EXISTS user_boat_favorites (
 
 -- 5) Índices
 CREATE INDEX IF NOT EXISTS idx_boats_owner ON boats(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_boats_created_at_desc ON boats(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_embark_locations_boat ON embark_locations(boat_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_owner_status ON bookings(owner_user_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bookings_renter ON bookings(renter_user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bookings_boat_date ON bookings(boat_id, booking_date);

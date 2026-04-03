@@ -1,25 +1,28 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { PageLoader } from "@/components/PageLoader";
 import Home from "./pages/Home";
-import Explorar from "./pages/Explorar";
-import DetalhesBarco from "./pages/DetalhesBarco";
-import Marinheiro from "./pages/Marinheiro";
-import Reservar from "./pages/Reservar";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import RecuperarSenha from "./pages/RecuperarSenha";
-import RedefinirSenha from "./pages/RedefinirSenha";
-import ContaUsuario from "./pages/ContaUsuario";
-import ContaReservas from "./pages/ContaReservas";
-import ContaDados from "./pages/ContaDados";
-import AjudaTeste from "./pages/AjudaTeste";
-import NotFound from "./pages/NotFound";
 import { RequireAuth } from "@/components/RequireAuth";
 import { BoatsQueryRecovery } from "@/components/BoatsQueryRecovery";
+
+const Explorar = lazy(() => import("./pages/Explorar"));
+const DetalhesBarco = lazy(() => import("./pages/DetalhesBarco"));
+const Marinheiro = lazy(() => import("./pages/Marinheiro"));
+const Reservar = lazy(() => import("./pages/Reservar"));
+const Login = lazy(() => import("./pages/Login"));
+const Signup = lazy(() => import("./pages/Signup"));
+const RecuperarSenha = lazy(() => import("./pages/RecuperarSenha"));
+const RedefinirSenha = lazy(() => import("./pages/RedefinirSenha"));
+const ContaUsuario = lazy(() => import("./pages/ContaUsuario"));
+const ContaReservas = lazy(() => import("./pages/ContaReservas"));
+const ContaDados = lazy(() => import("./pages/ContaDados"));
+const AjudaTeste = lazy(() => import("./pages/AjudaTeste"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,78 +49,80 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/recuperar-senha" element={<RecuperarSenha />} />
-            <Route path="/redefinir-senha" element={<RedefinirSenha />} />
-            <Route
-              path="/conta"
-              element={
-                <RequireAuth>
-                  <ContaUsuario />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/conta/reservas"
-              element={
-                <RequireAuth>
-                  <ContaReservas />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/conta/dados"
-              element={
-                <RequireAuth>
-                  <ContaDados />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/conta/ajuda-teste"
-              element={
-                <RequireAuth>
-                  <AjudaTeste />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/explorar"
-              element={
-                <RequireAuth>
-                  <Explorar />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/barco/:id"
-              element={
-                <RequireAuth>
-                  <DetalhesBarco />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/reservar/:id"
-              element={
-                <RequireAuth>
-                  <Reservar />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/marinheiro"
-              element={
-                <RequireAuth>
-                  <Marinheiro />
-                </RequireAuth>
-              }
-            />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route path="/recuperar-senha" element={<RecuperarSenha />} />
+              <Route path="/redefinir-senha" element={<RedefinirSenha />} />
+              <Route
+                path="/conta"
+                element={
+                  <RequireAuth>
+                    <ContaUsuario />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/conta/reservas"
+                element={
+                  <RequireAuth>
+                    <ContaReservas />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/conta/dados"
+                element={
+                  <RequireAuth>
+                    <ContaDados />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/conta/ajuda-teste"
+                element={
+                  <RequireAuth>
+                    <AjudaTeste />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/explorar"
+                element={
+                  <RequireAuth>
+                    <Explorar />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/barco/:id"
+                element={
+                  <RequireAuth>
+                    <DetalhesBarco />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/reservar/:id"
+                element={
+                  <RequireAuth>
+                    <Reservar />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/marinheiro"
+                element={
+                  <RequireAuth>
+                    <Marinheiro />
+                  </RequireAuth>
+                }
+              />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
         </BrowserRouter>
       </TooltipProvider>
     </ThemeProvider>

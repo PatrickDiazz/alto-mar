@@ -373,6 +373,11 @@ const Reservar = () => {
               src={barco.imagens[0]}
               alt={barco.nome}
               className="w-20 h-20 rounded-lg object-cover"
+              width={80}
+              height={80}
+              sizes="80px"
+              decoding="async"
+              fetchPriority="low"
             />
             <div>
               <h2 className="text-lg font-bold text-foreground">{barco.nome}</h2>

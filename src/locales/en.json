@@ -168,6 +168,8 @@
     "verified": "Verified by Alto Mar",
     "pending": "Verification pending",
     "description": "Description",
+    "availabilityTitle": "Availability",
+    "availabilityHint": "See when the boat is free or busy. Unavailable: owner lock or weekday closure. Green: confirmed trip. Amber: booking request still pending.",
     "bookNow": "Book now"
   },
   "reservar": {

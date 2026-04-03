@@ -168,6 +168,8 @@
     "verified": "Verificado pela Alto Mar",
     "pending": "Validação pendente",
     "description": "Descrição",
+    "availabilityTitle": "Disponibilidade",
+    "availabilityHint": "Veja quando o barco está livre ou ocupado. Indisponível: bloqueio do armador ou dia da semana fechado. Verde: passeio já confirmado. Âmbar: pedido de reserva ainda pendente.",
     "bookNow": "Reservar agora"
   },
   "reservar": {
