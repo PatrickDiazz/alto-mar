@@ -144,6 +144,19 @@ CREATE TABLE IF NOT EXISTS user_boat_favorites (
   PRIMARY KEY (user_id, boat_id)
 );
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS guest_rating numeric(2,1) NOT NULL DEFAULT 0.0
+  CHECK (guest_rating >= 0 AND guest_rating <= 5);
+
+CREATE TABLE IF NOT EXISTS booking_ratings (
+  booking_id uuid PRIMARY KEY REFERENCES bookings(id) ON DELETE CASCADE,
+  boat_stars smallint NULL CHECK (boat_stars IS NULL OR (boat_stars >= 1 AND boat_stars <= 5)),
+  boat_comment text NULL,
+  boat_rated_at timestamptz NULL,
+  renter_stars smallint NULL CHECK (renter_stars IS NULL OR (renter_stars >= 1 AND renter_stars <= 5)),
+  renter_comment text NULL,
+  renter_rated_at timestamptz NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_boats_owner ON boats(owner_user_id);
 CREATE INDEX IF NOT EXISTS idx_boats_created_at_desc ON boats(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_embark_locations_boat ON embark_locations(boat_id);

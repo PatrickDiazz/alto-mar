@@ -130,6 +130,54 @@ async function ensureBoatCalendarTables() {
   await query(`create index if not exists idx_bookings_boat_date on bookings(boat_id, booking_date)`);
 }
 
+async function ensureBookingRatingsTable() {
+  await query(`
+    alter table users add column if not exists guest_rating numeric(2,1) not null default 0.0
+      check (guest_rating >= 0 and guest_rating <= 5)
+  `);
+  await query(`
+    create table if not exists booking_ratings (
+      booking_id uuid primary key references bookings(id) on delete cascade,
+      boat_stars smallint null check (boat_stars is null or (boat_stars >= 1 and boat_stars <= 5)),
+      boat_comment text null,
+      boat_rated_at timestamptz null,
+      renter_stars smallint null check (renter_stars is null or (renter_stars >= 1 and renter_stars <= 5)),
+      renter_comment text null,
+      renter_rated_at timestamptz null
+    )
+  `);
+}
+
+/**
+ * @param {string} boatId
+ */
+async function recalcBoatRating(boatId) {
+  const r = await query(
+    `select coalesce(round(avg(br.boat_stars)::numeric, 1), 0)::numeric(2,1) as avg_stars
+     from booking_ratings br
+     join bookings bk on bk.id = br.booking_id
+     where bk.boat_id = $1::uuid and br.boat_stars is not null`,
+    [boatId]
+  );
+  const avg = r.rows[0]?.avg_stars ?? 0;
+  await query(`update boats set rating = $1 where id = $2::uuid`, [avg, boatId]);
+}
+
+/**
+ * @param {string} renterUserId
+ */
+async function recalcGuestRating(renterUserId) {
+  const r = await query(
+    `select coalesce(round(avg(br.renter_stars)::numeric, 1), 0)::numeric(2,1) as avg_stars
+     from booking_ratings br
+     join bookings bk on bk.id = br.booking_id
+     where bk.renter_user_id = $1::uuid and br.renter_stars is not null`,
+    [renterUserId]
+  );
+  const avg = r.rows[0]?.avg_stars ?? 0;
+  await query(`update users set guest_rating = $1 where id = $2::uuid`, [avg, renterUserId]);
+}
+
 /**
  * @param {string} boatId
  * @param {string} bookingDateStr YYYY-MM-DD
@@ -386,7 +434,7 @@ app.post("/api/auth/reset-password", async (req, res) => {
 app.get("/api/me", requireAuth, async (req, res) => {
   const userId = req.user.sub;
   const result = await query(
-    `select id, name, email, role, rg_url, nautical_license_url, created_at from users where id = $1`,
+    `select id, name, email, role, rg_url, nautical_license_url, created_at, guest_rating from users where id = $1`,
     [userId]
   );
   const row = result.rows[0];
@@ -1044,6 +1092,29 @@ app.post("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, 
   }
 });
 
+app.delete("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const boatId = req.params.id;
+    const own = await query(`select id from boats where id = $1 and owner_user_id = $2`, [boatId, req.user.sub]);
+    if (!own.rows[0]) return res.status(404).send("Barco não encontrado para este locatário.");
+
+    const bc = await query(`select count(*)::int as c from bookings where boat_id = $1`, [boatId]);
+    if ((bc.rows[0]?.c ?? 0) > 0) {
+      return res
+        .status(409)
+        .send(
+          "Não é possível excluir: existem reservas associadas a esta embarcação. Conclua ou cancele as reservas antes."
+        );
+    }
+
+    await query(`delete from boats where id = $1 and owner_user_id = $2`, [boatId, req.user.sub]);
+    return res.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao excluir embarcação.";
+    return res.status(400).send(msg);
+  }
+});
+
 const postOwnerAmenitySchema = z.object({
   name: z.string().min(2).max(120),
 });
@@ -1257,9 +1328,13 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
          b.id as boat_id,
          b.name as boat_name,
          b.location_text as boat_location,
-         b.capacity as boat_capacity
+         b.capacity as boat_capacity,
+         br.boat_stars,
+         br.boat_comment,
+         br.boat_rated_at
        from bookings bk
        join boats b on b.id = bk.boat_id
+       left join booking_ratings br on br.booking_id = bk.id
        where bk.renter_user_id = $1
        order by bk.created_at desc`,
       [req.user.sub]
@@ -1281,6 +1356,14 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
         bookingDate: r.booking_date,
         routeIslands: Array.isArray(r.route_islands) ? r.route_islands : [],
         boat: { id: r.boat_id, nome: r.boat_name, distancia: r.boat_location, capacidade: r.boat_capacity },
+        ratingBoat:
+          r.boat_stars != null
+            ? {
+                stars: r.boat_stars,
+                comment: r.boat_comment,
+                ratedAt: r.boat_rated_at,
+              }
+            : null,
       })),
     });
   } catch (e) {
@@ -1390,6 +1473,28 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
   }
 });
 
+app.post("/api/renter/bookings/:id/cancel", requireAuth, requireRole("banhista"), async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const updated = await query(
+      `update bookings
+       set status = 'CANCELLED', decided_at = coalesce(decided_at, now())
+       where id = $1::uuid and renter_user_id = $2::uuid
+         and status in ('PENDING','ACCEPTED')
+       returning id, status, decided_at`,
+      [bookingId, req.user.sub]
+    );
+    const row = updated.rows[0];
+    if (!row) {
+      return res.status(404).send("Reserva não encontrada ou não pode ser cancelada.");
+    }
+    return res.json({ booking: row });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao cancelar reserva.";
+    return res.status(400).send(msg);
+  }
+});
+
 app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req, res) => {
   try {
     const status = req.query.status;
@@ -1428,10 +1533,14 @@ app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req
          b.name as boat_name,
          u.id as renter_id,
          u.name as renter_name,
-         u.email as renter_email
+         u.email as renter_email,
+         br.renter_stars,
+         br.renter_comment,
+         br.renter_rated_at
        from bookings bk
        join boats b on b.id = bk.boat_id
        join users u on u.id = bk.renter_user_id
+       left join booking_ratings br on br.booking_id = bk.id
        ${where}
        order by bk.created_at desc`,
       params
@@ -1454,6 +1563,14 @@ app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req
         routeIslands: Array.isArray(r.route_islands) ? r.route_islands : [],
         boat: { id: r.boat_id, nome: r.boat_name },
         renter: { id: r.renter_id, nome: r.renter_name, email: r.renter_email },
+        ratingRenter:
+          r.renter_stars != null
+            ? {
+                stars: r.renter_stars,
+                comment: r.renter_comment,
+                ratedAt: r.renter_rated_at,
+              }
+            : null,
       })),
     });
   } catch (e) {
@@ -1563,6 +1680,99 @@ app.post(
   }
 );
 
+const bookingRatingSchema = z.object({
+  stars: z.number().int().min(1).max(5),
+  comment: z.string().max(1000).optional(),
+});
+
+app.post("/api/renter/bookings/:id/rate-boat", requireAuth, requireRole("banhista"), async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const body = bookingRatingSchema.parse(req.body || {});
+    const cur = await query(
+      `select bk.id, bk.status, bk.boat_id, bk.renter_user_id, br.boat_stars
+       from bookings bk
+       left join booking_ratings br on br.booking_id = bk.id
+       where bk.id = $1::uuid and bk.renter_user_id = $2::uuid
+       limit 1`,
+      [bookingId, req.user.sub]
+    );
+    const row = cur.rows[0];
+    if (!row) return res.status(404).send("Reserva não encontrada.");
+    if (row.status !== "COMPLETED") {
+      return res.status(400).send("Só é possível avaliar após o passeio concluído.");
+    }
+    if (row.boat_stars != null) {
+      return res.status(400).send("Você já avaliou esta embarcação nesta reserva.");
+    }
+
+    const up = await query(
+      `update booking_ratings
+       set boat_stars = $2, boat_comment = $3, boat_rated_at = now()
+       where booking_id = $1::uuid and boat_stars is null
+       returning booking_id`,
+      [bookingId, body.stars, body.comment?.trim() || null]
+    );
+    if (!up.rows[0]) {
+      await query(
+        `insert into booking_ratings (booking_id, boat_stars, boat_comment, boat_rated_at)
+         values ($1::uuid, $2, $3, now())`,
+        [bookingId, body.stars, body.comment?.trim() || null]
+      );
+    }
+
+    await recalcBoatRating(row.boat_id);
+    return res.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao registrar avaliação.";
+    return res.status(400).send(msg);
+  }
+});
+
+app.post("/api/owner/bookings/:id/rate-renter", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const body = bookingRatingSchema.parse(req.body || {});
+    const cur = await query(
+      `select bk.id, bk.status, bk.renter_user_id, br.renter_stars
+       from bookings bk
+       left join booking_ratings br on br.booking_id = bk.id
+       where bk.id = $1::uuid and bk.owner_user_id = $2::uuid
+       limit 1`,
+      [bookingId, req.user.sub]
+    );
+    const row = cur.rows[0];
+    if (!row) return res.status(404).send("Reserva não encontrada.");
+    if (row.status !== "COMPLETED") {
+      return res.status(400).send("Só é possível avaliar após o passeio concluído.");
+    }
+    if (row.renter_stars != null) {
+      return res.status(400).send("Você já avaliou este banhista nesta reserva.");
+    }
+
+    const up = await query(
+      `update booking_ratings
+       set renter_stars = $2, renter_comment = $3, renter_rated_at = now()
+       where booking_id = $1::uuid and renter_stars is null
+       returning booking_id`,
+      [bookingId, body.stars, body.comment?.trim() || null]
+    );
+    if (!up.rows[0]) {
+      await query(
+        `insert into booking_ratings (booking_id, renter_stars, renter_comment, renter_rated_at)
+         values ($1::uuid, $2, $3, now())`,
+        [bookingId, body.stars, body.comment?.trim() || null]
+      );
+    }
+
+    await recalcGuestRating(row.renter_user_id);
+    return res.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao registrar avaliação.";
+    return res.status(400).send(msg);
+  }
+});
+
 app.post("/api/mercadopago/preference", async (req, res) => {
   try {
     if (!MP_ACCESS_TOKEN) {
@@ -1663,6 +1873,7 @@ Teste: http://127.0.0.1:3001/api/health
     await ensureSeedAmenities();
     await ensureBookingDateColumn();
     await ensureBoatCalendarTables();
+    await ensureBookingRatingsTable();
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
     // eslint-disable-next-line no-console

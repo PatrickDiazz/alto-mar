@@ -20,6 +20,7 @@ const RecuperarSenha = lazy(() => import("./pages/RecuperarSenha"));
 const RedefinirSenha = lazy(() => import("./pages/RedefinirSenha"));
 const ContaUsuario = lazy(() => import("./pages/ContaUsuario"));
 const ContaReservas = lazy(() => import("./pages/ContaReservas"));
+const ContaFavoritos = lazy(() => import("./pages/ContaFavoritos"));
 const ContaDados = lazy(() => import("./pages/ContaDados"));
 const AjudaTeste = lazy(() => import("./pages/AjudaTeste"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -69,6 +70,14 @@ const App = () => (
                 element={
                   <RequireAuth>
                     <ContaReservas />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/conta/favoritos"
+                element={
+                  <RequireAuth>
+                    <ContaFavoritos />
                   </RequireAuth>
                 }
               />

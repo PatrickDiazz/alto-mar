@@ -12,6 +12,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { AppVersionStamp } from "@/components/AppVersionStamp";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
@@ -103,6 +104,9 @@ export function HeaderSettingsMenu({ className, triggerClassName }: HeaderSettin
                 </span>
                 <ThemeToggle />
               </div>
+            </div>
+            <div className="pt-4 border-t border-border flex justify-center">
+              <AppVersionStamp />
             </div>
           </div>
         </SheetContent>

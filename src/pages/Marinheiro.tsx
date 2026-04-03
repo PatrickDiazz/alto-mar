@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Anchor, Pencil, Plus, ClipboardList } from "lucide-react";
+import { Anchor, Pencil, Plus, ClipboardList, Trash2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,6 +15,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { readResponseErrorMessage } from "@/lib/responseError";
 import { BoatCalendarPanel } from "@/components/BoatCalendarPanel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { CIDADES_LITORAL_RJ } from "@/data/praiasBrasil";
 
 type OwnerBoat = {
@@ -52,6 +61,7 @@ type OwnerBookingRow = {
   routeIslands?: string[];
   boat: { id: string; nome: string };
   renter: { id: string; nome: string; email: string };
+  ratingRenter?: { stars: number; comment: string | null; ratedAt: string } | null;
 };
 
 const emptyBoatForm: Omit<OwnerBoat, "id" | "preco" | "nota" | "tamanho"> = {
@@ -80,6 +90,80 @@ async function fileToDataUrl(file: File) {
   });
 }
 
+function RateRenterForm({
+  bookingId,
+  t,
+  onDone,
+}: {
+  bookingId: string;
+  t: (k: string, o?: Record<string, unknown>) => string;
+  onDone: () => void;
+}) {
+  const [stars, setStars] = useState(0);
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async () => {
+    if (stars < 1) {
+      toast.error(t("marinheiro.rateRenterPickStars"));
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const resp = await authFetch(`/api/owner/bookings/${bookingId}/rate-renter`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stars, comment: comment.trim() || undefined }),
+      });
+      if (resp.status === 401) return;
+      if (!resp.ok) throw new Error(await readResponseErrorMessage(resp, t("marinheiro.rateRenterFail")));
+      toast.success(t("marinheiro.rateRenterOk"));
+      onDone();
+    } catch (e) {
+      const m = (e instanceof Error ? e.message : t("marinheiro.rateRenterFail")).trim();
+      toast.error(m || t("marinheiro.rateRenterFail"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 pt-1 border-t border-border">
+      <p className="text-xs font-medium text-foreground">{t("marinheiro.rateRenterTitle")}</p>
+      <p className="text-[11px] text-muted-foreground">{t("marinheiro.rateRenterHint")}</p>
+      <div className="flex items-center gap-1" role="group" aria-label={t("marinheiro.rateRenterTitle")}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            className="p-0.5 rounded hover:bg-secondary disabled:opacity-50"
+            disabled={submitting}
+            onClick={() => setStars(n)}
+            aria-pressed={stars >= n}
+          >
+            <Star
+              className={`w-7 h-7 ${n <= stars ? "text-amber-500 fill-amber-500" : "text-muted-foreground"}`}
+            />
+          </button>
+        ))}
+      </div>
+      <div>
+        <Label className="text-xs">{t("marinheiro.rateRenterComment")}</Label>
+        <Input
+          className="mt-1 h-9 text-sm"
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          maxLength={1000}
+          disabled={submitting}
+        />
+      </div>
+      <Button size="sm" onClick={() => void submit()} disabled={submitting}>
+        {submitting ? t("marinheiro.rateRenterSubmitting") : t("marinheiro.rateRenterSubmit")}
+      </Button>
+    </div>
+  );
+}
+
 const Marinheiro_Page = () => {
   const { t, i18n } = useTranslation();
   const locale = bcp47FromAppLang(i18n.language);
@@ -106,10 +190,12 @@ const Marinheiro_Page = () => {
   const [routePhotoRights, setRoutePhotoRights] = useState(false);
   const [routeIslandImagesNew, setRouteIslandImagesNew] = useState<Record<string, string[]>>({});
   const [calendarBoatId, setCalendarBoatId] = useState<string | null>(null);
+  const [boatPendingDelete, setBoatPendingDelete] = useState<OwnerBoat | null>(null);
 
   const isLocatario = user?.role === "locatario";
   const pendentes = useMemo(() => bookings.filter((b) => b.status === "PENDING"), [bookings]);
   const aceitas = useMemo(() => bookings.filter((b) => b.status === "ACCEPTED"), [bookings]);
+  const concluidas = useMemo(() => bookings.filter((b) => b.status === "COMPLETED"), [bookings]);
   const coastalCityOptions = useMemo(() => [...CIDADES_LITORAL_RJ].sort((a, b) => a.localeCompare(b, "pt")), []);
 
   const newBoatReady = useMemo(() => {
@@ -221,6 +307,33 @@ const Marinheiro_Page = () => {
       m[a.id] = found ? found.incluido : false;
     });
     setAmenityIncEdit(m);
+  };
+
+  const confirmarExclusaoEmbarcacao = async () => {
+    if (!boatPendingDelete) return;
+    const deletedId = boatPendingDelete.id;
+    setLoading(true);
+    try {
+      const resp = await authFetch(`/api/owner/boats/${deletedId}`, { method: "DELETE" });
+      if (resp.status === 401) return;
+      if (!resp.ok) {
+        throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastDeleteFail")));
+      }
+      toast.success(t("marinheiro.toastDeleteOk"));
+      setBoatPendingDelete(null);
+      if (editingBoatId === deletedId) {
+        setEditingBoatId(null);
+        setBoatForm(null);
+        setEditRouteIslandsText("");
+      }
+      if (calendarBoatId === deletedId) setCalendarBoatId(null);
+      await carregarMeusBarcos();
+    } catch (e) {
+      const m = (e instanceof Error ? e.message : t("marinheiro.toastDeleteFail")).trim();
+      toast.error(m || t("marinheiro.toastDeleteFail"));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const salvarEdicao = async () => {
@@ -527,6 +640,52 @@ const Marinheiro_Page = () => {
                   </div>
                 )}
               </div>
+
+              <div id="marinheiro-reservas-concluidas" className="space-y-3 border-t border-border pt-4 scroll-mt-24">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-base font-semibold text-foreground">{t("marinheiro.completedTitle")}</h3>
+                  <Badge variant="outline">{concluidas.length}</Badge>
+                </div>
+                {concluidas.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-6">{t("marinheiro.noCompleted")}</p>
+                ) : (
+                  <div className="space-y-3">
+                    {concluidas.map((b) => (
+                      <div key={b.id} className="border border-border rounded-xl bg-card p-4 shadow-card space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-foreground truncate">{b.boat.nome}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {t("marinheiro.client")} {b.renter.nome} ({b.renter.email})
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {t("marinheiro.total")} {currencyFmt.format(b.totalCents / 100)}
+                            </p>
+                            {b.bookingDate ? (
+                              <p className="text-xs font-medium text-foreground">
+                                {t("marinheiro.bookingDateLabel")}: {b.bookingDate}
+                              </p>
+                            ) : null}
+                          </div>
+                          <Badge variant="secondary">{t("marinheiro.completedBadge")}</Badge>
+                        </div>
+                        {b.ratingRenter ? (
+                          <p className="text-xs text-foreground flex items-center gap-1.5">
+                            <Star className="w-4 h-4 text-amber-500 fill-amber-500 shrink-0" />
+                            {t("marinheiro.rateRenterRecorded", { n: b.ratingRenter.stars })}
+                          </p>
+                        ) : (
+                          <RateRenterForm
+                            bookingId={b.id}
+                            t={t}
+                            onDone={() => void carregarPendentes()}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </section>
 
             <section className="space-y-3">
@@ -787,10 +946,22 @@ const Marinheiro_Page = () => {
                                   {boat.preco} • {t("marinheiro.ratingLabel")} {boat.nota}
                                 </p>
                               </div>
-                              <Button variant="secondary" size="sm" onClick={() => iniciarEdicao(boat)}>
-                                <Pencil className="w-4 h-4 mr-1" />
-                                {t("marinheiro.edit")}
-                              </Button>
+                              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                <Button variant="secondary" size="sm" onClick={() => iniciarEdicao(boat)}>
+                                  <Pencil className="w-4 h-4 mr-1" />
+                                  {t("marinheiro.edit")}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                                  onClick={() => setBoatPendingDelete(boat)}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-1" />
+                                  {t("marinheiro.deleteBoat")}
+                                </Button>
+                              </div>
                             </div>
                             <p className="text-xs text-muted-foreground line-clamp-3">{boat.descricao}</p>
                           </>
@@ -971,6 +1142,28 @@ const Marinheiro_Page = () => {
                 {calendarBoatId ? <BoatCalendarPanel variant="readonly" boatId={calendarBoatId} /> : null}
               </section>
             ) : null}
+
+            <AlertDialog open={boatPendingDelete !== null} onOpenChange={(open) => !open && setBoatPendingDelete(null)}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{t("marinheiro.deleteBoatTitle")}</AlertDialogTitle>
+                  <AlertDialogDescription asChild>
+                    <div className="space-y-3 text-sm text-muted-foreground">
+                      <p className="text-foreground">
+                        {t("marinheiro.deleteBoatLead", { name: boatPendingDelete?.nome ?? "—" })}
+                      </p>
+                      <p>{t("marinheiro.deleteBoatDocsNote")}</p>
+                    </div>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={loading}>{t("common.cancel")}</AlertDialogCancel>
+                  <Button variant="destructive" disabled={loading} onClick={() => void confirmarExclusaoEmbarcacao()}>
+                    {t("marinheiro.deleteBoatConfirm")}
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </>
         )}
       </div>

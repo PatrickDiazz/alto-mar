@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, LogOut, Trash2, UserRound, CircleHelp, Heart } from "lucide-react";
+import { ArrowLeft, LogOut, Trash2, UserRound, CircleHelp, Heart, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
+import { RenterBookingsPanel } from "@/components/RenterBookingsPanel";
 import { authFetch, clearSession, getStoredUser } from "@/lib/auth";
 import { readResponseErrorMessage } from "@/lib/responseError";
 
@@ -15,6 +16,7 @@ type MeResponse = {
     email: string;
     role: "banhista" | "locatario";
     created_at: string;
+    guest_rating?: string | number | null;
   };
 };
 
@@ -23,8 +25,6 @@ const ContaUsuario = () => {
   const navigate = useNavigate();
   const currentUser = getStoredUser();
   const [me, setMe] = useState<MeResponse["user"] | null>(null);
-  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
-  const [favoriteBoats, setFavoriteBoats] = useState<Array<{ id: string; nome: string; distancia: string; preco: string }>>([]);
   const [loading, setLoading] = useState(false);
 
   const maskEmail = (email: string) => {
@@ -43,24 +43,14 @@ const ContaUsuario = () => {
     let active = true;
     const run = async () => {
       try {
-        const [meResp, favResp] = await Promise.all([authFetch("/api/me"), authFetch("/api/favorites")]);
-        if (meResp.status === 401 || favResp.status === 401) return;
+        const meResp = await authFetch("/api/me");
+        if (meResp.status === 401) return;
         if (!meResp.ok) {
           throw new Error(await readResponseErrorMessage(meResp, t("conta.toastLoad")));
         }
-        if (!favResp.ok) {
-          throw new Error(await readResponseErrorMessage(favResp, t("conta.toastLoad")));
-        }
         const meData = (await meResp.json()) as MeResponse;
-        const favData = (await favResp.json()) as {
-          boatIds: string[];
-          boats?: Array<{ id: string; nome: string; distancia: string; preco: string }>;
-        };
         if (!active) return;
         setMe(meData.user);
-        const ids = Array.isArray(favData.boatIds) ? favData.boatIds : [];
-        setFavoriteIds(new Set(ids));
-        setFavoriteBoats(favData.boats || []);
       } catch (e) {
         const m = (e instanceof Error ? e.message : t("conta.toastLoad")).trim();
         toast.error(m || t("conta.toastLoad"));
@@ -72,37 +62,22 @@ const ContaUsuario = () => {
     };
   }, [currentUser?.id, navigate, t]);
 
-  const toggleFavorite = async (boatId: string) => {
-    const has = favoriteIds.has(boatId);
-    const before = new Set(favoriteIds);
-    const next = new Set(favoriteIds);
-    if (has) next.delete(boatId);
-    else next.add(boatId);
-    setFavoriteIds(next);
-    try {
-      const resp = await authFetch(`/api/favorites/${boatId}`, { method: has ? "DELETE" : "POST" });
-      if (resp.status === 401) {
-        setFavoriteIds(before);
-        return;
-      }
-      if (!resp.ok) {
-        throw new Error(await readResponseErrorMessage(resp, t("conta.toastFav")));
-      }
-      if (has) {
-        setFavoriteBoats((prev) => prev.filter((b) => b.id !== boatId));
-      }
-    } catch (e) {
-      setFavoriteIds(before);
-      const m = (e instanceof Error ? e.message : t("conta.toastFav")).trim();
-      toast.error(m || t("conta.toastFav"));
-    }
-  };
+  useEffect(() => {
+    if (typeof window === "undefined" || window.location.hash !== "#conta-reservas") return;
+    const id = window.setTimeout(() => {
+      document.getElementById("conta-reservas")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+    return () => clearTimeout(id);
+  }, [me?.id, me?.role]);
 
   const logout = () => {
     clearSession();
     const goHome = window.confirm(t("conta.logoutConfirm"));
     navigate(goHome ? "/" : "/explorar", { replace: true });
   };
+
+  const guestRatingN = me?.guest_rating != null ? Number(me.guest_rating) : 0;
+  const hasGuestRating = me?.role === "banhista" && guestRatingN > 0;
 
   const deleteAccount = async () => {
     const ok = window.confirm(t("conta.deleteConfirm"));
@@ -151,20 +126,35 @@ const ContaUsuario = () => {
 
       <div className="max-w-2xl mx-auto px-4 py-5 space-y-5">
         <section className="rounded-xl border border-border bg-card p-4 shadow-card space-y-3">
-          <div className="text-sm text-foreground">
+          <div className="text-sm text-foreground space-y-1">
             <p className="font-semibold">{me?.name || currentUser?.name}</p>
             <p className="text-muted-foreground">{maskEmail(me?.email || currentUser?.email || "")}</p>
+            {me?.role === "banhista" ? (
+              <p className="text-xs text-foreground flex items-center gap-1.5 pt-0.5">
+                <Star
+                  className={`w-3.5 h-3.5 shrink-0 ${hasGuestRating ? "text-amber-500 fill-amber-500" : "text-muted-foreground"}`}
+                  aria-hidden
+                />
+                <span className="text-muted-foreground">{t("conta.guestRatingLabel")}:</span>
+                {hasGuestRating ? (
+                  <span className="font-medium text-foreground tabular-nums">
+                    {guestRatingN.toFixed(1)}/5
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">{t("conta.guestRatingNone")}</span>
+                )}
+              </p>
+            ) : null}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Button variant="secondary" onClick={() => navigate("/conta/dados")}>
               <UserRound className="w-4 h-4 mr-1" />
               {t("conta.accountData")}
             </Button>
-            {me?.role === "banhista" && (
-              <Button variant="secondary" onClick={() => navigate("/conta/reservas")}>
-                {t("conta.reservations")}
-              </Button>
-            )}
+            <Button variant="secondary" onClick={() => navigate("/conta/favoritos")}>
+              <Heart className="w-4 h-4 mr-1" />
+              {t("conta.favorites")}
+            </Button>
             <Button variant="secondary" onClick={() => navigate("/conta/ajuda-teste")}>
               <CircleHelp className="w-4 h-4 mr-1" />
               {t("conta.helpTest")}
@@ -172,38 +162,15 @@ const ContaUsuario = () => {
           </div>
         </section>
 
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-foreground">{t("conta.favorites")}</h2>
-            <span className="text-xs text-muted-foreground">{t("conta.boatsCount", { n: favoriteBoats.length })}</span>
-          </div>
-          {favoriteBoats.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">{t("conta.noFavorites")}</p>
-          ) : (
-            <div className="space-y-2">
-              {favoriteBoats.map((barco) => (
-                <div
-                  key={barco.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2"
-                >
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/barco/${barco.id}`)}
-                    className="text-left min-w-0 flex-1"
-                  >
-                    <p className="text-sm font-semibold text-foreground truncate">{barco.nome}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {barco.distancia} • {barco.preco}
-                    </p>
-                  </button>
-                  <Button variant="ghost" size="sm" onClick={() => toggleFavorite(barco.id)}>
-                    <Heart className="w-4 h-4 fill-red-500 text-red-500" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+        {me?.role === "banhista" ? (
+          <section
+            id="conta-reservas"
+            className="rounded-xl border border-border bg-card p-4 shadow-card space-y-4 scroll-mt-24"
+          >
+            <h2 className="text-lg font-semibold text-foreground">{t("reservasConta.title")}</h2>
+            <RenterBookingsPanel />
+          </section>
+        ) : null}
 
         <section className="rounded-xl border border-border bg-card p-4 shadow-card">
           <h2 className="text-base font-semibold text-foreground mb-1">{t("conta.helpSectionTitle")}</h2>

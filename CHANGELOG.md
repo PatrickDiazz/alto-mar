@@ -8,6 +8,27 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
+## [0.10.4] — 2026-04-03
+
+### Adicionado
+
+- **Avaliações pós-passeio**: tabela `booking_ratings`; banhista avalia a embarcação; locatário avalia o banhista; recálculo de `boats.rating` e `users.guest_rating`.
+- **API**: `POST /api/renter/bookings/:id/rate-boat`, `POST /api/owner/bookings/:id/rate-renter`; `GET /api/me` inclui `guest_rating`.
+- **Minha conta (banhista)**: nota como cliente no cartão do topo; **Minhas reservas** na própria página `/conta`; **Meus favoritos** em `/conta/favoritos`; `/conta/reservas` redirecciona para `/conta#conta-reservas`.
+- **Banhistas**: `POST /api/renter/bookings/:id/cancel` e botão **Cancelar reserva** (pendente ou aceite).
+- **Marinheiro**: secção **Passeios concluídos** com avaliação ao banhista.
+- **Definições** (menu lateral): rodapé com **versão do app** (`AppVersionStamp`), alinhado ao `package.json` / build Vite.
+
+### Alterado
+
+- Schema SQL e `ensureBookingRatingsTable` no servidor; ficheiros `db/booking_ratings.sql` e entradas em `schema.sql`, `schema-cloud.sql`, `docker/init`.
+
+### Documentação / versões
+
+- **Semver**: cliente e servidor **0.10.4**; Android `versionName` **0.10.4**, `versionCode` **3**.
+
+---
+
 ## [0.10.3] — 2026-04-02
 
 ### Adicionado
@@ -185,5 +206,5 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ## Tags Git e releases
 
-- A tag **`v0.10.3`** marca o estado actual do código alinhado a este changelog.
+- A tag **`v0.10.4`** marca o estado actual do código alinhado a este changelog.
 - Versões **0.1.0–0.9.0** são documentais (histórico retroactivo); pode criar tags adicionais nos commits antigos se precisar de comparações no GitHub.
