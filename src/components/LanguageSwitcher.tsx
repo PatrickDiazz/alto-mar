@@ -18,13 +18,20 @@ const LANGS = [
 type LanguageSwitcherProps = {
   className?: string;
   id?: string;
+  /** Gatilho só com ícone (sem código PT/EN no botão); o rótulo fica fora, ex. no menu lateral */
+  iconOnlyTrigger?: boolean;
 };
 
-export function LanguageSwitcher({ className, id = "alto-mar-lang" }: LanguageSwitcherProps) {
+export function LanguageSwitcher({
+  className,
+  id = "alto-mar-lang",
+  iconOnlyTrigger = false,
+}: LanguageSwitcherProps) {
   const { t, i18n } = useTranslation();
   const code = (i18n.language || "pt").split("-")[0];
   const value = code === "en" || code === "es" ? code : "pt";
   const short = value.toUpperCase();
+  const currentLangLabel = value === "en" ? t("lang.en") : value === "es" ? t("lang.es") : t("lang.pt");
 
   return (
     <Select value={value} onValueChange={(v) => void i18n.changeLanguage(v)}>
@@ -32,14 +39,23 @@ export function LanguageSwitcher({ className, id = "alto-mar-lang" }: LanguageSw
         id={id}
         aria-label={t("lang.label")}
         className={cn(
-          "h-8 w-auto min-w-[3.75rem] max-w-[4.5rem] shrink-0 gap-1 px-2 py-0 text-xs",
+          iconOnlyTrigger
+            ? "h-9 w-9 shrink-0 gap-0 p-0 [&>span]:flex [&>span]:h-full [&>span]:w-full [&>span]:items-center [&>span]:justify-center"
+            : "h-8 w-auto min-w-[3.75rem] max-w-[4.5rem] shrink-0 gap-1 px-2 py-0 text-xs",
           className,
         )}
       >
-        <span className="flex flex-1 items-center justify-center gap-1 min-w-0">
-          <Languages className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+        <span className={cn("flex min-w-0 items-center justify-center", !iconOnlyTrigger && "flex-1 gap-1")}>
+          <Languages
+            className={cn("shrink-0 text-muted-foreground", iconOnlyTrigger ? "h-4 w-4" : "h-3.5 w-3.5")}
+            aria-hidden
+          />
           <SelectValue>
-            <span className="font-semibold tabular-nums leading-none">{short}</span>
+            {iconOnlyTrigger ? (
+              <span className="sr-only">{currentLangLabel}</span>
+            ) : (
+              <span className="font-semibold tabular-nums leading-none">{short}</span>
+            )}
           </SelectValue>
         </span>
       </SelectTrigger>

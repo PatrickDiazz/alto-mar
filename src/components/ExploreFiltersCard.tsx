@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { MapPin, Ship, Ruler, Users, Tag, Package } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { filterPraiasSugestoes } from "@/data/praiasBrasil";
+import { filterCidadesLitoralRJSugestoes } from "@/data/praiasBrasil";
 import { cn } from "@/lib/utils";
 import {
   Select,
@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   EXPLORE_MAIN_FILTER_KEYS,
   type ExploreMainFilter,
@@ -42,8 +43,9 @@ type ExploreFiltersCardProps = {
   onVagasFiltroChange: (v: SeatsFilterKey) => void;
   precoFiltro: PriceFilterKey;
   onPrecoFiltroChange: (v: PriceFilterKey) => void;
-  amenityFiltro: string;
-  onAmenityFiltroChange: (v: string) => void;
+  /** Itens inclusos seleccionados (AND); vazio = qualquer barco neste critério */
+  amenitySelected: string[];
+  onToggleAmenity: (name: string) => void;
   amenityNames: string[];
   tiposDisponiveis: string[];
   labelTipo: (tipo: string) => string;
@@ -62,8 +64,8 @@ export function ExploreFiltersCard({
   onVagasFiltroChange,
   precoFiltro,
   onPrecoFiltroChange,
-  amenityFiltro,
-  onAmenityFiltroChange,
+  amenitySelected,
+  onToggleAmenity,
   amenityNames,
   tiposDisponiveis,
   labelTipo,
@@ -73,7 +75,7 @@ export function ExploreFiltersCard({
   const [locFocused, setLocFocused] = useState(false);
   const [hi, setHi] = useState(-1);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const suggestions = useMemo(() => filterPraiasSugestoes(busca, 12), [busca]);
+  const suggestions = useMemo(() => filterCidadesLitoralRJSugestoes(busca, 12), [busca]);
   const showSug = locFocused && busca.trim().length >= 2 && suggestions.length > 0;
 
   useEffect(() => {
@@ -253,19 +255,30 @@ export function ExploreFiltersCard({
             )}
 
             {mainFilter === "included" && (
-              <Select value={amenityFiltro} onValueChange={onAmenityFiltroChange}>
-                <SelectTrigger className="w-full bg-background">
-                  <SelectValue placeholder={t("explorar.selectIncluded")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("common.all")}</SelectItem>
-                  {amenityNames.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <p className="text-[11px] text-muted-foreground leading-snug">{t("explorar.includedCheckboxHint")}</p>
+                {amenityNames.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-2 rounded-md border border-dashed border-border">
+                    {t("explorar.noAmenitiesCatalog")}
+                  </p>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto rounded-md border border-border bg-background p-2 space-y-1">
+                    {amenityNames.map((name) => (
+                      <label
+                        key={name}
+                        className="flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer hover:bg-muted/60 transition-colors"
+                      >
+                        <Checkbox
+                          checked={amenitySelected.includes(name)}
+                          onCheckedChange={() => onToggleAmenity(name)}
+                          className="shrink-0"
+                        />
+                        <span className="text-sm text-foreground select-none">{name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}

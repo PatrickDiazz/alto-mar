@@ -20,9 +20,11 @@ const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
 const DATABASE_URL = process.env.DATABASE_URL;
 
 if (!MP_ACCESS_TOKEN) {
-  // Fail fast: without token we can't create preferences
+  // Opcional em dev; só necessário para criar preferências Mercado Pago.
   // eslint-disable-next-line no-console
-  console.error("Missing MP_ACCESS_TOKEN in server environment.");
+  console.warn(
+    "[alto-mar] MP_ACCESS_TOKEN não definido — checkout MP desativado. Para testar pagamentos, defina em server/.env."
+  );
 }
 if (!DATABASE_URL) {
   // eslint-disable-next-line no-console
@@ -57,6 +59,17 @@ async function ensureBoatsRouteIslandImagesColumn() {
   );
 }
 
+async function ensureUserProfileColumns() {
+  await query(`alter table users add column if not exists rg_url text null`);
+  await query(`alter table users add column if not exists nautical_license_url text null`);
+}
+
+async function ensureBoatDocumentAndMediaColumns() {
+  await query(`alter table boats add column if not exists tie_document_url text null`);
+  await query(`alter table boats add column if not exists tiem_document_url text null`);
+  await query(`alter table boats add column if not exists video_url text null`);
+}
+
 async function ensureBookingsRouteIslandsColumn() {
   await query(
     `alter table bookings add column if not exists route_islands text[] not null default '{}'::text[]`
@@ -67,8 +80,11 @@ async function ensureBookingStatusCompleted() {
   try {
     await query(`alter type booking_status add value 'COMPLETED'`);
   } catch (e) {
+    const code = e && typeof e === "object" && "code" in e ? String(e.code) : "";
     const m = e instanceof Error ? e.message : String(e);
-    if (!/already exists|duplicate/i.test(m)) throw e;
+    // PG EN: already exists | PT: já existe | código duplicate_object
+    if (code === "42710" || /already exists|duplicate|já existe/i.test(m)) return;
+    throw e;
   }
 }
 
@@ -439,21 +455,42 @@ function normalizeRouteIslands(v) {
   return Array.isArray(v) ? v : [];
 }
 
+/** Vários `amenities=` na query ou `amenity=` único (retrocompatível). */
+function parseAmenitiesQuery(req) {
+  const out = [];
+  const raw = req.query.amenities;
+  if (Array.isArray(raw)) {
+    for (const x of raw) {
+      const s = String(x).trim();
+      if (s) out.push(s);
+    }
+  } else if (typeof raw === "string" && raw.trim()) {
+    for (const part of raw.split(",")) {
+      const s = part.trim();
+      if (s) out.push(s);
+    }
+  }
+  const single = typeof req.query.amenity === "string" ? req.query.amenity.trim() : "";
+  if (out.length === 0 && single) out.push(single);
+  return out;
+}
+
 app.get("/api/boats", async (req, res) => {
   try {
-    const amenityFilter =
-      typeof req.query.amenity === "string" && req.query.amenity.trim().length > 0
-        ? req.query.amenity.trim()
-        : null;
+    const amenityNames = parseAmenitiesQuery(req);
     const params = [];
     let whereSql = "";
-    if (amenityFilter) {
-      params.push(amenityFilter);
-      whereSql = `where exists (
+    if (amenityNames.length > 0) {
+      const parts = [];
+      for (const name of amenityNames) {
+        params.push(name);
+        parts.push(`exists (
         select 1 from boat_amenities ba
         join amenities a on a.id = ba.amenity_id
-        where ba.boat_id = b.id and ba.included = true and a.name = $1
-      )`;
+        where ba.boat_id = b.id and ba.included = true and a.name = $${params.length}
+      )`);
+      }
+      whereSql = `where ${parts.join(" and ")}`;
     }
 
     const boats = await query(
@@ -1068,6 +1105,32 @@ app.put("/api/owner/boats/:id/calendar-locks", requireAuth, requireRole("locatar
 });
 
 // --- Bookings ---
+/** Banhista: não reserva no mesmo dia nem no dia seguinte (primeira data = hoje + 2). */
+const BANHISTA_MIN_CALENDAR_LEAD_DAYS = 2;
+
+function calendarDaysFromTodayLocal(yyyyMmDd) {
+  const parts = String(yyyyMmDd)
+    .split("-")
+    .map((x) => parseInt(x, 10));
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return NaN;
+  const [y, m, d] = parts;
+  const target = new Date(y, m - 1, d);
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((target.getTime() - start.getTime()) / 86400000);
+}
+
+function assertBanhistaBookingLead(bookingDateStr) {
+  const diff = calendarDaysFromTodayLocal(bookingDateStr);
+  if (!Number.isFinite(diff) || diff < BANHISTA_MIN_CALENDAR_LEAD_DAYS) {
+    const err = new Error(
+      "Escolha uma data pelo menos dois dias após hoje (hoje e amanhã não estão disponíveis)."
+    );
+    err.code = "BOOKING_MIN_LEAD";
+    throw err;
+  }
+}
+
 const createBookingSchema = z.object({
   boatId: z.string().uuid(),
   bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -1091,6 +1154,7 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
       return res.status(400).send("Número de passageiros acima da capacidade do barco.");
     }
 
+    assertBanhistaBookingLead(body.bookingDate);
     await assertBookingSlotAvailable(body.boatId, body.bookingDate, null);
 
     const created = await query(
@@ -1133,6 +1197,9 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
       return res.status(400).send(msg);
     }
     if (e && typeof e === "object" && "code" in e && e.code === "DATE_OCCUPIED") {
+      return res.status(400).send(msg);
+    }
+    if (e && typeof e === "object" && "code" in e && e.code === "BOOKING_MIN_LEAD") {
       return res.status(400).send(msg);
     }
     return res.status(400).send(msg);
@@ -1228,6 +1295,7 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
     }
 
     if (body.bookingDate && body.bookingDate !== cur.rows[0].bd) {
+      assertBanhistaBookingLead(body.bookingDate);
       await assertBookingSlotAvailable(boatId, body.bookingDate, bookingId);
     }
 
@@ -1294,7 +1362,7 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
       e &&
       typeof e === "object" &&
       "code" in e &&
-      ["DATE_LOCKED", "WEEKDAY_LOCKED", "DATE_OCCUPIED"].includes(String(e.code))
+      ["DATE_LOCKED", "WEEKDAY_LOCKED", "DATE_OCCUPIED", "BOOKING_MIN_LEAD"].includes(String(e.code))
     ) {
       return res.status(400).send(msg);
     }
@@ -1549,10 +1617,27 @@ app.post("/api/mercadopago/preference", async (req, res) => {
 });
 
 async function startServer() {
+  if (!DATABASE_URL || !String(DATABASE_URL).trim()) {
+    // eslint-disable-next-line no-console
+    console.error(`
+[alto-mar] Falta DATABASE_URL no ficheiro server/.env
+
+Exemplo (Postgres local com Docker — na raiz do repo):
+  npm run db:setup
+  copie server/.env.example para server/.env e use:
+  DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/alto_mar
+
+Teste: http://127.0.0.1:3001/api/health
+`);
+    process.exit(1);
+  }
+
   try {
     await ensureFavoritesTable();
     await ensureBoatsRouteIslandsColumn();
     await ensureBoatsRouteIslandImagesColumn();
+    await ensureUserProfileColumns();
+    await ensureBoatDocumentAndMediaColumns();
     await ensureBookingsRouteIslandsColumn();
     await ensureBookingStatusCompleted();
     await ensureSeedAmenities();

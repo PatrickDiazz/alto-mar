@@ -120,10 +120,25 @@ async function upsertAmenity(name) {
   return res.rows[0].id;
 }
 
+/** BD antiga pode não ter todas as tabelas (migrações só na API). */
+async function deleteFromIfTableExists(tableSqlIdent) {
+  try {
+    await query(`delete from ${tableSqlIdent}`);
+  } catch (e) {
+    if (e && typeof e === "object" && "code" in e && e.code === "42P01") return;
+    throw e;
+  }
+}
+
 async function main() {
   const ownerId = await ensureDemoOwner();
 
   // Limpa somente barcos/relacionamentos (mantém users e outras tabelas)
+  await deleteFromIfTableExists("payments");
+  await deleteFromIfTableExists("bookings");
+  await deleteFromIfTableExists("user_boat_favorites");
+  await deleteFromIfTableExists("boat_date_locks");
+  await deleteFromIfTableExists("boat_weekday_locks");
   await query(`delete from boat_images`);
   await query(`delete from boat_amenities`);
   await query(`delete from embark_locations`);

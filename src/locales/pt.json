@@ -46,6 +46,7 @@
     },
     "ownerHint": "Marque dias ou dias da semana para não aceitar novas reservas. Pedidos pendentes não bloqueiam o dia até serem aceitos.",
     "pickerHint": "Dias em verde já têm passeio confirmado; em âmbar há pedido pendente (ainda pode reservar outro). Dias bloqueados pelo armador aparecem em vermelho.",
+    "banhistaMinLeadHint": "Antecedência mínima: {{days}} dias corridos a partir de hoje — não é possível escolher hoje nem amanhã.",
     "panelHint": "Visualize agendamentos e bloqueios. Para editar travas, abra a edição do barco.",
     "pickBoat": "Escolha o barco"
   },
@@ -95,6 +96,8 @@
       "included": "Inclusos"
     },
     "selectIncluded": "Item incluso no passeio",
+    "includedCheckboxHint": "Marque os itens que devem vir inclusos no passeio. Só aparecem barcos que incluem todos os itens marcados.",
+    "noAmenitiesCatalog": "Nenhum item no catálogo.",
     "selectType": "Selecione o tipo",
     "selectSize": "Selecione o tamanho",
     "selectSeats": "Selecione as vagas",
@@ -202,8 +205,10 @@
     "toastPhone": "Telefone inválido. Use DDD + número.",
     "toastEmbark": "Selecione o local de embarque.",
     "toastDate": "Escolha a data do passeio no calendário.",
+    "toastDateMinLead": "A data do passeio deve ser pelo menos dois dias após hoje (hoje e amanhã não estão disponíveis).",
     "tripDate": "Data do passeio",
     "tripDateHint": "Verde: já confirmado. Âmbar: pedido pendente (outro banhista). Vermelho: bloqueado pelo armador.",
+    "tripDateMinLead": "É necessário reservar com pelo menos 2 dias de antecedência: não é possível escolher o dia de hoje nem o de amanhã.",
     "toastRoute": "Selecione pelo menos uma parada do roteiro.",
     "routeStops": "Roteiro do passeio",
     "routeStopsHint": "Marque as paradas desejadas. Pode rever abaixo antes de pagar.",

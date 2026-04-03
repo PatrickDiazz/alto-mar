@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Anchor, Pencil, Plus, ClipboardList } from "lucide-react";
+import { Anchor, Pencil, Plus, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,28 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { readResponseErrorMessage } from "@/lib/responseError";
 import { BoatCalendarPanel } from "@/components/BoatCalendarPanel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
-
-const OWNER_BOOKINGS_SEEN_FP_KEY = "alto_mar_owner_bookings_seen_fp";
-
-function ownerBookingsFingerprint(rows: OwnerBookingRow[]): string {
-  return [...rows]
-    .sort((a, b) => a.id.localeCompare(b.id))
-    .map((b) =>
-      [
-        b.id,
-        b.status,
-        b.bookingDate ?? "",
-        b.totalCents,
-        b.passengersAdults,
-        b.passengersChildren,
-        b.bbqKit ? "1" : "0",
-        (b.routeIslands || []).join("\u001f"),
-        b.embarkLocation,
-      ].join("\u0001")
-    )
-    .join("\u0002");
-}
+import { CIDADES_LITORAL_RJ } from "@/data/praiasBrasil";
 
 type OwnerBoat = {
   id: string;
@@ -127,12 +106,11 @@ const Marinheiro_Page = () => {
   const [routePhotoRights, setRoutePhotoRights] = useState(false);
   const [routeIslandImagesNew, setRouteIslandImagesNew] = useState<Record<string, string[]>>({});
   const [calendarBoatId, setCalendarBoatId] = useState<string | null>(null);
-  /** True quando a lista de reservas mudou face ao último “visto” guardado em sessionStorage */
-  const [hasUnseenReservationActivity, setHasUnseenReservationActivity] = useState(false);
 
   const isLocatario = user?.role === "locatario";
   const pendentes = useMemo(() => bookings.filter((b) => b.status === "PENDING"), [bookings]);
   const aceitas = useMemo(() => bookings.filter((b) => b.status === "ACCEPTED"), [bookings]);
+  const coastalCityOptions = useMemo(() => [...CIDADES_LITORAL_RJ].sort((a, b) => a.localeCompare(b, "pt")), []);
 
   const newBoatReady = useMemo(() => {
     const f = newBoatForm;
@@ -159,7 +137,7 @@ const Marinheiro_Page = () => {
     navigate(goHome ? "/" : "/explorar", { replace: true });
   };
 
-  const carregarPendentes = async (opts?: { ownerCausedUpdate?: boolean }) => {
+  const carregarPendentes = async () => {
     setLoading(true);
     try {
       const resp = await authFetch("/api/owner/bookings");
@@ -170,23 +148,6 @@ const Marinheiro_Page = () => {
       const data = (await resp.json()) as { bookings: OwnerBookingRow[] };
       const list = data.bookings || [];
       setBookings(list);
-      const fp = ownerBookingsFingerprint(list);
-      try {
-        if (opts?.ownerCausedUpdate) {
-          sessionStorage.setItem(OWNER_BOOKINGS_SEEN_FP_KEY, fp);
-          setHasUnseenReservationActivity(false);
-        } else {
-          const prev = sessionStorage.getItem(OWNER_BOOKINGS_SEEN_FP_KEY);
-          if (prev === null) {
-            sessionStorage.setItem(OWNER_BOOKINGS_SEEN_FP_KEY, fp);
-            setHasUnseenReservationActivity(false);
-          } else {
-            setHasUnseenReservationActivity(prev !== fp);
-          }
-        }
-      } catch {
-        setHasUnseenReservationActivity(false);
-      }
     } catch (e) {
       const m = (e instanceof Error ? e.message : t("marinheiro.toastBookings")).trim();
       toast.error(m || t("marinheiro.toastBookings"), { id: "owner-bookings" });
@@ -204,7 +165,7 @@ const Marinheiro_Page = () => {
         throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastCompleteFail")));
       }
       toast.success(t("marinheiro.toastCompleteOk"));
-      await carregarPendentes({ ownerCausedUpdate: true });
+      await carregarPendentes();
     } catch (e) {
       const m = (e instanceof Error ? e.message : t("marinheiro.toastCompleteFail")).trim();
       toast.error(m || t("marinheiro.toastCompleteFail"));
@@ -241,24 +202,13 @@ const Marinheiro_Page = () => {
         throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastBookingUpdate")));
       }
       toast.success(action === "accept" ? t("marinheiro.toastAccept") : t("marinheiro.toastDecline"));
-      await carregarPendentes({ ownerCausedUpdate: true });
+      await carregarPendentes();
     } catch (e) {
       const m = (e instanceof Error ? e.message : t("marinheiro.toastBookingUpdate")).trim();
       toast.error(m || t("marinheiro.toastBookingUpdate"));
     } finally {
       setLoading(false);
     }
-  };
-
-  const acknowledgeReservationsView = () => {
-    const fp = ownerBookingsFingerprint(bookings);
-    try {
-      sessionStorage.setItem(OWNER_BOOKINGS_SEEN_FP_KEY, fp);
-    } catch {
-      /* ignore */
-    }
-    setHasUnseenReservationActivity(false);
-    document.getElementById("marinheiro-reservas-pendente")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const iniciarEdicao = (boat: OwnerBoat) => {
@@ -422,9 +372,6 @@ const Marinheiro_Page = () => {
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-4 py-3">
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-2">
           <div className="flex items-center gap-3 min-w-0">
-            <button onClick={() => navigate("/")} className="text-foreground hover:text-primary transition-colors shrink-0">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
             <h1 className="text-lg font-semibold text-foreground flex items-center gap-2 min-w-0 truncate">
               <Anchor className="w-5 h-5 text-primary shrink-0" />
               <span className="truncate">{t("marinheiro.title")}</span>
@@ -450,6 +397,11 @@ const Marinheiro_Page = () => {
       </header>
 
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
+        <datalist id="marinheiro-cidades-rj">
+          {coastalCityOptions.map((city) => (
+            <option key={city} value={city} />
+          ))}
+        </datalist>
         {!isLocatario ? (
           <div className="bg-card border border-border rounded-xl p-6 shadow-card">
             <p className="text-sm text-muted-foreground">
@@ -467,36 +419,6 @@ const Marinheiro_Page = () => {
                   <ClipboardList className="w-5 h-5 text-primary shrink-0" />
                   <h2 className="text-lg font-semibold text-foreground truncate">{t("marinheiro.bookingsHubTitle")}</h2>
                 </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={hasUnseenReservationActivity ? "default" : "secondary"}
-                  className={cn(
-                    "relative gap-2 shrink-0",
-                    hasUnseenReservationActivity && "ring-2 ring-primary/70 shadow-sm"
-                  )}
-                  onClick={acknowledgeReservationsView}
-                  title={t("marinheiro.reservationsButtonTitle")}
-                >
-                  <ClipboardList className="w-4 h-4 shrink-0" />
-                  <span className="relative inline-flex items-center">
-                    {t("marinheiro.reservationsButton")}
-                    {pendentes.length > 0 ? (
-                      <Badge
-                        variant="secondary"
-                        className="ml-2 h-5 min-w-[1.25rem] justify-center bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        {pendentes.length > 99 ? "99+" : pendentes.length}
-                      </Badge>
-                    ) : null}
-                    {hasUnseenReservationActivity ? (
-                      <span
-                        className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-card"
-                        aria-hidden
-                      />
-                    ) : null}
-                  </span>
-                </Button>
               </div>
               <p className="text-xs text-muted-foreground -mt-2">{t("marinheiro.bookingsHubHint")}</p>
 
@@ -656,7 +578,12 @@ const Marinheiro_Page = () => {
                       </div>
                       <div className="space-y-1 sm:col-span-2">
                         <Label>{t("marinheiro.location")}</Label>
-                        <Input placeholder={t("marinheiro.locationPh")} value={newBoatForm.distancia} onChange={(e) => setNewBoatForm({ ...newBoatForm, distancia: e.target.value })} />
+                        <Input
+                          list="marinheiro-cidades-rj"
+                          placeholder={t("marinheiro.locationPh")}
+                          value={newBoatForm.distancia}
+                          onChange={(e) => setNewBoatForm({ ...newBoatForm, distancia: e.target.value })}
+                        />
                       </div>
                       <div className="space-y-1">
                         <Label>{t("marinheiro.priceBase")}</Label>
@@ -880,7 +807,11 @@ const Marinheiro_Page = () => {
                               </div>
                               <div className="space-y-1">
                                 <Label>{t("marinheiro.location")}</Label>
-                                <Input value={boatForm.distancia} onChange={(e) => setBoatForm({ ...boatForm, distancia: e.target.value })} />
+                                <Input
+                                  list="marinheiro-cidades-rj"
+                                  value={boatForm.distancia}
+                                  onChange={(e) => setBoatForm({ ...boatForm, distancia: e.target.value })}
+                                />
                               </div>
                               <div className="space-y-1">
                                 <Label>{t("marinheiro.priceReaisShort")}</Label>

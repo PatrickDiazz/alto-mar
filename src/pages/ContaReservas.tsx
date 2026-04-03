@@ -31,6 +31,7 @@ type RenterBooking = {
 };
 
 const KIT_CHURRASCO_PRECO = 250;
+const BANHISTA_BOOKING_LEAD_DAYS = 2;
 
 const ContaReservas = () => {
   const { t, i18n } = useTranslation();
@@ -284,12 +285,14 @@ function BookingCard({
         <div className="space-y-2 pt-2 border-t border-border">
           <div className="space-y-2">
             <Label className="text-sm font-semibold">{t("reservar.tripDate")}</Label>
+            <p className="text-xs text-muted-foreground">{t("reservar.tripDateMinLead")}</p>
             <BoatCalendarPanel
               variant="picker"
               boatId={b.boat.id}
               selectedDate={editDraft.bookingDate ?? null}
               onSelectDate={(iso) => setEditDraft({ ...editDraft, bookingDate: iso })}
               excludeBookingId={b.id}
+              bookingLeadDays={BANHISTA_BOOKING_LEAD_DAYS}
             />
           </div>
           <div>

@@ -1,7 +1,38 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import type { ServerResponse } from "http";
 import { componentTagger } from "lovable-tagger";
+
+const apiProxyTarget = "http://127.0.0.1:3001";
+
+const apiProxyOptions = {
+  target: apiProxyTarget,
+  changeOrigin: true,
+  timeout: 120_000,
+  proxyTimeout: 120_000,
+  configure(proxy: import("http-proxy").Server) {
+    proxy.on("error", (err, _req, res) => {
+      const code = err && typeof err === "object" && "code" in err ? String((err as NodeJS.ErrnoException).code) : "";
+      const msg = err instanceof Error ? err.message : String(err);
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[vite] Proxy /api → :3001 (${code || msg}). ` +
+          "A API pode ter reiniciado (node --watch) ou estar parada — npm.cmd run dev:server:stable evita reinícios ao editar o server."
+      );
+      const r = res as ServerResponse | undefined;
+      if (r && typeof r.writeHead === "function" && !r.headersSent) {
+        r.writeHead(502, { "Content-Type": "application/json" });
+        r.end(
+          JSON.stringify({
+            ok: false,
+            error: "API offline na porta 3001. Num terminal: npm.cmd run dev:server (ou dev:server:stable).",
+          })
+        );
+      }
+    });
+  },
+};
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -11,12 +42,7 @@ export default defineConfig(({ mode }) => ({
     // Permite hostnames de túneis (localtunnel, ngrok, Cloudflare, etc.)
     allowedHosts: true,
     proxy: {
-      "/api": {
-        target: "http://127.0.0.1:3001",
-        changeOrigin: true,
-        timeout: 120_000,
-        proxyTimeout: 120_000,
-      },
+      "/api": apiProxyOptions,
     },
     hmr: {
       overlay: false,
@@ -25,12 +51,7 @@ export default defineConfig(({ mode }) => ({
   // Mesmo proxy em `vite preview` (build local); se não houver, /api não chega à API.
   preview: {
     proxy: {
-      "/api": {
-        target: "http://127.0.0.1:3001",
-        changeOrigin: true,
-        timeout: 120_000,
-        proxyTimeout: 120_000,
-      },
+      "/api": apiProxyOptions,
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),

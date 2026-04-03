@@ -10,6 +10,13 @@ services:
       - "5432:5432"
     volumes:
       - alto_mar_pgdata:/var/lib/postgresql/data
+      # Só corre na primeira criação do volume; para repetir: docker compose down -v
+      - ./docker/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d alto_mar"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
 
 volumes:
   alto_mar_pgdata:

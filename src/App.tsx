@@ -26,8 +26,10 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 30_000,
       gcTime: 10 * 60_000,
-      retry: 3,
-      retryDelay: (i) => Math.min(3000, 400 + 500 * 2 ** i),
+      /** Em dev, menos retentativas — API/Postgres parados não devem bloquear a UI por minutos. */
+      retry: import.meta.env.DEV ? 1 : 3,
+      retryDelay: (i) =>
+        import.meta.env.DEV ? Math.min(600, 150 + 150 * i) : Math.min(3000, 400 + 500 * 2 ** i),
       refetchOnWindowFocus: true,
       refetchOnReconnect: true,
       refetchOnMount: true,

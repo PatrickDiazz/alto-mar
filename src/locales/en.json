@@ -46,6 +46,7 @@
     },
     "ownerHint": "Lock specific dates or weekdays to stop new bookings. Pending requests do not block the day until accepted.",
     "pickerHint": "Green: confirmed trip. Amber: pending request (another guest may still book). Red: blocked by owner.",
+    "banhistaMinLeadHint": "Minimum lead time: {{days}} calendar days from today — today and tomorrow cannot be selected.",
     "panelHint": "View bookings and locks. To edit locks, open the boat editor.",
     "pickBoat": "Choose a boat"
   },
@@ -95,6 +96,8 @@
       "included": "Included"
     },
     "selectIncluded": "Included item",
+    "includedCheckboxHint": "Check the items the trip must include. Only boats that include all selected items are shown.",
+    "noAmenitiesCatalog": "No items in the catalog.",
     "selectType": "Select type",
     "selectSize": "Select size",
     "selectSeats": "Select seats",
@@ -202,8 +205,10 @@
     "toastPhone": "Invalid phone. Use area code + number.",
     "toastEmbark": "Select boarding location.",
     "toastDate": "Choose the trip date on the calendar.",
+    "toastDateMinLead": "The trip date must be at least two days after today (today and tomorrow are not available).",
     "tripDate": "Trip date",
     "tripDateHint": "Green: confirmed. Amber: pending request (another guest). Red: blocked by owner.",
+    "tripDateMinLead": "Bookings require at least 2 days’ notice: you cannot choose today or tomorrow.",
     "toastRoute": "Select at least one route stop.",
     "routeStops": "Trip route",
     "routeStopsHint": "Choose the stops you want. Review below before paying.",

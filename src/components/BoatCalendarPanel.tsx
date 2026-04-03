@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { format, parseISO, startOfDay, isBefore, addMonths } from "date-fns";
+import { format, parseISO, startOfDay, isBefore, addMonths, addDays } from "date-fns";
 import { ptBR, enUS, es } from "date-fns/locale";
 import { DayPicker, type Matcher } from "react-day-picker";
 import "react-day-picker/dist/style.css";
@@ -33,6 +33,8 @@ type PickerProps = BaseProps & {
   selectedDate: string | null;
   onSelectDate: (iso: string) => void;
   excludeBookingId?: string;
+  /** Primeira data seleccionável = hoje + N dias corridos (ex.: 2 = não hoje nem amanhã). */
+  bookingLeadDays?: number;
 };
 
 type ReadonlyProps = BaseProps & {
@@ -78,6 +80,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
   }, [load]);
 
   const excludeId = props.variant === "picker" ? props.excludeBookingId : undefined;
+  const pickerLeadDays = props.variant === "picker" ? (props.bookingLeadDays ?? 0) : 0;
 
   const isDayBlockedForPicker = useCallback(
     (date: Date): boolean => {
@@ -99,11 +102,12 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
   const disabledMatcher: Matcher = useCallback(
     (date: Date) => {
       const today = startOfDay(new Date());
-      if (isBefore(startOfDay(date), today)) return true;
+      const minSelectable = addDays(today, pickerLeadDays);
+      if (isBefore(startOfDay(date), minSelectable)) return true;
       if (props.variant === "picker") return isDayBlockedForPicker(date);
       return false;
     },
-    [isDayBlockedForPicker, props.variant]
+    [isDayBlockedForPicker, props.variant, pickerLeadDays]
   );
 
   const modifiers = useMemo(() => {
@@ -265,7 +269,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
     props.variant === "picker" && props.selectedDate ? parseISO(`${props.selectedDate}T12:00:00`) : undefined;
 
   return (
-    <div className={cn("space-y-3", className, props.variant === "readonly" && "pointer-events-none select-none")}>
+    <div className={cn("space-y-3", className)}>
       <div className="flex flex-wrap gap-3 text-xs">
         <span className="inline-flex items-center gap-1.5">
           <span className="h-3 w-3 rounded-sm bg-rose-500/40 border border-rose-500/60" />
@@ -318,7 +322,12 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
         }}
       />
       {props.variant === "picker" ? (
-        <p className="text-[11px] text-muted-foreground">{t("calendar.pickerHint")}</p>
+        <div className="space-y-1 text-[11px] text-muted-foreground">
+          <p>{t("calendar.pickerHint")}</p>
+          {props.variant === "picker" && pickerLeadDays > 0 ? (
+            <p>{t("calendar.banhistaMinLeadHint", { days: pickerLeadDays })}</p>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

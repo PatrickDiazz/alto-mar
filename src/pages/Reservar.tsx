@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { format } from "date-fns";
+import { format, addDays, startOfDay, parseISO, isBefore } from "date-fns";
 import { ptBR, enUS, es } from "date-fns/locale";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -40,6 +40,8 @@ import { apiUrl, authFetch, getStoredUser } from "@/lib/auth";
 import { BoatCalendarPanel } from "@/components/BoatCalendarPanel";
 
 const KIT_CHURRASCO_PRECO = 250;
+/** Primeira data permitida para reserva do banhista = hoje + N dias corridos */
+const BANHISTA_BOOKING_LEAD_DAYS = 2;
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
@@ -185,6 +187,13 @@ const Reservar = () => {
     setParadasRoteiro(stops);
   }, [barco, t]);
 
+  useEffect(() => {
+    if (!dataPasseio) return;
+    const min = addDays(startOfDay(new Date()), BANHISTA_BOOKING_LEAD_DAYS);
+    const d = startOfDay(parseISO(`${dataPasseio}T12:00:00`));
+    if (isBefore(d, min)) setDataPasseio(null);
+  }, [barco?.id, dataPasseio]);
+
   if (!user) {
     return null;
   }
@@ -265,6 +274,12 @@ const Reservar = () => {
     }
     if (!dataPasseio) {
       toast.error(t("reservar.toastDate"));
+      return;
+    }
+    const minBook = addDays(startOfDay(new Date()), BANHISTA_BOOKING_LEAD_DAYS);
+    const chosen = startOfDay(parseISO(`${dataPasseio}T12:00:00`));
+    if (isBefore(chosen, minBook)) {
+      toast.error(t("reservar.toastDateMinLead"));
       return;
     }
     if (pessoas + criancas > barco.capacidade) {
@@ -465,11 +480,13 @@ const Reservar = () => {
         <section className="space-y-2">
           <h3 className="text-base font-bold text-foreground">{t("reservar.tripDate")}</h3>
           <p className="text-xs text-muted-foreground">{t("reservar.tripDateHint")}</p>
+          <p className="text-xs text-muted-foreground">{t("reservar.tripDateMinLead")}</p>
           <BoatCalendarPanel
             variant="picker"
             boatId={barco.id}
             selectedDate={dataPasseio}
             onSelectDate={setDataPasseio}
+            bookingLeadDays={BANHISTA_BOOKING_LEAD_DAYS}
           />
         </section>
 

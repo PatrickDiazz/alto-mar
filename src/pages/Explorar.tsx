@@ -29,7 +29,7 @@ const Explorar = () => {
   const [tamFiltro, setTamFiltro] = useState<SizeFilterKey>("all");
   const [vagasFiltro, setVagasFiltro] = useState<SeatsFilterKey>("all");
   const [precoFiltro, setPrecoFiltro] = useState<PriceFilterKey>("all");
-  const [amenityFiltro, setAmenityFiltro] = useState("all");
+  const [amenitySelected, setAmenitySelected] = useState<string[]>([]);
   const [amenityNames, setAmenityNames] = useState<string[]>([]);
   const {
     boats: listaBarcos,
@@ -37,7 +37,7 @@ const Explorar = () => {
     isError: barcosError,
     refetch: refetchBarcos,
     isRefetching: barcosRefetching,
-  } = useBarcos(amenityFiltro !== "all" ? amenityFiltro : null);
+  } = useBarcos(amenitySelected.length > 0 ? amenitySelected : null);
   const user = getStoredUser();
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
 
@@ -73,10 +73,10 @@ const Explorar = () => {
         tamFiltro,
         vagasFiltro,
         precoFiltro,
-        amenityFiltro,
+        amenitySelected,
       })
     );
-  }, [busca, listaBarcos, tipoFiltro, tamFiltro, vagasFiltro, precoFiltro, amenityFiltro]);
+  }, [busca, listaBarcos, tipoFiltro, tamFiltro, vagasFiltro, precoFiltro, amenitySelected]);
 
   const favoritosAngrenses = useMemo(
     () =>
@@ -164,7 +164,7 @@ const Explorar = () => {
               className="shrink-0 rounded-md outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label={t("explorar.title")}
             >
-              <img src={logo} alt="" className="h-9 w-auto max-h-10 object-contain object-left" />
+              <img src={logo} alt="" className="h-11 w-auto max-h-12 sm:h-12 sm:max-h-14 object-contain object-left" />
             </button>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -201,8 +201,14 @@ const Explorar = () => {
           onVagasFiltroChange={setVagasFiltro}
           precoFiltro={precoFiltro}
           onPrecoFiltroChange={setPrecoFiltro}
-          amenityFiltro={amenityFiltro}
-          onAmenityFiltroChange={setAmenityFiltro}
+          amenitySelected={amenitySelected}
+          onToggleAmenity={(name) => {
+            setAmenitySelected((prev) =>
+              prev.includes(name)
+                ? prev.filter((x) => x !== name)
+                : [...prev, name].sort((a, b) => a.localeCompare(b, "pt"))
+            );
+          }}
           amenityNames={amenityNames}
           tiposDisponiveis={tiposDisponiveis}
           labelTipo={labelTipo}

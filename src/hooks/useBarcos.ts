@@ -8,7 +8,7 @@ function devBoatsHint() {
   if (!import.meta.env.DEV) return;
   // eslint-disable-next-line no-console
   console.error(
-    "[boats] Dica (dev): confirme PostgreSQL ligado, server/.env com DATABASE_URL correcto, e na raiz do repo rode `npm run dev:all` (ou `npm run dev:server` noutro terminal). Teste: http://127.0.0.1:3001/api/health"
+    "[boats] Dev: 1) `npm.cmd run dev:all` na raiz (Vite :8080 + API :3001)  2) Postgres a correr e `server/.env` com DATABASE_URL  3) Teste API: http://127.0.0.1:3001/api/health"
   );
 }
 
@@ -16,12 +16,16 @@ function boatsRefetchInterval(query: Query<Boat[], Error, Boat[], string[]>) {
   return query.state.status === "error" ? 12_000 : false;
 }
 
-export function useBarcos(amenityFilter?: string | null) {
-  const amenityNorm = amenityFilter?.trim() || null;
+export function useBarcos(amenityFilters?: string[] | null) {
+  const sorted =
+    amenityFilters && amenityFilters.length > 0
+      ? [...amenityFilters].map((s) => s.trim()).filter(Boolean).sort()
+      : null;
   const q = useQuery({
-    queryKey: ["boats", amenityNorm],
-    retry: 5,
-    retryDelay: (attempt) => Math.min(4000, 500 + 600 * 2 ** attempt),
+    queryKey: ["boats", sorted?.join("\0") ?? ""],
+    retry: import.meta.env.DEV ? 1 : 5,
+    retryDelay: (attempt) =>
+      import.meta.env.DEV ? Math.min(800, 200 + 200 * attempt) : Math.min(4000, 500 + 600 * 2 ** attempt),
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     refetchInterval: boatsRefetchInterval,
@@ -31,9 +35,12 @@ export function useBarcos(amenityFilter?: string | null) {
     networkMode: "online",
     queryFn: async (): Promise<Boat[]> => {
       const base = apiUrl("/api/boats");
-      const url = amenityNorm
-        ? `${base}?amenity=${encodeURIComponent(amenityNorm)}`
-        : base;
+      let url = base;
+      if (sorted && sorted.length > 0) {
+        const params = new URLSearchParams();
+        for (const a of sorted) params.append("amenities", a);
+        url = `${base}?${params.toString()}`;
+      }
       let resp: Response;
       try {
         resp = await fetchBoatsResponse(url);

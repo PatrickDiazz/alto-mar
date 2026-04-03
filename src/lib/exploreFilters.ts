@@ -15,11 +15,11 @@ export function matchesExploreFilters(
     tamFiltro: SizeFilterKey;
     vagasFiltro: SeatsFilterKey;
     precoFiltro: PriceFilterKey;
-    /** Nome do item incluso (catálogo) ou "all" */
-    amenityFiltro: string;
+    /** Itens inclusos que o barco deve ter (todos); vazio = sem filtro por inclusos */
+    amenitySelected: string[];
   }
 ): boolean {
-  const { q, tipoFiltro, tamFiltro, vagasFiltro, precoFiltro, amenityFiltro } = opts;
+  const { q, tipoFiltro, tamFiltro, vagasFiltro, precoFiltro, amenitySelected } = opts;
   if (q.trim()) {
     const qLower = q.trim().toLowerCase();
     const locais = (barco.locaisEmbarque || []).join(" ");
@@ -53,8 +53,9 @@ export function matchesExploreFilters(
     if (precoFiltro === "4501plus" && !(valor >= 4501)) return false;
   }
 
-  if (amenityFiltro && amenityFiltro !== "all") {
-    const want = amenityFiltro.trim().toLowerCase();
+  for (const name of amenitySelected) {
+    const want = name.trim().toLowerCase();
+    if (!want) continue;
     const ok = (barco.amenidades || []).some(
       (a) => a.incluido && a.nome.toLowerCase() === want
     );

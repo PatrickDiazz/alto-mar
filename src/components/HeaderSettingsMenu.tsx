@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Menu } from "lucide-react";
+import { Menu, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { getStoredUser } from "@/lib/auth";
@@ -46,11 +46,14 @@ export function HeaderSettingsMenu({ className, triggerClassName }: HeaderSettin
             <Menu className="h-5 w-5" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="right" className="w-[min(100%,20rem)] flex flex-col">
-          <SheetHeader>
-            <SheetTitle>{t("menu.title")}</SheetTitle>
+        <SheetContent side="right" className="w-[min(100%,16rem)] max-w-[16rem] gap-0 p-4 pt-5 flex flex-col">
+          <SheetHeader className="space-y-0 pb-3">
+            <div className="flex justify-center" aria-hidden>
+              <Settings className="h-5 w-5 text-primary" />
+            </div>
+            <SheetTitle className="sr-only">{t("menu.title")}</SheetTitle>
           </SheetHeader>
-          <div className="mt-6 flex flex-1 flex-col gap-6">
+          <div className="flex flex-1 flex-col gap-4">
             {isLocatario && (
               <div className="space-y-2">
                 <Label>{t("menu.roleArea")}</Label>
@@ -83,13 +86,23 @@ export function HeaderSettingsMenu({ className, triggerClassName }: HeaderSettin
                 </div>
               </div>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="alto-mar-lang-sheet">{t("lang.label")}</Label>
-              <LanguageSwitcher id="alto-mar-lang-sheet" className="w-full min-w-0 max-w-none" />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-medium leading-none">{t("menu.appearance")}</span>
-              <ThemeToggle />
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <Label htmlFor="alto-mar-lang-sheet" className="text-xs shrink-0 text-muted-foreground">
+                  {t("lang.label")}
+                </Label>
+                <LanguageSwitcher
+                  id="alto-mar-lang-sheet"
+                  iconOnlyTrigger
+                  className="shrink-0"
+                />
+              </div>
+              <div className="flex shrink-0 items-center gap-2 border-l border-border pl-3">
+                <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                  {t("menu.appearance")}
+                </span>
+                <ThemeToggle />
+              </div>
             </div>
           </div>
         </SheetContent>
