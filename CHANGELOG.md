@@ -8,6 +8,29 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
+## [0.10.3] — 2026-04-02
+
+### Adicionado
+
+- **PostgreSQL local (Docker)**: volume `docker/init` montado em `docker-entrypoint-initdb.d` para aplicar o schema inicial (`docker/init/01-schema.sql`) na primeira criação do volume; **healthcheck** com `pg_isready`.
+- Script **`scripts/wait-for-pg.mjs`** e comandos npm **`db:wait`** e **`db:setup`** (subir o Postgres, esperar ficar pronto e correr o seed).
+- **Explorar**: sugestões de localização com **correspondência aproximada** (distância de edição) sobre a lista de cidades do litoral do RJ, para quando o texto tem erros de digitação.
+
+### Alterado
+
+- **Vite**: proxy `/api` para `127.0.0.1:3001` com timeout alargado, mensagem de erro no **502** quando a API cai, e o **mesmo proxy em `vite preview`** para testar o build local com a API.
+- **Marinheiro**: hub simplificado (incluindo remoção do atalho **Reservas** redundante face ao painel de reservas).
+- **BoatCalendarPanel**: calendário utilizável para navegação (sem bloqueio de interacção que impedia mudar mês).
+- **API / cliente**: ajustes em reservas, calendário e filtros de exploração (`fetchBoatsApi`, `useBarcos`, `exploreFilters`, `Explorar`, `Reservar`, `ContaReservas`).
+- **Logo** (`logo-altomar.png`) e pequenos ajustes em **definições / selector de idioma** e componente **Sheet**.
+- Traduções **pt / en / es** para chaves novas ou actualizadas.
+
+### Documentação
+
+- **`server/.env.example`**: variáveis adicionais alinhadas ao ambiente local.
+
+---
+
 ## [0.10.2] — 2026-04-02
 
 ### Alterado
@@ -162,5 +185,5 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ## Tags Git e releases
 
-- A tag **`v0.10.2`** marca o estado actual do código alinhado a este changelog.
+- A tag **`v0.10.3`** marca o estado actual do código alinhado a este changelog.
 - Versões **0.1.0–0.9.0** são documentais (histórico retroactivo); pode criar tags adicionais nos commits antigos se precisar de comparações no GitHub.

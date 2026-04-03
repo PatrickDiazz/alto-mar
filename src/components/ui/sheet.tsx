@@ -11,7 +11,19 @@ const SheetTrigger = SheetPrimitive.Trigger;
 
 const SheetClose = SheetPrimitive.Close;
 
-const SheetPortal = SheetPrimitive.Portal;
+const SheetPortal = ({ children, ...props }: React.ComponentPropsWithoutRef<typeof SheetPrimitive.Portal>) => {
+  const [container, setContainer] = React.useState<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    setContainer(document.getElementById("portal-root"));
+  }, []);
+
+  return (
+    <SheetPrimitive.Portal container={container ?? undefined} {...props}>
+      {children}
+    </SheetPrimitive.Portal>
+  );
+};
 
 const SheetOverlay = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Overlay>,

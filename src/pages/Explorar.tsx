@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { LogOut } from "lucide-react";
+import { useTheme } from "next-themes";
 import BoatCard from "@/components/BoatCard";
 import { ExploreFiltersCard, JETSKY_TYPE } from "@/components/ExploreFiltersCard";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
@@ -11,6 +12,7 @@ import i18n from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import logo from "@/assets/logo-altomar.png";
+import logoDark from "@/assets/logo-altomar-dark.png";
 import {
   matchesExploreFilters,
   type ExploreMainFilter,
@@ -22,6 +24,7 @@ import { readResponseErrorMessage } from "@/lib/responseError";
 
 const Explorar = () => {
   const { t } = useTranslation();
+  const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
   const [mainFilter, setMainFilter] = useState<ExploreMainFilter>("all");
   const [busca, setBusca] = useState("");
@@ -152,6 +155,7 @@ const Explorar = () => {
   };
 
   if (!user) return null;
+  const headerLogo = resolvedTheme === "dark" ? logoDark : logo;
 
   return (
     <div className="min-h-screen bg-background">
@@ -164,7 +168,7 @@ const Explorar = () => {
               className="shrink-0 rounded-md outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label={t("explorar.title")}
             >
-              <img src={logo} alt="" className="h-11 w-auto max-h-12 sm:h-12 sm:max-h-14 object-contain object-left" />
+              <img src={headerLogo} alt="" className="h-11 w-auto max-h-12 sm:h-12 sm:max-h-14 object-contain object-left" />
             </button>
           </div>
           <div className="flex items-center gap-2 shrink-0">

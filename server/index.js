@@ -455,6 +455,26 @@ function normalizeRouteIslands(v) {
   return Array.isArray(v) ? v : [];
 }
 
+/**
+ * Aceita:
+ * - URL absoluta (http/https)
+ * - data URL (uploads em base64)
+ * - caminho relativo da app (ex.: /assets/boat-exterior.jpg)
+ */
+const assetOrUrlSchema = z.string().refine((value) => {
+  if (typeof value !== "string") return false;
+  const v = value.trim();
+  if (!v) return false;
+  if (v.startsWith("data:")) return true;
+  if (v.startsWith("/")) return true;
+  try {
+    const u = new URL(v);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}, "Invalid url");
+
 /** Vários `amenities=` na query ou `amenity=` único (retrocompatível). */
 function parseAmenitiesQuery(req) {
   const out = [];
@@ -875,10 +895,10 @@ const ownerUpdateBoatSchema = z.object({
   routeIslands: z.array(z.string().min(2).max(120)).max(20).optional(),
   routeIslandImages: z.record(z.string(), z.array(z.string())).optional(),
   verificado: z.boolean(),
-  tieDocumentUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
-  tiemDocumentUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
+  tieDocumentUrl: assetOrUrlSchema.optional().nullable(),
+  tiemDocumentUrl: assetOrUrlSchema.optional().nullable(),
   videoUrl: z.string().url().optional().nullable(),
-  imagens: z.array(z.string().url().or(z.string().startsWith("data:"))).max(20).optional(),
+  imagens: z.array(assetOrUrlSchema).max(20).optional(),
 });
 
 app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (req, res) => {
@@ -980,10 +1000,10 @@ const ownerCreateBoatSchema = z.object({
   descricao: z.string().min(5).max(4000),
   routeIslands: z.array(z.string().min(2).max(120)).max(20).optional(),
   routeIslandImages: z.record(z.string(), z.array(z.string())).optional(),
-  tieDocumentUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
-  tiemDocumentUrl: z.string().url().or(z.string().startsWith("data:")).optional().nullable(),
+  tieDocumentUrl: assetOrUrlSchema.optional().nullable(),
+  tiemDocumentUrl: assetOrUrlSchema.optional().nullable(),
   videoUrl: z.string().url().optional().nullable(),
-  imagens: z.array(z.string().url().or(z.string().startsWith("data:"))).max(20).default([]),
+  imagens: z.array(assetOrUrlSchema).max(20).default([]),
 });
 
 app.post("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, res) => {
