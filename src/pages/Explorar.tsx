@@ -11,7 +11,7 @@ import { getStoredUser, clearSession, authFetch, apiUrl } from "@/lib/auth";
 import i18n from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import logo from "@/assets/logo-altomar.png";
+import logoLight from "@/assets/logo-altomar-light.png";
 import logoDark from "@/assets/logo-altomar-dark.png";
 import {
   matchesExploreFilters,
@@ -155,7 +155,7 @@ const Explorar = () => {
   };
 
   if (!user) return null;
-  const headerLogo = resolvedTheme === "dark" ? logoDark : logo;
+  const headerLogo = resolvedTheme === "dark" ? logoDark : logoLight;
 
   return (
     <div className="min-h-screen bg-background">
@@ -168,7 +168,11 @@ const Explorar = () => {
               className="shrink-0 rounded-md outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label={t("explorar.title")}
             >
-              <img src={headerLogo} alt="" className="h-11 w-auto max-h-12 sm:h-12 sm:max-h-14 object-contain object-left" />
+              <img
+                src={headerLogo}
+                alt=""
+                className="h-11 w-auto max-h-12 sm:h-12 sm:max-h-14 object-contain object-left bg-transparent"
+              />
             </button>
           </div>
           <div className="flex items-center gap-2 shrink-0">

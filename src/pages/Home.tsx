@@ -1,13 +1,16 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
-import logo from "@/assets/logo-altomar.png";
+import logoLight from "@/assets/logo-altomar-light.png";
+import logoDark from "@/assets/logo-altomar-dark.png";
 import { getStoredUser } from "@/lib/auth";
 
 const Home = () => {
   const { t } = useTranslation();
+  const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
   const user = getStoredUser();
 
@@ -32,12 +35,14 @@ const Home = () => {
     navigate("/marinheiro");
   };
 
+  const heroLogo = resolvedTheme === "dark" ? logoDark : logoLight;
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
       <div className="absolute top-4 right-4">
         <HeaderSettingsMenu />
       </div>
-      <img src={logo} alt="Alto Mar" className="h-64 mb-8" />
+      <img src={heroLogo} alt="Alto Mar" className="h-64 mb-8 bg-transparent object-contain" />
       <h1 className="text-2xl font-bold text-foreground mb-8 text-center">{t("home.welcome")}</h1>
       <div className="flex flex-col gap-4 w-full max-w-xs">
         <Button
