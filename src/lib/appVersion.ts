@@ -1,5 +1,9 @@
-/** Injetados em build (vite.config.ts): semver do package.json + git rev-parse --short. */
-export const APP_VERSION = __APP_VERSION__;
+import pkg from "../../package.json";
+
+/** Semver do `package.json` (fonte única; o bundle reflecte a versão ao compilar). */
+export const APP_VERSION = pkg.version;
+
+/** Hash curto do Git, injectado no build/dev pelo Vite (`vite.config.ts`). */
 export const GIT_COMMIT = __GIT_COMMIT__;
 
 /** Ex.: "v0.10.4 · a1b2c3d" ou "v0.10.4" se não houver git no ambiente de build. */
