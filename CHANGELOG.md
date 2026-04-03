@@ -8,6 +8,18 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
+## [0.10.5] — 2026-04-03
+
+### Corrigido
+
+- **AppVersionStamp** / rodapé de versão: o semver passa a ser lido directamente de `package.json` em `src/lib/appVersion.ts` (import JSON), em vez de `define.__APP_VERSION__` no `vite.config.ts` (valor fixo no arranque do Vite). Evita mostrar uma versão antiga no UI (ex.: **v0.10.3** com `package.json` já em **0.10.4**) até reiniciar o dev server; o hash Git continua a ser injectado no arranque (`__GIT_COMMIT__`).
+
+### Documentação / versões
+
+- **Semver**: cliente e servidor **0.10.5**; Android `versionName` **0.10.5**, `versionCode` **4**.
+
+---
+
 ## [0.10.4] — 2026-04-03
 
 ### Adicionado
@@ -206,5 +218,5 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ## Tags Git e releases
 
-- A tag **`v0.10.4`** marca o estado actual do código alinhado a este changelog.
+- A tag **`v0.10.5`** marca o estado actual do código alinhado a este changelog.
 - Versões **0.1.0–0.9.0** são documentais (histórico retroactivo); pode criar tags adicionais nos commits antigos se precisar de comparações no GitHub.
