@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
-import logoLight from "@/assets/logo-altomar-light.png";
+import logo from "@/assets/logo-altomar.png";
 import logoDark from "@/assets/logo-altomar-dark.png";
 import { getStoredUser } from "@/lib/auth";
 
@@ -35,7 +35,7 @@ const Home = () => {
     navigate("/marinheiro");
   };
 
-  const heroLogo = resolvedTheme === "dark" ? logoDark : logoLight;
+  const heroLogo = resolvedTheme === "dark" ? logoDark : logo;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
