@@ -148,6 +148,31 @@ async function ensureBookingRatingsTable() {
   `);
 }
 
+async function ensureBoatEmbarkSlotsAndBookingEmbarkColumns() {
+  await query(`
+    create table if not exists boat_embark_slots (
+      boat_id uuid not null references boats(id) on delete cascade,
+      slot_time time not null,
+      sort_order smallint not null default 0,
+      primary key (boat_id, slot_time)
+    )
+  `);
+  await query(
+    `create index if not exists idx_boat_embark_slots_boat on boat_embark_slots(boat_id, sort_order)`
+  );
+  await query(`alter table bookings add column if not exists embark_time time null`);
+  await query(`alter table bookings alter column embark_location drop not null`);
+}
+
+async function ensureBookingsRescheduleColumns() {
+  await query(`alter table bookings add column if not exists reschedule_reason text null`);
+  await query(`alter table bookings add column if not exists reschedule_title text null`);
+  await query(`alter table bookings add column if not exists reschedule_note text null`);
+  await query(
+    `alter table bookings add column if not exists reschedule_attachments text[] not null default '{}'::text[]`
+  );
+}
+
 /**
  * @param {string} boatId
  */
@@ -218,8 +243,161 @@ async function assertBookingSlotAvailable(boatId, bookingDateStr, excludeBooking
   }
 }
 
+/**
+ * @param {unknown} input
+ * @returns {string | null} HH:MM or null
+ */
+function normalizeEmbarkTimeHHMM(input) {
+  const s = String(input ?? "").trim();
+  const m = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  if (!Number.isFinite(h) || !Number.isFinite(min) || h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
+
+/**
+ * @param {unknown} raw
+ * @returns {string[]}
+ */
+function parseLocaisEmbarqueBody(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const x of raw) {
+    const t = String(x ?? "").trim();
+    if (t.length === 0 || t.length > 200) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+    if (out.length >= 50) break;
+  }
+  return out;
+}
+
+/**
+ * @param {unknown} raw
+ * @returns {string[]}
+ */
+function parseHorariosEmbarqueBody(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const x of raw) {
+    const n = normalizeEmbarkTimeHHMM(x);
+    if (!n || seen.has(n)) continue;
+    seen.add(n);
+    out.push(n);
+    if (out.length >= 50) break;
+  }
+  out.sort((a, b) => a.localeCompare(b));
+  return out;
+}
+
+/**
+ * @param {string} boatId
+ * @param {string[]} names
+ */
+async function replaceBoatEmbarkLocations(boatId, names) {
+  await query(`delete from embark_locations where boat_id = $1::uuid`, [boatId]);
+  for (let i = 0; i < names.length; i++) {
+    await query(`insert into embark_locations (boat_id, name) values ($1::uuid, $2) on conflict (boat_id, name) do nothing`, [
+      boatId,
+      names[i],
+    ]);
+  }
+}
+
+/**
+ * @param {string} boatId
+ * @param {string[]} timesHHMM
+ */
+async function replaceBoatEmbarkSlots(boatId, timesHHMM) {
+  await query(`delete from boat_embark_slots where boat_id = $1::uuid`, [boatId]);
+  for (let i = 0; i < timesHHMM.length; i++) {
+    await query(
+      `insert into boat_embark_slots (boat_id, slot_time, sort_order) values ($1::uuid, $2::time, $3)`,
+      [boatId, timesHHMM[i], i]
+    );
+  }
+}
+
+/**
+ * @param {string} boatId
+ */
+async function loadBoatEmbarkConfig(boatId) {
+  const [locs, slots] = await Promise.all([
+    query(`select name from embark_locations where boat_id = $1::uuid order by name asc`, [boatId]),
+    query(
+      `select to_char(slot_time, 'HH24:MI') as t from boat_embark_slots where boat_id = $1::uuid order by sort_order asc, slot_time asc`,
+      [boatId]
+    ),
+  ]);
+  return {
+    locationNames: locs.rows.map((r) => r.name),
+    timeSlots: slots.rows.map((r) => r.t),
+  };
+}
+
+/**
+ * @param {string} boatId
+ * @param {string | null} embarkLocation
+ * @param {string | null} embarkTimeHHMM
+ */
+async function assertBookingEmbarkChoices(boatId, embarkLocation, embarkTimeHHMM) {
+  const { locationNames, timeSlots } = await loadBoatEmbarkConfig(boatId);
+  let loc = embarkLocation != null ? String(embarkLocation).trim() : "";
+  loc = loc === "" ? null : loc;
+  let time =
+    embarkTimeHHMM != null && String(embarkTimeHHMM).trim() !== ""
+      ? normalizeEmbarkTimeHHMM(embarkTimeHHMM)
+      : null;
+  if (embarkTimeHHMM != null && String(embarkTimeHHMM).trim() !== "" && !time) {
+    const err = new Error("Horário de embarque inválido.");
+    err.code = "EMBARK_TIME_FORMAT";
+    throw err;
+  }
+
+  if (locationNames.length > 0) {
+    if (!loc || !locationNames.includes(loc)) {
+      const err = new Error("Escolha um local de embarque entre os oferecidos pelo locador.");
+      err.code = "EMBARK_LOCATION_INVALID";
+      throw err;
+    }
+  } else if (loc != null) {
+    const err = new Error("Este barco não define locais de embarque; o local fica a combinar.");
+    err.code = "EMBARK_LOCATION_UNEXPECTED";
+    throw err;
+  } else {
+    loc = null;
+  }
+
+  if (timeSlots.length > 0) {
+    if (!time || !timeSlots.includes(time)) {
+      const err = new Error("Escolha um horário de embarque entre os oferecidos pelo locador.");
+      err.code = "EMBARK_TIME_INVALID";
+      throw err;
+    }
+  } else if (time != null) {
+    const err = new Error("Este barco não define horários de embarque; o horário fica a combinar.");
+    err.code = "EMBARK_TIME_UNEXPECTED";
+    throw err;
+  } else {
+    time = null;
+  }
+
+  return { embarkLocation: loc, embarkTimeHHMM: time };
+}
+
 const app = express();
-app.use(express.json());
+/** Base64 de várias fotos no registo/edição de barco ultrapassa o default (~100kb). */
+const JSON_BODY_LIMIT =
+  process.env.JSON_BODY_LIMIT && String(process.env.JSON_BODY_LIMIT).trim()
+    ? String(process.env.JSON_BODY_LIMIT).trim()
+    : "32mb";
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
 const extraCors = (process.env.EXTRA_CORS_ORIGINS || "")
   .split(",")
   .map((s) => s.trim())
@@ -604,6 +782,17 @@ app.get("/api/boats", async (req, res) => {
             [boatIds]
           );
 
+    const embarkSlots =
+      boatIds.length === 0
+        ? { rows: [] }
+        : await query(
+            `select boat_id, to_char(slot_time, 'HH24:MI') as t, sort_order
+             from boat_embark_slots
+             where boat_id = any($1::uuid[])
+             order by boat_id, sort_order asc, slot_time asc`,
+            [boatIds]
+          );
+
     const amenityRows =
       boatIds.length === 0
         ? { rows: [] }
@@ -626,6 +815,10 @@ app.get("/api/boats", async (req, res) => {
       return acc;
     }, {});
     const locationsByBoat = byBoat(locations.rows, "name");
+    const slotsByBoat = embarkSlots.rows.reduce((acc, r) => {
+      (acc[r.boat_id] ||= []).push(r.t);
+      return acc;
+    }, {});
     const amenitiesByBoat = amenityRows.rows.reduce((acc, r) => {
       (acc[r.boat_id] ||= []).push({ nome: r.name, incluido: r.included });
       return acc;
@@ -645,6 +838,7 @@ app.get("/api/boats", async (req, res) => {
       tipo: b.type,
       amenidades: amenitiesByBoat[b.id] || [],
       locaisEmbarque: locationsByBoat[b.id] || [],
+      horariosEmbarque: slotsByBoat[b.id] || [],
       routeIslands: normalizeRouteIslands(b.route_islands),
       routeIslandImages:
         b.route_island_images && typeof b.route_island_images === "object"
@@ -687,9 +881,13 @@ app.get("/api/boats/:id", async (req, res) => {
     const b = boat.rows[0];
     if (!b) return res.status(404).send("Barco não encontrado.");
 
-    const [images, locations, amenities] = await Promise.all([
+    const [images, locations, slots, amenities] = await Promise.all([
       query(`select url, sort from boat_images where boat_id = $1 order by sort asc`, [boatId]),
       query(`select name from embark_locations where boat_id = $1 order by name asc`, [boatId]),
+      query(
+        `select to_char(slot_time, 'HH24:MI') as t from boat_embark_slots where boat_id = $1 order by sort_order asc, slot_time asc`,
+        [boatId]
+      ),
       query(
         `select a.name, ba.included
          from boat_amenities ba
@@ -716,6 +914,7 @@ app.get("/api/boats/:id", async (req, res) => {
         tipo: b.type,
         amenidades: amenities.rows.map((r) => ({ nome: r.name, incluido: r.included })),
         locaisEmbarque: locations.rows.map((r) => r.name),
+        horariosEmbarque: slots.rows.map((r) => r.t),
         routeIslands: normalizeRouteIslands(b.route_islands),
         routeIslandImages:
           b.route_island_images && typeof b.route_island_images === "object" ? b.route_island_images : {},
@@ -841,7 +1040,7 @@ app.delete("/api/favorites/:boatId", requireAuth, async (req, res) => {
   }
 });
 
-// --- Owner boats (locatário) ---
+// --- Owner boats (perfil locador; role API: locatario) ---
 app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, res) => {
   try {
     const boats = await query(
@@ -899,6 +1098,31 @@ app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, r
       return acc;
     }, {});
 
+    const ownerEmbarkLocs =
+      boatIds.length === 0
+        ? { rows: [] }
+        : await query(
+            `select boat_id, name from embark_locations where boat_id = any($1::uuid[]) order by boat_id, name asc`,
+            [boatIds]
+          );
+    const ownerEmbarkSlots =
+      boatIds.length === 0
+        ? { rows: [] }
+        : await query(
+            `select boat_id, to_char(slot_time, 'HH24:MI') as t, sort_order
+             from boat_embark_slots where boat_id = any($1::uuid[])
+             order by boat_id, sort_order asc, slot_time asc`,
+            [boatIds]
+          );
+    const locsByOwnerBoat = ownerEmbarkLocs.rows.reduce((acc, r) => {
+      (acc[r.boat_id] ||= []).push(r.name);
+      return acc;
+    }, {});
+    const slotsByOwnerBoat = ownerEmbarkSlots.rows.reduce((acc, r) => {
+      (acc[r.boat_id] ||= []).push(r.t);
+      return acc;
+    }, {});
+
     return res.json({
       boats: boats.rows.map((b) => ({
         id: b.id,
@@ -922,6 +1146,8 @@ app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, r
           b.route_island_images && typeof b.route_island_images === "object" ? b.route_island_images : {},
         imagens: images.rows.filter((i) => i.boat_id === b.id).map((i) => i.url),
         amenidades: amenitiesByBoat[b.id] || [],
+        locaisEmbarque: locsByOwnerBoat[b.id] || [],
+        horariosEmbarque: slotsByOwnerBoat[b.id] || [],
       })),
     });
   } catch (e) {
@@ -947,6 +1173,8 @@ const ownerUpdateBoatSchema = z.object({
   tiemDocumentUrl: assetOrUrlSchema.optional().nullable(),
   videoUrl: z.string().url().optional().nullable(),
   imagens: z.array(assetOrUrlSchema).max(20).optional(),
+  locaisEmbarque: z.array(z.string().min(1).max(200)).max(50).optional(),
+  horariosEmbarque: z.array(z.string().min(1).max(5)).max(50).optional(),
 });
 
 app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (req, res) => {
@@ -993,7 +1221,7 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
     );
 
     const b = updated.rows[0];
-    if (!b) return res.status(404).send("Barco não encontrado para este locatário.");
+    if (!b) return res.status(404).send("Barco não encontrado para este locador.");
 
     if (body.imagens) {
       await query(`delete from boat_images where boat_id = $1`, [boatId]);
@@ -1006,7 +1234,21 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
       }
     }
 
+    if (body.locaisEmbarque !== undefined) {
+      await replaceBoatEmbarkLocations(boatId, parseLocaisEmbarqueBody(body.locaisEmbarque));
+    }
+    if (body.horariosEmbarque !== undefined) {
+      await replaceBoatEmbarkSlots(boatId, parseHorariosEmbarqueBody(body.horariosEmbarque));
+    }
+
     const imgs = await query(`select url from boat_images where boat_id = $1 order by sort asc`, [boatId]);
+    const [embLocRows, embSlotRows] = await Promise.all([
+      query(`select name from embark_locations where boat_id = $1 order by name asc`, [boatId]),
+      query(
+        `select to_char(slot_time, 'HH24:MI') as t from boat_embark_slots where boat_id = $1 order by sort_order asc, slot_time asc`,
+        [boatId]
+      ),
+    ]);
 
     return res.json({
       boat: {
@@ -1030,6 +1272,8 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
         routeIslandImages:
           b.route_island_images && typeof b.route_island_images === "object" ? b.route_island_images : {},
         imagens: imgs.rows.map((r) => r.url),
+        locaisEmbarque: embLocRows.rows.map((r) => r.name),
+        horariosEmbarque: embSlotRows.rows.map((r) => r.t),
       },
     });
   } catch (e) {
@@ -1052,6 +1296,8 @@ const ownerCreateBoatSchema = z.object({
   tiemDocumentUrl: assetOrUrlSchema.optional().nullable(),
   videoUrl: z.string().url().optional().nullable(),
   imagens: z.array(assetOrUrlSchema).max(20).default([]),
+  locaisEmbarque: z.array(z.string().min(1).max(200)).max(50).optional(),
+  horariosEmbarque: z.array(z.string().min(1).max(5)).max(50).optional(),
 });
 
 app.post("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, res) => {
@@ -1085,6 +1331,8 @@ app.post("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, 
     for (let i = 0; i < body.imagens.length; i++) {
       await query(`insert into boat_images (boat_id, url, sort) values ($1, $2, $3)`, [b.id, body.imagens[i], i]);
     }
+    await replaceBoatEmbarkLocations(b.id, parseLocaisEmbarqueBody(body.locaisEmbarque));
+    await replaceBoatEmbarkSlots(b.id, parseHorariosEmbarqueBody(body.horariosEmbarque));
     return res.json({ boat: b });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro ao registrar embarcação.";
@@ -1096,7 +1344,7 @@ app.delete("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async 
   try {
     const boatId = req.params.id;
     const own = await query(`select id from boats where id = $1 and owner_user_id = $2`, [boatId, req.user.sub]);
-    if (!own.rows[0]) return res.status(404).send("Barco não encontrado para este locatário.");
+    if (!own.rows[0]) return res.status(404).send("Barco não encontrado para este locador.");
 
     const bc = await query(`select count(*)::int as c from bookings where boat_id = $1`, [boatId]);
     if ((bc.rows[0]?.c ?? 0) > 0) {
@@ -1229,7 +1477,8 @@ const createBookingSchema = z.object({
   passengersChildren: z.number().int().min(0),
   hasKids: z.boolean(),
   bbqKit: z.boolean(),
-  embarkLocation: z.string().min(1).max(200),
+  embarkLocation: z.union([z.string().max(200), z.null()]).optional(),
+  embarkTime: z.union([z.string().max(5), z.null()]).optional(),
   totalCents: z.number().int().min(0),
   routeIslands: z.array(z.string().min(1).max(200)).max(30).optional().default([]),
 });
@@ -1248,12 +1497,37 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
     assertBanhistaBookingLead(body.bookingDate);
     await assertBookingSlotAvailable(body.boatId, body.bookingDate, null);
 
+    let embLoc = null;
+    if (body.embarkLocation !== undefined && body.embarkLocation !== null) {
+      const t = String(body.embarkLocation).trim();
+      embLoc = t === "" ? null : t;
+    }
+    let embTimeNorm = null;
+    if (body.embarkTime !== undefined && body.embarkTime !== null) {
+      const t = String(body.embarkTime).trim();
+      if (t !== "") {
+        embTimeNorm = normalizeEmbarkTimeHHMM(t);
+        if (!embTimeNorm) return res.status(400).send("Horário de embarque inválido.");
+      }
+    }
+
+    let locFinal;
+    let timeFinal;
+    try {
+      const r = await assertBookingEmbarkChoices(body.boatId, embLoc, embTimeNorm);
+      locFinal = r.embarkLocation;
+      timeFinal = r.embarkTimeHHMM;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Dados de embarque inválidos.";
+      return res.status(400).send(msg);
+    }
+
     const created = await query(
       `insert into bookings
         (boat_id, renter_user_id, owner_user_id, status,
          passengers_adults, passengers_children, has_kids, bbq_kit,
-         embark_location, total_cents, route_islands, booking_date)
-       values ($1,$2,$3,'PENDING',$4,$5,$6,$7,$8,$9,$10,$11)
+         embark_location, embark_time, total_cents, route_islands, booking_date)
+       values ($1,$2,$3,'PENDING',$4,$5,$6,$7,$8,$9::time,$10,$11,$12)
        returning id, status, created_at`,
       [
         body.boatId,
@@ -1263,7 +1537,8 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
         body.passengersChildren,
         body.hasKids,
         body.bbqKit,
-        body.embarkLocation,
+        locFinal,
+        timeFinal,
         body.totalCents,
         body.routeIslands ?? [],
         body.bookingDate,
@@ -1297,15 +1572,29 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
   }
 });
 
+const rescheduleReasonEnum = z.enum([
+  "BAD_WEATHER",
+  "NAVIGATION_RISK",
+  "OPERATIONAL_IMPEDIMENT",
+  "AUTHORITY_ORDER",
+  "SAFETY_FACTOR",
+  "OTHER",
+]);
+
 const renterUpdateBookingSchema = z.object({
   passengersAdults: z.number().int().min(1).optional(),
   passengersChildren: z.number().int().min(0).optional(),
   hasKids: z.boolean().optional(),
   bbqKit: z.boolean().optional(),
-  embarkLocation: z.string().min(1).max(200).optional(),
+  embarkLocation: z.union([z.string().max(200), z.null()]).optional(),
+  embarkTime: z.union([z.string().max(5), z.null()]).optional(),
   totalCents: z.number().int().min(0).optional(),
   routeIslands: z.array(z.string().min(1).max(200)).max(30).optional(),
   bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  rescheduleReason: rescheduleReasonEnum.optional(),
+  rescheduleTitle: z.string().max(200).optional(),
+  rescheduleNote: z.string().max(4000).optional(),
+  rescheduleAttachments: z.array(assetOrUrlSchema).max(8).optional(),
 });
 
 app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req, res) => {
@@ -1322,6 +1611,7 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
          bk.has_kids,
          bk.bbq_kit,
          bk.embark_location,
+         to_char(bk.embark_time, 'HH24:MI') as embark_time,
          bk.total_cents,
          bk.booking_date::text as booking_date,
          coalesce(bk.route_islands, '{}'::text[]) as route_islands,
@@ -1331,7 +1621,20 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
          b.capacity as boat_capacity,
          br.boat_stars,
          br.boat_comment,
-         br.boat_rated_at
+         br.boat_rated_at,
+         coalesce(
+           (select array_agg(el.name order by el.name) from embark_locations el where el.boat_id = bk.boat_id),
+           '{}'::text[]
+         ) as embark_loc_options,
+         coalesce(
+           (select array_agg(to_char(bes.slot_time, 'HH24:MI') order by bes.sort_order, bes.slot_time)
+            from boat_embark_slots bes where bes.boat_id = bk.boat_id),
+           '{}'::text[]
+         ) as embark_time_options,
+         bk.reschedule_reason,
+         bk.reschedule_title,
+         bk.reschedule_note,
+         coalesce(bk.reschedule_attachments, '{}'::text[]) as reschedule_attachments
        from bookings bk
        join boats b on b.id = bk.boat_id
        left join booking_ratings br on br.booking_id = bk.id
@@ -1352,10 +1655,17 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
         hasKids: r.has_kids,
         bbqKit: r.bbq_kit,
         embarkLocation: r.embark_location,
+        embarkTime: r.embark_time,
+        embarkLocationOptions: Array.isArray(r.embark_loc_options) ? r.embark_loc_options : [],
+        embarkTimeOptions: Array.isArray(r.embark_time_options) ? r.embark_time_options : [],
         totalCents: r.total_cents,
         bookingDate: r.booking_date,
         routeIslands: Array.isArray(r.route_islands) ? r.route_islands : [],
         boat: { id: r.boat_id, nome: r.boat_name, distancia: r.boat_location, capacidade: r.boat_capacity },
+        rescheduleReason: r.reschedule_reason ?? null,
+        rescheduleTitle: r.reschedule_title ?? null,
+        rescheduleNote: r.reschedule_note ?? null,
+        rescheduleAttachments: Array.isArray(r.reschedule_attachments) ? r.reschedule_attachments : [],
         ratingBoat:
           r.boat_stars != null
             ? {
@@ -1377,7 +1687,8 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
     const bookingId = req.params.id;
     const body = renterUpdateBookingSchema.parse(req.body || {});
     const cur = await query(
-      `select bk.status, bk.boat_id, bk.passengers_adults, bk.passengers_children, bk.booking_date::text as bd
+      `select bk.status, bk.boat_id, bk.passengers_adults, bk.passengers_children, bk.booking_date::text as bd,
+              bk.embark_location, to_char(bk.embark_time, 'HH24:MI') as embark_time
        from bookings bk
        where bk.id = $1 and bk.renter_user_id = $2 limit 1`,
       [bookingId, req.user.sub]
@@ -1397,9 +1708,69 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
       return res.status(400).send("Número de passageiros acima da capacidade do barco.");
     }
 
-    if (body.bookingDate && body.bookingDate !== cur.rows[0].bd) {
+    const currentBd = cur.rows[0].bd;
+    const dateChanging = body.bookingDate !== undefined && body.bookingDate !== currentBd;
+
+    if (body.bookingDate && body.bookingDate !== currentBd) {
       assertBanhistaBookingLead(body.bookingDate);
       await assertBookingSlotAvailable(boatId, body.bookingDate, bookingId);
+    }
+
+    /** @type {{ reason: string, title: string, note: string, attachments: string[] } | null} */
+    let reschedulePayload = null;
+    if (dateChanging && st === "ACCEPTED") {
+      const pr = rescheduleReasonEnum.safeParse(body.rescheduleReason);
+      if (!pr.success) {
+        return res
+          .status(400)
+          .send("Para remarcar, selecione um dos motivos permitidos (mau tempo, segurança, etc.).");
+      }
+      const title = String(body.rescheduleTitle ?? "").trim();
+      const note = String(body.rescheduleNote ?? "").trim();
+      if (title.length < 3) {
+        return res.status(400).send("Informe um título para a justificativa (mínimo 3 caracteres).");
+      }
+      if (note.length < 10) {
+        return res.status(400).send("Informe o texto da justificativa (mínimo 10 caracteres).");
+      }
+      const attachments = Array.isArray(body.rescheduleAttachments) ? body.rescheduleAttachments : [];
+      for (let i = 0; i < attachments.length; i++) {
+        const ok = assetOrUrlSchema.safeParse(attachments[i]);
+        if (!ok.success) {
+          return res.status(400).send("Um ou mais anexos de imagem são inválidos.");
+        }
+      }
+      reschedulePayload = { reason: pr.data, title, note, attachments };
+    }
+
+    let nextLoc = cur.rows[0].embark_location ?? null;
+    let nextTime = cur.rows[0].embark_time ?? null;
+    if (body.embarkLocation !== undefined) {
+      nextLoc =
+        body.embarkLocation === null
+          ? null
+          : String(body.embarkLocation).trim() === ""
+            ? null
+            : String(body.embarkLocation).trim();
+    }
+    if (body.embarkTime !== undefined) {
+      if (body.embarkTime === null || String(body.embarkTime).trim() === "") {
+        nextTime = null;
+      } else {
+        const nt = normalizeEmbarkTimeHHMM(String(body.embarkTime));
+        if (!nt) return res.status(400).send("Horário de embarque inválido.");
+        nextTime = nt;
+      }
+    }
+    if (body.embarkLocation !== undefined || body.embarkTime !== undefined) {
+      try {
+        const r = await assertBookingEmbarkChoices(boatId, nextLoc, nextTime);
+        nextLoc = r.embarkLocation;
+        nextTime = r.embarkTimeHHMM;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Dados de embarque inválidos.";
+        return res.status(400).send(msg);
+      }
     }
 
     const sets = [];
@@ -1427,7 +1798,12 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
     }
     if (body.embarkLocation !== undefined) {
       sets.push(`embark_location = $${n}`);
-      vals.push(body.embarkLocation);
+      vals.push(nextLoc);
+      n += 1;
+    }
+    if (body.embarkTime !== undefined) {
+      sets.push(`embark_time = $${n}::time`);
+      vals.push(nextTime);
       n += 1;
     }
     if (body.totalCents !== undefined) {
@@ -1444,6 +1820,27 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
       sets.push(`booking_date = $${n}::date`);
       vals.push(body.bookingDate);
       n += 1;
+      if (reschedulePayload) {
+        sets.push(`reschedule_reason = $${n}`);
+        vals.push(reschedulePayload.reason);
+        n += 1;
+        sets.push(`reschedule_title = $${n}`);
+        vals.push(reschedulePayload.title);
+        n += 1;
+        sets.push(`reschedule_note = $${n}`);
+        vals.push(reschedulePayload.note);
+        n += 1;
+        sets.push(`reschedule_attachments = $${n}`);
+        vals.push(reschedulePayload.attachments);
+        n += 1;
+      } else if (dateChanging && st === "PENDING") {
+        sets.push(`reschedule_reason = NULL`);
+        sets.push(`reschedule_title = NULL`);
+        sets.push(`reschedule_note = NULL`);
+        sets.push(`reschedule_attachments = $${n}`);
+        vals.push([]);
+        n += 1;
+      }
     }
     if (sets.length === 0) return res.status(400).send("Nada para atualizar.");
 
@@ -1465,7 +1862,17 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
       e &&
       typeof e === "object" &&
       "code" in e &&
-      ["DATE_LOCKED", "WEEKDAY_LOCKED", "DATE_OCCUPIED", "BOOKING_MIN_LEAD"].includes(String(e.code))
+      [
+        "DATE_LOCKED",
+        "WEEKDAY_LOCKED",
+        "DATE_OCCUPIED",
+        "BOOKING_MIN_LEAD",
+        "EMBARK_LOCATION_INVALID",
+        "EMBARK_TIME_INVALID",
+        "EMBARK_LOCATION_UNEXPECTED",
+        "EMBARK_TIME_UNEXPECTED",
+        "EMBARK_TIME_FORMAT",
+      ].includes(String(e.code))
     ) {
       return res.status(400).send(msg);
     }
@@ -1526,6 +1933,7 @@ app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req
          bk.has_kids,
          bk.bbq_kit,
          bk.embark_location,
+         to_char(bk.embark_time, 'HH24:MI') as embark_time,
          bk.total_cents,
          bk.booking_date::text as booking_date,
          coalesce(bk.route_islands, '{}'::text[]) as route_islands,
@@ -1536,7 +1944,11 @@ app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req
          u.email as renter_email,
          br.renter_stars,
          br.renter_comment,
-         br.renter_rated_at
+         br.renter_rated_at,
+         bk.reschedule_reason,
+         bk.reschedule_title,
+         bk.reschedule_note,
+         coalesce(bk.reschedule_attachments, '{}'::text[]) as reschedule_attachments
        from bookings bk
        join boats b on b.id = bk.boat_id
        join users u on u.id = bk.renter_user_id
@@ -1558,11 +1970,16 @@ app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req
         hasKids: r.has_kids,
         bbqKit: r.bbq_kit,
         embarkLocation: r.embark_location,
+        embarkTime: r.embark_time,
         totalCents: r.total_cents,
         bookingDate: r.booking_date,
         routeIslands: Array.isArray(r.route_islands) ? r.route_islands : [],
         boat: { id: r.boat_id, nome: r.boat_name },
         renter: { id: r.renter_id, nome: r.renter_name, email: r.renter_email },
+        rescheduleReason: r.reschedule_reason ?? null,
+        rescheduleTitle: r.reschedule_title ?? null,
+        rescheduleNote: r.reschedule_note ?? null,
+        rescheduleAttachments: Array.isArray(r.reschedule_attachments) ? r.reschedule_attachments : [],
         ratingRenter:
           r.renter_stars != null
             ? {
@@ -1874,6 +2291,8 @@ Teste: http://127.0.0.1:3001/api/health
     await ensureBookingDateColumn();
     await ensureBoatCalendarTables();
     await ensureBookingRatingsTable();
+    await ensureBoatEmbarkSlotsAndBookingEmbarkColumns();
+    await ensureBookingsRescheduleColumns();
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
     // eslint-disable-next-line no-console

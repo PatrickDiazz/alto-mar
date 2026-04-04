@@ -1,4 +1,4 @@
--- Avaliações por reserva (banhista → barco; locatário → banhista).
+-- Avaliações por reserva (banhista → barco; locador → banhista).
 -- Execute após o schema base, em bases já existentes.
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS guest_rating numeric(2,1) NOT NULL DEFAULT 0.0

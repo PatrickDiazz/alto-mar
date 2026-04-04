@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -39,6 +39,7 @@ const DetalhesBarco = () => {
   const barco = barcos.find((b) => b.id === id);
   const [imgIndex, setImgIndex] = useState(0);
   const [isFavorited, setIsFavorited] = useState(false);
+  const carouselTouchRef = useRef<{ x: number; y: number } | null>(null);
 
   const user = getStoredUser();
 
@@ -145,6 +146,31 @@ const DetalhesBarco = () => {
     setImgIndex((p) => (p + 1) % nImagens);
   };
 
+  const SWIPE_MIN_PX = 48;
+
+  const onCarouselTouchStart = (e: React.TouchEvent) => {
+    if (nImagens <= 1) return;
+    const p = e.touches[0];
+    carouselTouchRef.current = { x: p.clientX, y: p.clientY };
+  };
+
+  const onCarouselTouchEnd = (e: React.TouchEvent) => {
+    if (nImagens <= 1 || !carouselTouchRef.current) return;
+    const p = e.changedTouches[0];
+    const dx = p.clientX - carouselTouchRef.current.x;
+    const dy = p.clientY - carouselTouchRef.current.y;
+    carouselTouchRef.current = null;
+    const ax = Math.abs(dx);
+    const ay = Math.abs(dy);
+    if (ax < SWIPE_MIN_PX || ax < ay * 1.15) return;
+    if (dx > 0) prevImg();
+    else nextImg();
+  };
+
+  const onCarouselTouchCancel = () => {
+    carouselTouchRef.current = null;
+  };
+
   const handleReservar = () => {
     if (!getStoredUser()) {
       navigate("/login", { state: { from: `/reservar/${barco.id}` } });
@@ -186,7 +212,14 @@ const DetalhesBarco = () => {
 
       <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-6">
         {/* Image carousel */}
-        <div className="relative aspect-square max-w-lg mx-auto rounded-xl overflow-hidden shadow-elevated border border-border">
+        <div
+          className="relative aspect-square max-w-lg mx-auto rounded-xl overflow-hidden shadow-elevated border border-border touch-manipulation select-none"
+          onTouchStart={onCarouselTouchStart}
+          onTouchEnd={onCarouselTouchEnd}
+          onTouchCancel={onCarouselTouchCancel}
+          role="region"
+          aria-label={t("detalhes.photoCarousel")}
+        >
           {nImagens > 0 ? (
             <img
               src={barco.imagens[safeImgIndex]}

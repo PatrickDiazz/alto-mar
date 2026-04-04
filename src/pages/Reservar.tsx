@@ -13,6 +13,7 @@ import {
   CreditCard,
   QrCode,
   MapPin,
+  Clock,
   Baby,
   UtensilsCrossed,
   Minus,
@@ -110,7 +111,8 @@ async function criarReserva(input: {
   passengersChildren: number;
   hasKids: boolean;
   bbqKit: boolean;
-  embarkLocation: string;
+  embarkLocation: string | null;
+  embarkTime: string | null;
   totalCents: number;
   routeIslands: string[];
 }) {
@@ -158,6 +160,7 @@ const Reservar = () => {
   const [kitChurrasco, setKitChurrasco] = useState(false);
   const [metodoPagamento, setMetodoPagamento] = useState("pix");
   const [localEmbarque, setLocalEmbarque] = useState("");
+  const [horarioEmbarque, setHorarioEmbarque] = useState("");
   const [nomeCompleto, setNomeCompleto] = useState("");
   const [cpf, setCpf] = useState("");
   const [telefone, setTelefone] = useState("");
@@ -169,14 +172,24 @@ const Reservar = () => {
 
   useEffect(() => {
     if (!barco) return;
-    const locais =
-      barco.locaisEmbarque && barco.locaisEmbarque.length > 0
-        ? barco.locaisEmbarque
-        : [barco.distancia || t("reservar.locationFallback")];
-    if (!localEmbarque && locais.length > 0) {
-      setLocalEmbarque(locais[0]);
+    const locs = barco.locaisEmbarque && barco.locaisEmbarque.length > 0 ? barco.locaisEmbarque : null;
+    if (locs) {
+      setLocalEmbarque((prev) => (prev && locs.includes(prev) ? prev : locs[0]));
+    } else {
+      setLocalEmbarque("");
     }
-  }, [barco, localEmbarque, t]);
+  }, [barco?.id, barco?.locaisEmbarque?.join("\0")]);
+
+  useEffect(() => {
+    if (!barco) return;
+    const hrs =
+      barco.horariosEmbarque && barco.horariosEmbarque.length > 0 ? barco.horariosEmbarque : null;
+    if (hrs) {
+      setHorarioEmbarque((prev) => (prev && hrs.includes(prev) ? prev : hrs[0]));
+    } else {
+      setHorarioEmbarque("");
+    }
+  }, [barco?.id, barco?.horariosEmbarque?.join("\0")]);
 
   useEffect(() => {
     if (!barco) return;
@@ -231,10 +244,10 @@ const Reservar = () => {
     );
   }
 
-  const locaisDisponiveis =
-    barco.locaisEmbarque && barco.locaisEmbarque.length > 0
-      ? barco.locaisEmbarque
-      : [barco.distancia || t("reservar.locationFallback")];
+  const locaisOpcionais =
+    barco.locaisEmbarque && barco.locaisEmbarque.length > 0 ? barco.locaisEmbarque : null;
+  const horariosOpcionais =
+    barco.horariosEmbarque && barco.horariosEmbarque.length > 0 ? barco.horariosEmbarque : null;
 
   const precoBase = parseInt(barco.preco.replace(/[^0-9]/g, ""), 10);
   const total = precoBase + (kitChurrasco ? KIT_CHURRASCO_PRECO : 0);
@@ -264,8 +277,12 @@ const Reservar = () => {
       toast.error(t("reservar.toastPhone"));
       return;
     }
-    if (!localEmbarque) {
+    if (locaisOpcionais && !localEmbarque) {
       toast.error(t("reservar.toastEmbark"));
+      return;
+    }
+    if (horariosOpcionais && !horarioEmbarque) {
+      toast.error(t("reservar.toastEmbarkTime"));
       return;
     }
     if (paradasRoteiro.length === 0) {
@@ -297,7 +314,8 @@ const Reservar = () => {
         passengersChildren: criancas,
         hasKids: temCriancas,
         bbqKit: kitChurrasco,
-        embarkLocation: localEmbarque,
+        embarkLocation: locaisOpcionais ? localEmbarque : null,
+        embarkTime: horariosOpcionais ? horarioEmbarque : null,
         totalCents,
         routeIslands: paradasRoteiro,
       });
@@ -327,12 +345,15 @@ const Reservar = () => {
         (temCriancas ? ` + ${criancas} ${t("reservar.waKids")}` : "");
 
       const payLabel = metodoPagamento === "pix" ? t("reservar.pix") : t("reservar.card");
+      const waPlace = locaisOpcionais ? localEmbarque : t("reservar.embarkLocationPendingShort");
+      const waTime = horariosOpcionais ? horarioEmbarque : t("reservar.embarkTimePendingShort");
 
       const msg = encodeURIComponent(
         `${t("reservar.waIntro")}\n` +
           `${t("reservar.waBoat")} ${barco.nome}\n` +
           `${peopleLine}\n` +
-          `${t("reservar.waPlace")} ${localEmbarque}\n` +
+          `${t("reservar.waPlace")} ${waPlace}\n` +
+          `${t("reservar.waTime")} ${waTime}\n` +
           `${t("reservar.waBbq")} ${kitChurrasco ? t("common.yes") : t("common.no")}\n` +
           `${t("reservar.waPay")} ${payLabel}\n` +
           `${t("reservar.waTotal")} ${currencyFmt.format(total)}\n` +
@@ -495,6 +516,51 @@ const Reservar = () => {
           />
         </section>
 
+        <section className="space-y-4">
+          <div className="space-y-2">
+            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-primary" /> {t("reservar.embark")}
+            </h3>
+            {locaisOpcionais ? (
+              <Select value={localEmbarque} onValueChange={setLocalEmbarque}>
+                <SelectTrigger>
+                  <SelectValue placeholder={t("reservar.selectPlace")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {locaisOpcionais.map((local) => (
+                    <SelectItem key={local} value={local}>
+                      {local}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-sm text-muted-foreground">{t("reservar.embarkLocationToArrange")}</p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+              <Clock className="w-4 h-4 text-primary" /> {t("reservar.embarkTime")}
+            </h3>
+            {horariosOpcionais ? (
+              <Select value={horarioEmbarque} onValueChange={setHorarioEmbarque}>
+                <SelectTrigger>
+                  <SelectValue placeholder={t("reservar.selectTime")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {horariosOpcionais.map((h) => (
+                    <SelectItem key={h} value={h}>
+                      {h}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-sm text-muted-foreground">{t("reservar.embarkTimeToArrange")}</p>
+            )}
+          </div>
+        </section>
+
         <section className="rounded-xl border border-dashed border-border bg-muted/30 p-4 space-y-2">
           <h3 className="text-sm font-semibold text-foreground">{t("reservar.reviewTitle")}</h3>
           <ul className="text-xs text-muted-foreground space-y-1">
@@ -509,7 +575,12 @@ const Reservar = () => {
               {paradasRoteiro.length ? paradasRoteiro.join(", ") : "—"}
             </li>
             <li>
-              <strong className="text-foreground">{t("reservar.embark")}</strong> {localEmbarque || "—"}
+              <strong className="text-foreground">{t("reservar.embark")}</strong>{" "}
+              {locaisOpcionais ? localEmbarque || "—" : t("reservar.embarkLocationPendingShort")}
+            </li>
+            <li>
+              <strong className="text-foreground">{t("reservar.reviewEmbarkTime")}</strong>{" "}
+              {horariosOpcionais ? horarioEmbarque || "—" : t("reservar.embarkTimePendingShort")}
             </li>
             <li>
               <strong className="text-foreground">{t("reservar.passengers")}</strong>{" "}
@@ -523,24 +594,6 @@ const Reservar = () => {
               <strong className="text-foreground">{t("common.total")}</strong> {currencyFmt.format(total)}
             </li>
           </ul>
-        </section>
-
-        <section className="space-y-3">
-          <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-primary" /> {t("reservar.embark")}
-          </h3>
-          <Select value={localEmbarque} onValueChange={setLocalEmbarque}>
-            <SelectTrigger>
-              <SelectValue placeholder={t("reservar.selectPlace")} />
-            </SelectTrigger>
-            <SelectContent>
-              {locaisDisponiveis.map((local) => (
-                <SelectItem key={local} value={local}>
-                  {local}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </section>
 
         <section className="space-y-3">
@@ -654,18 +707,23 @@ const Reservar = () => {
       </div>
 
       <div className="sticky bottom-0 bg-card border-t border-border px-4 py-4">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground">{t("common.total")}</p>
-            <span className="text-xl font-bold text-foreground">{currencyFmt.format(total)}</span>
+        <div className="max-w-2xl mx-auto space-y-3">
+          <p className="text-[11px] text-muted-foreground leading-snug rounded-lg border border-border/70 bg-muted/30 px-3 py-2">
+            {t("reservar.rescheduleNoticeAfterAccept")}
+          </p>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs text-muted-foreground">{t("common.total")}</p>
+              <span className="text-xl font-bold text-foreground">{currencyFmt.format(total)}</span>
+            </div>
+            <Button
+              className="bg-accent text-accent-foreground hover:bg-accent/90 px-8 shrink-0"
+              onClick={handleConfirmar}
+              disabled={pagando}
+            >
+              {pagando ? t("reservar.payGenerating") : t("reservar.confirm")}
+            </Button>
           </div>
-          <Button
-            className="bg-accent text-accent-foreground hover:bg-accent/90 px-8"
-            onClick={handleConfirmar}
-            disabled={pagando}
-          >
-            {pagando ? t("reservar.payGenerating") : t("reservar.confirm")}
-          </Button>
         </div>
       </div>
     </div>

@@ -25,6 +25,22 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CIDADES_LITORAL_RJ } from "@/data/praiasBrasil";
+import {
+  RESCHEDULE_REASONS,
+  type RescheduleReason,
+  rescheduleReasonI18nKey,
+} from "@/lib/rescheduleReasons";
+
+function translateRescheduleReason(
+  tr: (k: string) => string,
+  reason: string | null | undefined
+): string {
+  if (!reason) return "";
+  if (RESCHEDULE_REASONS.includes(reason as RescheduleReason)) {
+    return tr(rescheduleReasonI18nKey(reason as RescheduleReason));
+  }
+  return reason;
+}
 
 type OwnerBoat = {
   id: string;
@@ -46,6 +62,8 @@ type OwnerBoat = {
   routeIslandImages?: Record<string, string[]>;
   imagens: string[];
   amenidades?: Array<{ id: string; nome: string; incluido: boolean }>;
+  locaisEmbarque?: string[];
+  horariosEmbarque?: string[];
 };
 
 type OwnerBookingRow = {
@@ -56,13 +74,53 @@ type OwnerBookingRow = {
   passengersChildren: number;
   hasKids: boolean;
   bbqKit: boolean;
-  embarkLocation: string;
+  embarkLocation: string | null;
+  embarkTime?: string | null;
   totalCents: number;
   routeIslands?: string[];
   boat: { id: string; nome: string };
   renter: { id: string; nome: string; email: string };
   ratingRenter?: { stars: number; comment: string | null; ratedAt: string } | null;
+  rescheduleReason?: string | null;
+  rescheduleTitle?: string | null;
+  rescheduleNote?: string | null;
+  rescheduleAttachments?: string[];
 };
+
+function OwnerRescheduleJustification({
+  b,
+  t,
+}: {
+  b: OwnerBookingRow;
+  t: (k: string, o?: Record<string, unknown>) => string;
+}) {
+  if (!b.rescheduleTitle) return null;
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2 text-xs">
+      <p className="font-semibold text-foreground">{t("marinheiro.rescheduleJustificationHeading")}</p>
+      {b.rescheduleReason ? (
+        <p className="text-muted-foreground">
+          <span className="font-medium text-foreground">{t("reservasConta.rescheduleReasonLabel")}: </span>
+          {translateRescheduleReason(t, b.rescheduleReason)}
+        </p>
+      ) : null}
+      <p className="font-medium text-foreground">{b.rescheduleTitle}</p>
+      {b.rescheduleNote ? <p className="text-muted-foreground whitespace-pre-wrap">{b.rescheduleNote}</p> : null}
+      {(b.rescheduleAttachments ?? []).length > 0 ? (
+        <div className="space-y-1">
+          <p className="font-medium text-foreground">{t("marinheiro.rescheduleImages")}</p>
+          <div className="flex flex-wrap gap-2">
+            {(b.rescheduleAttachments ?? []).map((url, i) => (
+              <a key={`${b.id}-att-${i}`} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                <img src={url} alt="" className="h-20 w-auto max-w-[120px] rounded border object-cover" />
+              </a>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 const emptyBoatForm: Omit<OwnerBoat, "id" | "preco" | "nota" | "tamanho"> = {
   nome: "",
@@ -80,6 +138,10 @@ const emptyBoatForm: Omit<OwnerBoat, "id" | "preco" | "nota" | "tamanho"> = {
   routeIslandImages: {},
   imagens: [],
 };
+
+function splitCommaList(s: string): string[] {
+  return s.split(",").map((x) => x.trim()).filter(Boolean);
+}
 
 async function fileToDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -183,6 +245,10 @@ const Marinheiro_Page = () => {
   const [newBoatForm, setNewBoatForm] = useState(emptyBoatForm);
   const [newRouteIslandsText, setNewRouteIslandsText] = useState("");
   const [editRouteIslandsText, setEditRouteIslandsText] = useState("");
+  const [newEmbarkLocsText, setNewEmbarkLocsText] = useState("");
+  const [newEmbarkTimesText, setNewEmbarkTimesText] = useState("");
+  const [editEmbarkLocsText, setEditEmbarkLocsText] = useState("");
+  const [editEmbarkTimesText, setEditEmbarkTimesText] = useState("");
   const [catalogAmenities, setCatalogAmenities] = useState<Array<{ id: string; name: string }>>([]);
   const [amenityIncNew, setAmenityIncNew] = useState<Record<string, boolean>>({});
   const [amenityIncEdit, setAmenityIncEdit] = useState<Record<string, boolean>>({});
@@ -301,6 +367,8 @@ const Marinheiro_Page = () => {
     setEditingBoatId(boat.id);
     setBoatForm({ ...boat });
     setEditRouteIslandsText((boat.routeIslands || []).join(", "));
+    setEditEmbarkLocsText((boat.locaisEmbarque || []).join(", "));
+    setEditEmbarkTimesText((boat.horariosEmbarque || []).join(", "));
     const m: Record<string, boolean> = {};
     catalogAmenities.forEach((a) => {
       const found = boat.amenidades?.find((x) => x.id === a.id);
@@ -325,6 +393,8 @@ const Marinheiro_Page = () => {
         setEditingBoatId(null);
         setBoatForm(null);
         setEditRouteIslandsText("");
+        setEditEmbarkLocsText("");
+        setEditEmbarkTimesText("");
       }
       if (calendarBoatId === deletedId) setCalendarBoatId(null);
       await carregarMeusBarcos();
@@ -358,6 +428,8 @@ const Marinheiro_Page = () => {
           tiemDocumentUrl: boatForm.tiemDocumentUrl || null,
           videoUrl: boatForm.videoUrl || null,
           imagens: boatForm.imagens || [],
+          locaisEmbarque: splitCommaList(editEmbarkLocsText),
+          horariosEmbarque: splitCommaList(editEmbarkTimesText),
         }),
       });
       if (resp.status === 401) return;
@@ -380,6 +452,8 @@ const Marinheiro_Page = () => {
       setEditingBoatId(null);
       setBoatForm(null);
       setEditRouteIslandsText("");
+      setEditEmbarkLocsText("");
+      setEditEmbarkTimesText("");
       await carregarMeusBarcos();
     } catch (e) {
       const m = (e instanceof Error ? e.message : t("marinheiro.toastUpdateFail")).trim();
@@ -402,6 +476,8 @@ const Marinheiro_Page = () => {
         tieDocumentUrl: newBoatForm.tieDocumentUrl?.trim() ? newBoatForm.tieDocumentUrl.trim() : null,
         tiemDocumentUrl: newBoatForm.tiemDocumentUrl?.trim() ? newBoatForm.tiemDocumentUrl.trim() : null,
         videoUrl: newBoatForm.videoUrl?.trim() ? newBoatForm.videoUrl.trim() : null,
+        locaisEmbarque: splitCommaList(newEmbarkLocsText),
+        horariosEmbarque: splitCommaList(newEmbarkTimesText),
       };
       const resp = await authFetch("/api/owner/boats", {
         method: "POST",
@@ -432,6 +508,8 @@ const Marinheiro_Page = () => {
       setRegistering(false);
       setNewBoatForm(emptyBoatForm);
       setNewRouteIslandsText("");
+      setNewEmbarkLocsText("");
+      setNewEmbarkTimesText("");
       setUploadRoutePhotos(false);
       setRoutePhotoRights(false);
       setRouteIslandImagesNew({});
@@ -554,8 +632,10 @@ const Marinheiro_Page = () => {
                               {t("marinheiro.client")} {b.renter.nome} ({b.renter.email})
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {t("marinheiro.embark")} {b.embarkLocation} • {t("marinheiro.total")}{" "}
-                              {currencyFmt.format(b.totalCents / 100)}
+                              {t("marinheiro.embark")}{" "}
+                              {[b.embarkLocation, b.embarkTime].filter(Boolean).join(" · ") ||
+                                t("reservar.embarkToArrangeShort")}{" "}
+                              • {t("marinheiro.total")} {currencyFmt.format(b.totalCents / 100)}
                             </p>
                             {b.bookingDate ? (
                               <p className="text-xs font-medium text-foreground">
@@ -575,6 +655,8 @@ const Marinheiro_Page = () => {
                           </div>
                           <Badge className="bg-accent text-accent-foreground">{t("marinheiro.pendingBadge")}</Badge>
                         </div>
+
+                        <OwnerRescheduleJustification b={b} t={t} />
 
                         <div className="space-y-1">
                           <Label>{t("marinheiro.noteLabel")}</Label>
@@ -625,6 +707,11 @@ const Marinheiro_Page = () => {
                                 {t("marinheiro.bookingDateLabel")}: {b.bookingDate}
                               </p>
                             ) : null}
+                            <p className="text-xs text-muted-foreground">
+                              {t("marinheiro.embark")}{" "}
+                              {[b.embarkLocation, b.embarkTime].filter(Boolean).join(" · ") ||
+                                t("reservar.embarkToArrangeShort")}
+                            </p>
                             {b.routeIslands && b.routeIslands.length > 0 ? (
                               <p className="text-xs text-muted-foreground">
                                 {t("marinheiro.bookingRoute")}: {b.routeIslands.join(", ")}
@@ -632,6 +719,7 @@ const Marinheiro_Page = () => {
                             ) : null}
                           </div>
                         </div>
+                        <OwnerRescheduleJustification b={b} t={t} />
                         <Button onClick={() => concluirReserva(b.id)} disabled={loading} className="w-full">
                           {t("marinheiro.completeBooking")}
                         </Button>
@@ -826,6 +914,24 @@ const Marinheiro_Page = () => {
                     />
                     <p className="text-xs text-muted-foreground">{t("marinheiro.routesHint")}</p>
                   </div>
+                  <div className="space-y-1">
+                    <Label className="text-sm font-semibold text-foreground">{t("marinheiro.embarkLocationsLabel")}</Label>
+                    <Input
+                      placeholder={t("marinheiro.routesPh")}
+                      value={newEmbarkLocsText}
+                      onChange={(e) => setNewEmbarkLocsText(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">{t("marinheiro.embarkLocationsHint")}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-sm font-semibold text-foreground">{t("marinheiro.embarkTimesLabel")}</Label>
+                    <Input
+                      placeholder="08:00, 10:30"
+                      value={newEmbarkTimesText}
+                      onChange={(e) => setNewEmbarkTimesText(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">{t("marinheiro.embarkTimesHint")}</p>
+                  </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">{t("marinheiro.amenitiesHeading")}</Label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -914,6 +1020,8 @@ const Marinheiro_Page = () => {
                         setRegistering(false);
                         setNewBoatForm(emptyBoatForm);
                         setNewRouteIslandsText("");
+                        setNewEmbarkLocsText("");
+                        setNewEmbarkTimesText("");
                         setUploadRoutePhotos(false);
                         setRoutePhotoRights(false);
                         setRouteIslandImagesNew({});
@@ -1067,6 +1175,22 @@ const Marinheiro_Page = () => {
                               />
                               <p className="text-xs text-muted-foreground">{t("marinheiro.editRatingHint")}</p>
                             </div>
+                            <div className="space-y-1">
+                              <Label>{t("marinheiro.embarkLocationsLabel")}</Label>
+                              <Input
+                                value={editEmbarkLocsText}
+                                onChange={(e) => setEditEmbarkLocsText(e.target.value)}
+                              />
+                              <p className="text-xs text-muted-foreground">{t("marinheiro.embarkLocationsHint")}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <Label>{t("marinheiro.embarkTimesLabel")}</Label>
+                              <Input
+                                value={editEmbarkTimesText}
+                                onChange={(e) => setEditEmbarkTimesText(e.target.value)}
+                              />
+                              <p className="text-xs text-muted-foreground">{t("marinheiro.embarkTimesHint")}</p>
+                            </div>
                             <div className="space-y-2">
                               <Label className="text-sm font-semibold">{t("marinheiro.amenitiesHeading")}</Label>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1110,7 +1234,18 @@ const Marinheiro_Page = () => {
                               <Button className="flex-1" onClick={salvarEdicao} disabled={loading}>
                                 {t("marinheiro.saveEdit")}
                               </Button>
-                              <Button className="flex-1" variant="secondary" onClick={() => { setEditingBoatId(null); setBoatForm(null); setEditRouteIslandsText(""); }} disabled={loading}>
+                              <Button
+                                className="flex-1"
+                                variant="secondary"
+                                onClick={() => {
+                                  setEditingBoatId(null);
+                                  setBoatForm(null);
+                                  setEditRouteIslandsText("");
+                                  setEditEmbarkLocsText("");
+                                  setEditEmbarkTimesText("");
+                                }}
+                                disabled={loading}
+                              >
                                 {t("common.cancel")}
                               </Button>
                             </div>

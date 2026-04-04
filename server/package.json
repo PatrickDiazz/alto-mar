@@ -1,7 +1,7 @@
 {
   "name": "alto-mar-server",
   "private": true,
-  "version": "0.10.5",
+  "version": "0.10.6",
   "type": "module",
   "engines": {
     "node": ">=20"

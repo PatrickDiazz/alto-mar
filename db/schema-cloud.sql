@@ -95,6 +95,13 @@ CREATE TABLE IF NOT EXISTS embark_locations (
   UNIQUE (boat_id, name)
 );
 
+CREATE TABLE IF NOT EXISTS boat_embark_slots (
+  boat_id uuid NOT NULL REFERENCES boats(id) ON DELETE CASCADE,
+  slot_time time NOT NULL,
+  sort_order smallint NOT NULL DEFAULT 0,
+  PRIMARY KEY (boat_id, slot_time)
+);
+
 CREATE TABLE IF NOT EXISTS bookings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   boat_id uuid NOT NULL REFERENCES boats(id) ON DELETE RESTRICT,
@@ -105,10 +112,15 @@ CREATE TABLE IF NOT EXISTS bookings (
   passengers_children integer NOT NULL DEFAULT 0 CHECK (passengers_children >= 0),
   has_kids boolean NOT NULL DEFAULT false,
   bbq_kit boolean NOT NULL DEFAULT false,
-  embark_location text NOT NULL,
+  embark_location text NULL,
+  embark_time time NULL,
   total_cents integer NOT NULL CHECK (total_cents >= 0),
   route_islands text[] NOT NULL DEFAULT '{}'::text[],
   booking_date date NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date,
+  reschedule_reason text NULL,
+  reschedule_title text NULL,
+  reschedule_note text NULL,
+  reschedule_attachments text[] NOT NULL DEFAULT '{}'::text[],
   created_at timestamptz NOT NULL DEFAULT now(),
   decided_at timestamptz NULL,
   decision_note text NULL
@@ -170,6 +182,7 @@ CREATE TABLE IF NOT EXISTS booking_ratings (
 CREATE INDEX IF NOT EXISTS idx_boats_owner ON boats(owner_user_id);
 CREATE INDEX IF NOT EXISTS idx_boats_created_at_desc ON boats(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_embark_locations_boat ON embark_locations(boat_id);
+CREATE INDEX IF NOT EXISTS idx_boat_embark_slots_boat ON boat_embark_slots(boat_id, sort_order);
 CREATE INDEX IF NOT EXISTS idx_bookings_owner_status ON bookings(owner_user_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bookings_renter ON bookings(renter_user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bookings_boat_date ON bookings(boat_id, booking_date);

@@ -10,7 +10,7 @@ import { query } from "./db.js";
 
 const DEMO_OWNER_EMAIL = process.env.DEMO_OWNER_EMAIL || "locatario@demo.com";
 const DEMO_OWNER_PASSWORD = process.env.DEMO_OWNER_PASSWORD || "123456";
-const DEMO_OWNER_NAME = process.env.DEMO_OWNER_NAME || "Locatário Demo";
+const DEMO_OWNER_NAME = process.env.DEMO_OWNER_NAME || "Locador Demo";
 
 function hashToUnit(seed) {
   let h = 2166136261;
@@ -93,7 +93,7 @@ async function ensureDemoOwner() {
   const hash = await bcrypt.hash(DEMO_OWNER_PASSWORD, 10);
   const existing = await query(`select id from users where email = $1 limit 1`, [DEMO_OWNER_EMAIL]);
   if (existing.rows[0]) {
-    // Garante senha e perfil locatário (corrige login após seed antigo ou testes)
+    // Garante senha e perfil locador (role: locatario) após seed antigo ou testes
     await query(
       `update users set password_hash = $1, role = 'locatario', name = $2 where email = $3`,
       [hash, DEMO_OWNER_NAME, DEMO_OWNER_EMAIL]
@@ -191,7 +191,7 @@ async function main() {
   // eslint-disable-next-line no-console
   console.log("Seed concluído.");
   // eslint-disable-next-line no-console
-  console.log("Locatário demo:", DEMO_OWNER_EMAIL, "/", DEMO_OWNER_PASSWORD);
+  console.log("Locador demo:", DEMO_OWNER_EMAIL, "/", DEMO_OWNER_PASSWORD);
 }
 
 main().catch((e) => {

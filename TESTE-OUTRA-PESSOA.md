@@ -39,7 +39,7 @@ FRONTEND_URL=https://xxxx.loca.lt
 Mensagem exemplo:
 
 > Abre no celular ou no PC: **https://xxxx.loca.lt**  
-> Não precisa instalar nada. Pode criar conta como banhista ou usar o locatário demo se eu te passar email/senha.
+> Não precisa instalar nada. Pode criar conta como banhista ou usar o locador demo se eu te passar email/senha.
 
 ---
 
@@ -65,7 +65,7 @@ Ele mostra uma URL `https://....trycloudflare.com`. Use essa URL no lugar do loc
 
 | Perfil     | Email               | Senha   |
 |-----------|---------------------|---------|
-| Locatário | `locatario@demo.com` | `123456` |
+| Locador | `locatario@demo.com` | `123456` |
 
 Banhista: **Criar conta** no app.
 

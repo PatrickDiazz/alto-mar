@@ -8,6 +8,28 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
+## [0.10.6] — 2026-04-04
+
+### Adicionado
+
+- **Detalhes do barco**: deslize horizontal entre fotos no telemóvel.
+- **Minhas reservas (banhista)**: cartões **compactos** para concluídas e **outros estados** (expandir ao toque); motivo de remarcação **Outro** (`OTHER`) alinhado à API.
+- Indicador **verde** junto ao título **Em curso** quando existem reservas aceites (não no estado vazio).
+- **`src/lib/rescheduleReasons.ts`** e ficheiros SQL de referência em `db/` (`boat_embark_slots`, `booking_reschedule_justification`).
+
+### Alterado
+
+- **Reserva pendente**: o banhista pode **alterar a data do passeio** livremente; justificativa obrigatória de remarcação mantém-se só após **aceite** pelo locador. API `PATCH /api/renter/bookings/:id` e UI (`RenterBookingsPanel`) actualizados; limpeza de campos `reschedule_*` na BD ao mudar data em `PENDING`.
+- **Terminologia PT**: “locatário” (dono do barco) → **locador** / **Painel dos Locadores** onde aplicável; role técnica `locatario` na API e na BD mantida.
+- **Reservar / edição de reservas**: textos de embarque **local** vs **horário** “a combinar” por secção (i18n).
+- **Servidor**: mensagens de validação de embarque e 404 de barco do locador; enum de remarcação com `OTHER`.
+
+### Documentação / versões
+
+- **Semver**: cliente e servidor **0.10.6**; Android `versionName` **0.10.6**, `versionCode` **5**.
+
+---
+
 ## [0.10.5] — 2026-04-03
 
 ### Corrigido
@@ -24,7 +46,7 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ### Adicionado
 
-- **Avaliações pós-passeio**: tabela `booking_ratings`; banhista avalia a embarcação; locatário avalia o banhista; recálculo de `boats.rating` e `users.guest_rating`.
+- **Avaliações pós-passeio**: tabela `booking_ratings`; banhista avalia a embarcação; locador avalia o banhista; recálculo de `boats.rating` e `users.guest_rating`.
 - **API**: `POST /api/renter/bookings/:id/rate-boat`, `POST /api/owner/bookings/:id/rate-renter`; `GET /api/me` inclui `guest_rating`.
 - **Minha conta (banhista)**: nota como cliente no cartão do topo; **Minhas reservas** na própria página `/conta`; **Meus favoritos** em `/conta/favoritos`; `/conta/reservas` redirecciona para `/conta#conta-reservas`.
 - **Banhistas**: `POST /api/renter/bookings/:id/cancel` e botão **Cancelar reserva** (pendente ou aceite).
@@ -68,8 +90,8 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ### Alterado
 
-- **Painel do locatário (Marinheiro)**: secção **Reservas** (pendentes + em curso) movida para o **topo** do painel.
-- Botão **Reservas** com indicador visual: realça quando a lista de reservas muda (nova reserva ou alteração), **badge** com quantidade de pendentes e ponto de atenção; estado “visto” persistido em `sessionStorage` (sem notificação push). Aceitar/recusar/concluir não dispara o indicador pela própria acção do locatário.
+- **Painel dos locadores (Marinheiro)**: secção **Reservas** (pendentes + em curso) movida para o **topo** do painel.
+- Botão **Reservas** com indicador visual: realça quando a lista de reservas muda (nova reserva ou alteração), **badge** com quantidade de pendentes e ponto de atenção; estado “visto” persistido em `sessionStorage` (sem notificação push). Aceitar/recusar/concluir não dispara o indicador pela própria acção do locador.
 
 ### Adicionado
 
@@ -109,7 +131,7 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 - **Amenities** por barco (catálogo global + inclusão por embarcação); filtro no **Explorar** por “incluso”.
 - **Roteiro** na reserva (paradas, revisão); **`route_islands`** nas reservas.
-- Página **Conta → Reservas** (banhista): estados, edição, repasse a pendente para o locatário.
+- Página **Conta → Reservas** (banhista): estados, edição, repasse a pendente para o locador.
 - **Marinheiro**: editor de inclusões, fotos opcionais por parada do roteiro + termos, conclusão de passeio, listagens alargadas.
 - Estado **`COMPLETED`** em reservas; colunas/schema para roteiro e imagens por parada (`route_island_images`, etc.).
 
@@ -147,7 +169,7 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ### Alterado
 
-- Melhorias de **UX** no formulário de barco do locatário e tratamento de **roteiros**.
+- Melhorias de **UX** no formulário de barco do locador e tratamento de **roteiros**.
 
 ---
 
@@ -169,7 +191,7 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 ### Adicionado
 
 - Metadados Alto Mar e imagem de **preview social**.
-- **Gestão de barcos** do locatário no painel.
+- **Gestão de barcos** do locador no painel.
 - **Página de conta** e **favoritos persistentes** (API dedicada).
 - Melhorias na conta (secção de rotas, destino ao **logout**); carregamento de favoritos pela API.
 
@@ -184,7 +206,7 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 ### Adicionado
 
 - **API Node + PostgreSQL**: utilizadores, barcos, imagens, reservas, integração **Mercado Pago**, favoritos.
-- **Autenticação** (login/registo) e papéis **banhista** / **locatário**.
+- **Autenticação** (login/registo) e papéis **banhista** / **locador** (role API: `locatario`).
 - Documentação de **deploy**; script de **túnel**; integração **Capacitor** / Android no repositório.
 
 ---
