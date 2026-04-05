@@ -13,6 +13,7 @@ npm run dev:all
 
 - Front: `http://localhost:8080` (ou porta que o Vite mostrar)  
 - Seed: `npm --prefix server run seed`  
+- **Só frota demo:** `npm run db:reset-demo-boats` — remove barcos do locador demo (e reservas desses barcos), recria ≥30 com fotos do pack; não mexe noutros donos.  
 - **Produção:** o site mostra fotos vindas da BD (`boat_images`). Se mudares `public/assets/` e fizeste deploy do front, corre `npm run db:refresh-demo-images` com `DATABASE_URL` de produção (só barcos do locador demo — vê `docs/DEPLOY.md`).
 
 ## Documentação

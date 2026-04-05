@@ -11,7 +11,8 @@
     "dev:stable": "node index.js",
     "start": "node index.js",
     "seed": "node seed.js",
-    "refresh-demo-boat-images": "node refresh-demo-boat-images.js"
+    "refresh-demo-boat-images": "node refresh-demo-boat-images.js",
+    "reset-demo-boats": "node reset-demo-boats.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

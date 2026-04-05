@@ -134,6 +134,8 @@ Só avance para a **Parte C** (API) quando o schema tiver rodado **sem erro** e 
    npm run db:refresh-demo-images
    ```
 
+   Para **apagar e recriar** só a frota do locador demo (mínimo **30** barcos, imagens do pack), sem remover barcos de outros donos: `npm run db:reset-demo-boats` com a mesma `DATABASE_URL`. **Apaga as reservas** ligadas a esses barcos. Opcional: `DEMO_FLEET_COUNT=40`.
+
 ---
 
 ## Parte D — Front no Vercel

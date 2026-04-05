@@ -13,6 +13,7 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 ### Adicionado
 
 - **`npm run db:refresh-demo-images`**: script que actualiza `boat_images` na BD só para barcos do locador demo (`DEMO_OWNER_EMAIL`), para o site em produção reflectir novos ficheiros em `public/assets/` sem correr o seed completo. Lógica partilhada em **`server/boatDemoImages.js`**.
+- **`npm run db:reset-demo-boats`**: apaga só os barcos do locador demo (e **reservas** associadas), recria **≥30** embarcações com imagens do pack. Não remove barcos de outros utilizadores. Geração/persistência partilhadas em **`server/demoFleet.js`** (o **seed** global também passou a usar este módulo).
 
 ### Alterado
 
