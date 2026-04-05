@@ -126,6 +126,14 @@ Só avance para a **Parte C** (API) quando o schema tiver rodado **sem erro** e 
 
    Isto reescreve as imagens só dos barcos do utilizador **`DEMO_OWNER_EMAIL`** (por omissão `locatario@demo.com`). No Railway Shell: `npm run refresh-demo-boat-images` dentro de `server/` (ou `node refresh-demo-boat-images.js`).
 
+   O script imprime um resumo da **BD** (host, sem credenciais): confirma que não estás a apontar para o Postgres **local** por engano. Se os barcos na nuvem tiverem **outros donos**, usa `REFRESH_ALL_BOAT_IMAGES=1` (sobrescreve fotos de **todos** os barcos):
+
+   ```powershell
+   $env:DATABASE_URL = "postgresql://..."   # produção
+   $env:REFRESH_ALL_BOAT_IMAGES = "1"
+   npm run db:refresh-demo-images
+   ```
+
 ---
 
 ## Parte D — Front no Vercel

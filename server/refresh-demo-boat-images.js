@@ -1,6 +1,9 @@
 /**
- * Actualiza só as fotos em `boat_images` dos barcos do locador demo (DEMO_OWNER_EMAIL).
- * Não apaga reservas nem outros dados. Use na produção depois de deploy dos PNG em /assets.
+ * Actualiza fotos em `boat_images` a partir do tipo de barco (pack PNG em /public/assets).
+ * Não apaga reservas nem outros dados.
+ *
+ * Por omissão: só barcos do utilizador DEMO_OWNER_EMAIL (locador demo).
+ * Produção: define REFRESH_ALL_BOAT_IMAGES=1 para todos os barcos (sobrescreve fotos de todos os donos).
  *
  *   npm --prefix server run refresh-demo-boat-images
  */
@@ -16,19 +19,39 @@ import { query } from "./db.js";
 import { imagesForBoatType } from "./boatDemoImages.js";
 
 const DEMO_OWNER_EMAIL = process.env.DEMO_OWNER_EMAIL || "locatario@demo.com";
+const refreshAll = /^1|true|yes$/i.test(String(process.env.REFRESH_ALL_BOAT_IMAGES || "").trim());
+
+function maskDatabaseUrl(url) {
+  if (!url || typeof url !== "string") return "(sem DATABASE_URL)";
+  try {
+    const u = new URL(url);
+    return `${u.protocol}//${u.hostname}:${u.port || "(default)"}/${u.pathname.replace(/^\//, "").split("/")[0] || "…"}`;
+  } catch {
+    return "(DATABASE_URL inválida)";
+  }
+}
 
 async function main() {
-  const owner = await query(`select id from users where email = $1 limit 1`, [DEMO_OWNER_EMAIL]);
-  if (!owner.rows[0]) {
-    // eslint-disable-next-line no-console
-    console.error(`Nenhum utilizador com email ${DEMO_OWNER_EMAIL}. Corra o seed ou ajuste DEMO_OWNER_EMAIL.`);
-    process.exit(1);
+  // eslint-disable-next-line no-console
+  console.log("BD:", maskDatabaseUrl(process.env.DATABASE_URL), refreshAll ? "| modo: TODOS os barcos" : `| modo: só dono ${DEMO_OWNER_EMAIL}`);
+
+  let boats;
+  if (refreshAll) {
+    boats = await query(`select id, type from boats order by id`);
+  } else {
+    const owner = await query(`select id from users where email = $1 limit 1`, [DEMO_OWNER_EMAIL]);
+    if (!owner.rows[0]) {
+      // eslint-disable-next-line no-console
+      console.error(`Nenhum utilizador com email ${DEMO_OWNER_EMAIL}. Corra o seed, ajuste DEMO_OWNER_EMAIL, ou use REFRESH_ALL_BOAT_IMAGES=1.`);
+      process.exit(1);
+    }
+    const ownerId = owner.rows[0].id;
+    boats = await query(`select id, type from boats where owner_user_id = $1 order by id`, [ownerId]);
   }
-  const ownerId = owner.rows[0].id;
-  const boats = await query(`select id, type from boats where owner_user_id = $1 order by id`, [ownerId]);
+
   if (boats.rows.length === 0) {
     // eslint-disable-next-line no-console
-    console.log("Nenhum barco do locador demo; nada a fazer.");
+    console.log("Nenhum barco encontrado; nada a fazer.");
     return;
   }
 
@@ -45,7 +68,11 @@ async function main() {
   }
 
   // eslint-disable-next-line no-console
-  console.log(`Imagens actualizadas para ${boats.rows.length} barco(s) do demo (${DEMO_OWNER_EMAIL}).`);
+  console.log(
+    refreshAll
+      ? `Imagens actualizadas para ${boats.rows.length} barco(s) (todos os donos).`
+      : `Imagens actualizadas para ${boats.rows.length} barco(s) do demo (${DEMO_OWNER_EMAIL}).`
+  );
 }
 
 main().catch((e) => {

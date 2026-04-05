@@ -14,6 +14,11 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 - **`npm run db:refresh-demo-images`**: script que actualiza `boat_images` na BD só para barcos do locador demo (`DEMO_OWNER_EMAIL`), para o site em produção reflectir novos ficheiros em `public/assets/` sem correr o seed completo. Lógica partilhada em **`server/boatDemoImages.js`**.
 
+### Alterado
+
+- **`vercel.json`**: o rewrite SPA deixa de abranger **`/assets/*`** e **`/api`** — evita servir `index.html` no lugar dos PNG (imagens partidas ou que parecem não actualizar).
+- **`refresh-demo-boat-images`**: registo da BD usada (host mascarado); variável **`REFRESH_ALL_BOAT_IMAGES=1`** para actualizar fotos de **todos** os barcos.
+
 ### Documentação
 
 - **README** e **`docs/DEPLOY.md`**: nota de que o Explorar usa URLs da base de dados e como refrescar imagens após deploy do front.
