@@ -1,4 +1,5 @@
 import type { Boat } from "@/lib/types";
+import { normalizeVesselTipo } from "@/lib/boatVesselTypes";
 
 /** Chaves estáveis — textos vêm do i18n */
 export const EXPLORE_MAIN_FILTER_KEYS = ["type", "size", "seats", "price", "included"] as const;
@@ -28,7 +29,9 @@ export function matchesExploreFilters(
     if (!hay.includes(qLower)) return false;
   }
 
-  if (tipoFiltro !== "all" && barco.tipo !== tipoFiltro) return false;
+  if (tipoFiltro !== "all" && normalizeVesselTipo(barco.tipo) !== normalizeVesselTipo(tipoFiltro)) {
+    return false;
+  }
 
   if (tamFiltro !== "all") {
     const pes = parseInt(barco.tamanho.replace(/[^0-9]/g, ""), 10);

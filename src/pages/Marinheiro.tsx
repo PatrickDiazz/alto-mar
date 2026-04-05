@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Anchor, Pencil, Plus, ClipboardList, Trash2, Star } from "lucide-react";
+import { Anchor, Pencil, Plus, ClipboardList, Trash2, Star, Waves } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,6 +31,14 @@ import {
   type RescheduleReason,
   rescheduleReasonI18nKey,
 } from "@/lib/rescheduleReasons";
+import {
+  BOAT_VESSEL_TYPES,
+  type BoatVesselTypeId,
+  isMotoAquaticaVessel,
+  normalizeVesselTipo,
+  vesselTypeLabel,
+} from "@/lib/boatVesselTypes";
+import { formRowsToStoredRouteIslands, storedRouteIslandsToFormRows } from "@/lib/routeIslandsParse";
 
 function translateRescheduleReason(
   tr: (k: string) => string,
@@ -64,6 +73,10 @@ type OwnerBoat = {
   amenidades?: Array<{ id: string; nome: string; incluido: boolean }>;
   locaisEmbarque?: string[];
   horariosEmbarque?: string[];
+  jetSkiOffered?: boolean;
+  jetSkiPriceCents?: number;
+  jetSkiImageUrls?: string[];
+  jetSkiDocumentUrl?: string | null;
 };
 
 type OwnerBookingRow = {
@@ -74,11 +87,12 @@ type OwnerBookingRow = {
   passengersChildren: number;
   hasKids: boolean;
   bbqKit: boolean;
+  jetSki?: boolean;
   embarkLocation: string | null;
   embarkTime?: string | null;
   totalCents: number;
   routeIslands?: string[];
-  boat: { id: string; nome: string };
+  boat: { id: string; nome: string; jetSkiOffered?: boolean; jetSkiPriceCents?: number };
   renter: { id: string; nome: string; email: string };
   ratingRenter?: { stars: number; comment: string | null; ratedAt: string } | null;
   rescheduleReason?: string | null;
@@ -137,6 +151,10 @@ const emptyBoatForm: Omit<OwnerBoat, "id" | "preco" | "nota" | "tamanho"> = {
   routeIslands: [],
   routeIslandImages: {},
   imagens: [],
+  jetSkiOffered: false,
+  jetSkiPriceCents: 0,
+  jetSkiImageUrls: [],
+  jetSkiDocumentUrl: "",
 };
 
 function splitCommaList(s: string): string[] {
@@ -243,8 +261,8 @@ const Marinheiro_Page = () => {
   const [boatForm, setBoatForm] = useState<OwnerBoat | null>(null);
   const [registering, setRegistering] = useState(false);
   const [newBoatForm, setNewBoatForm] = useState(emptyBoatForm);
-  const [newRouteIslandsText, setNewRouteIslandsText] = useState("");
-  const [editRouteIslandsText, setEditRouteIslandsText] = useState("");
+  const [newRouteIslandRows, setNewRouteIslandRows] = useState<string[]>([""]);
+  const [editRouteIslandRows, setEditRouteIslandRows] = useState<string[]>([""]);
   const [newEmbarkLocsText, setNewEmbarkLocsText] = useState("");
   const [newEmbarkTimesText, setNewEmbarkTimesText] = useState("");
   const [editEmbarkLocsText, setEditEmbarkLocsText] = useState("");
@@ -264,8 +282,18 @@ const Marinheiro_Page = () => {
   const concluidas = useMemo(() => bookings.filter((b) => b.status === "COMPLETED"), [bookings]);
   const coastalCityOptions = useMemo(() => [...CIDADES_LITORAL_RJ].sort((a, b) => a.localeCompare(b, "pt")), []);
 
+  const editVesselTypeOptions = useMemo(() => {
+    if (!boatForm) return [...BOAT_VESSEL_TYPES];
+    const raw = (boatForm.tipo || "").trim();
+    const n = normalizeVesselTipo(raw);
+    if (BOAT_VESSEL_TYPES.includes(n as BoatVesselTypeId)) return [...BOAT_VESSEL_TYPES];
+    if (raw && !BOAT_VESSEL_TYPES.includes(raw as BoatVesselTypeId)) return [raw, ...BOAT_VESSEL_TYPES];
+    return [...BOAT_VESSEL_TYPES];
+  }, [boatForm]);
+
   const newBoatReady = useMemo(() => {
     const f = newBoatForm;
+    const isMoto = isMotoAquaticaVessel(f.tipo);
     const base =
       f.nome.trim().length >= 2 &&
       f.distancia.trim().length >= 2 &&
@@ -275,8 +303,14 @@ const Marinheiro_Page = () => {
       f.tamanhoPes >= 1 &&
       f.capacidade >= 1 &&
       f.imagens.length >= 1;
-    const routeOk = !uploadRoutePhotos || routePhotoRights;
-    return base && routeOk;
+    const routeOk = isMoto || !uploadRoutePhotos || routePhotoRights;
+    const jetOk =
+      isMoto ||
+      !newBoatForm.jetSkiOffered ||
+      ((newBoatForm.jetSkiPriceCents ?? 0) >= 100 &&
+        (newBoatForm.jetSkiImageUrls?.length ?? 0) >= 1 &&
+        String(newBoatForm.jetSkiDocumentUrl || "").trim().length > 0);
+    return base && routeOk && jetOk;
   }, [newBoatForm, uploadRoutePhotos, routePhotoRights]);
   const precoPreview = useMemo(() => {
     const n = Math.max(0, Math.round((newBoatForm.precoCents || 0) / 100));
@@ -365,8 +399,8 @@ const Marinheiro_Page = () => {
 
   const iniciarEdicao = (boat: OwnerBoat) => {
     setEditingBoatId(boat.id);
-    setBoatForm({ ...boat });
-    setEditRouteIslandsText((boat.routeIslands || []).join(", "));
+    setBoatForm({ ...boat, tipo: normalizeVesselTipo(boat.tipo) });
+    setEditRouteIslandRows(storedRouteIslandsToFormRows(boat.routeIslands));
     setEditEmbarkLocsText((boat.locaisEmbarque || []).join(", "));
     setEditEmbarkTimesText((boat.horariosEmbarque || []).join(", "));
     const m: Record<string, boolean> = {};
@@ -392,7 +426,7 @@ const Marinheiro_Page = () => {
       if (editingBoatId === deletedId) {
         setEditingBoatId(null);
         setBoatForm(null);
-        setEditRouteIslandsText("");
+        setEditRouteIslandRows([""]);
         setEditEmbarkLocsText("");
         setEditEmbarkTimesText("");
       }
@@ -408,6 +442,21 @@ const Marinheiro_Page = () => {
 
   const salvarEdicao = async () => {
     if (!editingBoatId || !boatForm) return;
+    const editMoto = isMotoAquaticaVessel(boatForm.tipo);
+    if (!editMoto && boatForm.jetSkiOffered) {
+      if ((boatForm.jetSkiPriceCents ?? 0) < 100) {
+        toast.error(t("marinheiro.jetSkiToastPrice"));
+        return;
+      }
+      if ((boatForm.jetSkiImageUrls?.length ?? 0) < 1) {
+        toast.error(t("marinheiro.jetSkiToastPhotos"));
+        return;
+      }
+      if (!String(boatForm.jetSkiDocumentUrl || "").trim()) {
+        toast.error(t("marinheiro.jetSkiToastDoc"));
+        return;
+      }
+    }
     setLoading(true);
     try {
       const resp = await authFetch(`/api/owner/boats/${editingBoatId}`, {
@@ -419,17 +468,21 @@ const Marinheiro_Page = () => {
           precoCents: Number(boatForm.precoCents),
           tamanhoPes: Number(boatForm.tamanhoPes),
           capacidade: Number(boatForm.capacidade),
-          tipo: boatForm.tipo,
+          tipo: normalizeVesselTipo(boatForm.tipo),
           descricao: boatForm.descricao,
           routeIslands: boatForm.routeIslands || [],
-          routeIslandImages: boatForm.routeIslandImages || {},
+          routeIslandImages: editMoto ? {} : boatForm.routeIslandImages || {},
           verificado: Boolean(boatForm.verificado),
-          tieDocumentUrl: boatForm.tieDocumentUrl || null,
-          tiemDocumentUrl: boatForm.tiemDocumentUrl || null,
+          tieDocumentUrl: boatForm.tieDocumentUrl?.trim() ? boatForm.tieDocumentUrl.trim() : null,
+          tiemDocumentUrl: boatForm.tiemDocumentUrl?.trim() ? boatForm.tiemDocumentUrl.trim() : null,
           videoUrl: boatForm.videoUrl || null,
           imagens: boatForm.imagens || [],
           locaisEmbarque: splitCommaList(editEmbarkLocsText),
           horariosEmbarque: splitCommaList(editEmbarkTimesText),
+          jetSkiOffered: editMoto ? false : Boolean(boatForm.jetSkiOffered),
+          jetSkiPriceCents: editMoto ? 0 : Number(boatForm.jetSkiPriceCents ?? 0),
+          jetSkiImageUrls: editMoto ? [] : boatForm.jetSkiImageUrls ?? [],
+          jetSkiDocumentUrl: editMoto ? null : boatForm.jetSkiDocumentUrl?.trim() ? boatForm.jetSkiDocumentUrl.trim() : null,
         }),
       });
       if (resp.status === 401) return;
@@ -438,7 +491,7 @@ const Marinheiro_Page = () => {
       }
       const pairs = catalogAmenities.map((a) => ({
         amenityId: a.id,
-        included: Boolean(amenityIncEdit[a.id]),
+        included: editMoto ? false : Boolean(amenityIncEdit[a.id]),
       }));
       const amResp = await authFetch(`/api/owner/boats/${editingBoatId}/amenities`, {
         method: "PUT",
@@ -451,7 +504,7 @@ const Marinheiro_Page = () => {
       toast.success(t("marinheiro.toastUpdate"));
       setEditingBoatId(null);
       setBoatForm(null);
-      setEditRouteIslandsText("");
+      setEditRouteIslandRows([""]);
       setEditEmbarkLocsText("");
       setEditEmbarkTimesText("");
       await carregarMeusBarcos();
@@ -470,14 +523,20 @@ const Marinheiro_Page = () => {
     }
     setLoading(true);
     try {
+      const regMoto = isMotoAquaticaVessel(newBoatForm.tipo);
       const payload = {
         ...newBoatForm,
-        routeIslandImages: uploadRoutePhotos && routePhotoRights ? routeIslandImagesNew : {},
+        tipo: normalizeVesselTipo(newBoatForm.tipo),
+        routeIslandImages: regMoto ? {} : uploadRoutePhotos && routePhotoRights ? routeIslandImagesNew : {},
         tieDocumentUrl: newBoatForm.tieDocumentUrl?.trim() ? newBoatForm.tieDocumentUrl.trim() : null,
         tiemDocumentUrl: newBoatForm.tiemDocumentUrl?.trim() ? newBoatForm.tiemDocumentUrl.trim() : null,
         videoUrl: newBoatForm.videoUrl?.trim() ? newBoatForm.videoUrl.trim() : null,
         locaisEmbarque: splitCommaList(newEmbarkLocsText),
         horariosEmbarque: splitCommaList(newEmbarkTimesText),
+        jetSkiOffered: regMoto ? false : Boolean(newBoatForm.jetSkiOffered),
+        jetSkiPriceCents: regMoto ? 0 : Number(newBoatForm.jetSkiPriceCents ?? 0),
+        jetSkiImageUrls: regMoto ? [] : newBoatForm.jetSkiImageUrls ?? [],
+        jetSkiDocumentUrl: regMoto ? null : newBoatForm.jetSkiDocumentUrl?.trim() ? newBoatForm.jetSkiDocumentUrl.trim() : null,
       };
       const resp = await authFetch("/api/owner/boats", {
         method: "POST",
@@ -493,7 +552,7 @@ const Marinheiro_Page = () => {
       if (boatId && catalogAmenities.length > 0) {
         const pairs = catalogAmenities.map((a) => ({
           amenityId: a.id,
-          included: Boolean(amenityIncNew[a.id]),
+          included: regMoto ? false : Boolean(amenityIncNew[a.id]),
         }));
         const amResp = await authFetch(`/api/owner/boats/${boatId}/amenities`, {
           method: "PUT",
@@ -507,7 +566,7 @@ const Marinheiro_Page = () => {
       toast.success(t("marinheiro.toastRegister"));
       setRegistering(false);
       setNewBoatForm(emptyBoatForm);
-      setNewRouteIslandsText("");
+      setNewRouteIslandRows([""]);
       setNewEmbarkLocsText("");
       setNewEmbarkTimesText("");
       setUploadRoutePhotos(false);
@@ -646,6 +705,7 @@ const Marinheiro_Page = () => {
                               {t("marinheiro.passengers")} {b.passengersAdults} {t("marinheiro.adults")}
                               {b.hasKids ? ` + ${b.passengersChildren} ${t("marinheiro.kids")}` : ""}
                               {b.bbqKit ? ` • ${t("marinheiro.bbq")}` : ""}
+                              {b.jetSki ? ` • ${t("marinheiro.jetSkiShort")}` : ""}
                             </p>
                             {b.routeIslands && b.routeIslands.length > 0 ? (
                               <p className="text-xs text-muted-foreground">
@@ -781,7 +841,29 @@ const Marinheiro_Page = () => {
                 <h2 className="text-lg font-semibold text-foreground">{t("marinheiro.myBoats")}</h2>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{boats.length}</Badge>
-                  <Button size="sm" onClick={() => setRegistering((p) => !p)}>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setRegistering((wasOpen) => {
+                        if (wasOpen) return false;
+                        setNewBoatForm(emptyBoatForm);
+                        setNewRouteIslandRows([""]);
+                        setNewEmbarkLocsText("");
+                        setNewEmbarkTimesText("");
+                        setUploadRoutePhotos(false);
+                        setRoutePhotoRights(false);
+                        setRouteIslandImagesNew({});
+                        setAmenityIncNew((prev) => {
+                          const o = { ...prev };
+                          Object.keys(o).forEach((k) => {
+                            o[k] = false;
+                          });
+                          return o;
+                        });
+                        return true;
+                      });
+                    }}
+                  >
                     <Plus className="w-4 h-4 mr-1" />
                     {t("marinheiro.registerBoat")}
                   </Button>
@@ -803,7 +885,8 @@ const Marinheiro_Page = () => {
                       <div className="min-w-0 space-y-1">
                         <p className="text-sm font-semibold text-foreground truncate">{newBoatForm.nome || t("marinheiro.previewName")}</p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {(newBoatForm.tipo || t("marinheiro.previewType"))} • {(newBoatForm.distancia || t("marinheiro.previewLoc"))}
+                          {(newBoatForm.tipo ? vesselTypeLabel(t, newBoatForm.tipo) : t("marinheiro.previewType"))} •{" "}
+                          {(newBoatForm.distancia || t("marinheiro.previewLoc"))}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
                           {newBoatForm.tamanhoPes || 0} {t("common.feet")} • {newBoatForm.capacidade || 0} {t("common.people")}
@@ -821,7 +904,40 @@ const Marinheiro_Page = () => {
                       </div>
                       <div className="space-y-1">
                         <Label>{t("marinheiro.type")}</Label>
-                        <Input placeholder={t("marinheiro.typePh")} value={newBoatForm.tipo} onChange={(e) => setNewBoatForm({ ...newBoatForm, tipo: e.target.value })} />
+                        <Select
+                          value={newBoatForm.tipo}
+                          onValueChange={(v) => {
+                            const moto = isMotoAquaticaVessel(v);
+                            setNewBoatForm((prev) => ({
+                              ...prev,
+                              tipo: v,
+                              ...(moto
+                                ? {
+                                    jetSkiOffered: false,
+                                    jetSkiPriceCents: 0,
+                                    jetSkiImageUrls: [],
+                                    jetSkiDocumentUrl: "",
+                                  }
+                                : {}),
+                            }));
+                            if (moto) {
+                              setUploadRoutePhotos(false);
+                              setRoutePhotoRights(false);
+                              setRouteIslandImagesNew({});
+                            }
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={t("marinheiro.selectVesselType")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {BOAT_VESSEL_TYPES.map((tipo) => (
+                              <SelectItem key={tipo} value={tipo}>
+                                {vesselTypeLabel(t, tipo)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-1 sm:col-span-2">
                         <Label>{t("marinheiro.location")}</Label>
@@ -895,23 +1011,48 @@ const Marinheiro_Page = () => {
                     </div>
                   </div>
                   <Textarea placeholder={t("marinheiro.descriptionPh")} value={newBoatForm.descricao} onChange={(e) => setNewBoatForm({ ...newBoatForm, descricao: e.target.value })} />
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     <Label className="text-sm font-semibold text-foreground">{t("marinheiro.routes")}</Label>
-                    <Input
-                      placeholder={t("marinheiro.routesPh")}
-                      value={newRouteIslandsText}
-                      onChange={(e) => {
-                        const text = e.target.value;
-                        setNewRouteIslandsText(text);
-                        setNewBoatForm({
-                          ...newBoatForm,
-                          routeIslands: text
-                            .split(",")
-                            .map((s) => s.trim())
-                            .filter(Boolean),
-                        });
-                      }}
-                    />
+                    {newRouteIslandRows.map((row, i) => (
+                      <div key={`new-route-${i}`} className="flex gap-2 items-center">
+                        <Input
+                          className="flex-1"
+                          placeholder={t("marinheiro.routesPh")}
+                          value={row}
+                          onChange={(e) => {
+                            const next = [...newRouteIslandRows];
+                            next[i] = e.target.value;
+                            setNewRouteIslandRows(next);
+                            setNewBoatForm({ ...newBoatForm, routeIslands: formRowsToStoredRouteIslands(next) });
+                          }}
+                        />
+                        {newRouteIslandRows.length > 1 ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="shrink-0 text-muted-foreground"
+                            onClick={() => {
+                              const next = newRouteIslandRows.filter((_, j) => j !== i);
+                              setNewRouteIslandRows(next);
+                              setNewBoatForm({ ...newBoatForm, routeIslands: formRowsToStoredRouteIslands(next) });
+                            }}
+                            aria-label={t("marinheiro.routeIslandRemove")}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        ) : null}
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setNewRouteIslandRows((prev) => [...prev, ""])}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      {t("marinheiro.routeIslandAdd")}
+                    </Button>
                     <p className="text-xs text-muted-foreground">{t("marinheiro.routesHint")}</p>
                   </div>
                   <div className="space-y-1">
@@ -932,57 +1073,154 @@ const Marinheiro_Page = () => {
                     />
                     <p className="text-xs text-muted-foreground">{t("marinheiro.embarkTimesHint")}</p>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-semibold">{t("marinheiro.amenitiesHeading")}</Label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {catalogAmenities.map((a) => (
-                        <label key={a.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                          <Checkbox
-                            checked={Boolean(amenityIncNew[a.id])}
-                            onCheckedChange={(c) =>
-                              setAmenityIncNew((prev) => ({ ...prev, [a.id]: c === true }))
-                            }
-                          />
-                          <span>{a.name}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="space-y-2 rounded-lg border border-border p-3">
-                    <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
-                      <Checkbox checked={uploadRoutePhotos} onCheckedChange={(c) => setUploadRoutePhotos(c === true)} />
-                      {t("marinheiro.routePhotosEnable")}
-                    </label>
-                    {uploadRoutePhotos ? (
-                      <>
-                        <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
-                          <Checkbox
-                            checked={routePhotoRights}
-                            onCheckedChange={(c) => setRoutePhotoRights(c === true)}
-                            className="mt-0.5"
-                          />
-                          <span>{t("marinheiro.routePhotosDisclaimer")}</span>
-                        </label>
-                        <p className="text-xs font-semibold text-foreground">{t("marinheiro.routePhotosTitle")}</p>
-                        {(newBoatForm.routeIslands || []).map((island) => (
-                          <div key={island} className="space-y-1">
-                            <Label className="text-xs">{island}</Label>
-                            <Input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              disabled={!routePhotoRights}
-                              onChange={async (e) => {
-                                const files = Array.from(e.target.files || []);
-                                const urls = await Promise.all(files.map(fileToDataUrl));
-                                setRouteIslandImagesNew((prev) => ({ ...prev, [island]: urls }));
-                              }}
+                  {!isMotoAquaticaVessel(newBoatForm.tipo) ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">{t("marinheiro.amenitiesHeading")}</Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {catalogAmenities.map((a) => (
+                            <label key={a.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                              <Checkbox
+                                checked={Boolean(amenityIncNew[a.id])}
+                                onCheckedChange={(c) =>
+                                  setAmenityIncNew((prev) => ({ ...prev, [a.id]: c === true }))
+                                }
+                              />
+                              <span>{a.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-3 rounded-lg border border-border p-3">
+                        <div className="flex items-center gap-2">
+                          <Waves className="w-5 h-5 text-primary shrink-0" />
+                          <div className="flex flex-1 items-center justify-between gap-2">
+                            <span className="text-sm font-semibold text-foreground">{t("marinheiro.jetSkiHeading")}</span>
+                            <Switch
+                              checked={Boolean(newBoatForm.jetSkiOffered)}
+                              onCheckedChange={(v) =>
+                                setNewBoatForm({
+                                  ...newBoatForm,
+                                  jetSkiOffered: v,
+                                  ...(!v
+                                    ? { jetSkiPriceCents: 0, jetSkiImageUrls: [], jetSkiDocumentUrl: "" }
+                                    : {}),
+                                })
+                              }
                             />
                           </div>
-                        ))}
-                      </>
-                    ) : null}
-                  </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{t("marinheiro.jetSkiHint")}</p>
+                        {newBoatForm.jetSkiOffered ? (
+                          <div className="space-y-2">
+                            <div className="space-y-1">
+                              <Label>{t("marinheiro.jetSkiPrice")}</Label>
+                              <div className="relative max-w-xs">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                                  {t("common.currency")}
+                                </span>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  step={1}
+                                  className="pl-10"
+                                  value={Math.max(1, Math.round((newBoatForm.jetSkiPriceCents || 0) / 100))}
+                                  onChange={(e) =>
+                                    setNewBoatForm({
+                                      ...newBoatForm,
+                                      jetSkiPriceCents: Math.max(100, Number(e.target.value || 1)) * 100,
+                                    })
+                                  }
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <Label>{t("marinheiro.jetSkiPhotos")}</Label>
+                              <Input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                onChange={async (e) => {
+                                  const files = Array.from(e.target.files || []);
+                                  const urls = await Promise.all(files.map(fileToDataUrl));
+                                  setNewBoatForm({
+                                    ...newBoatForm,
+                                    jetSkiImageUrls: [...(newBoatForm.jetSkiImageUrls || []), ...urls],
+                                  });
+                                }}
+                              />
+                              {(newBoatForm.jetSkiImageUrls?.length ?? 0) > 0 ? (
+                                <p className="text-xs text-muted-foreground">
+                                  {t("marinheiro.jetSkiPhotosCount", { n: newBoatForm.jetSkiImageUrls?.length ?? 0 })}
+                                </p>
+                              ) : (
+                                <p className="text-xs text-destructive">{t("marinheiro.jetSkiPhotosRequired")}</p>
+                              )}
+                            </div>
+                            <div className="space-y-1">
+                              <Label>{t("marinheiro.jetSkiDoc")}</Label>
+                              <Input
+                                type="file"
+                                accept="image/*,.pdf,application/pdf"
+                                onChange={async (e) => {
+                                  const f = e.target.files?.[0];
+                                  if (!f) return;
+                                  const url = await fileToDataUrl(f);
+                                  setNewBoatForm({ ...newBoatForm, jetSkiDocumentUrl: url });
+                                }}
+                              />
+                              <Input
+                                placeholder={t("marinheiro.jetSkiDocUrlPh")}
+                                value={
+                                  newBoatForm.jetSkiDocumentUrl?.startsWith("data:")
+                                    ? ""
+                                    : newBoatForm.jetSkiDocumentUrl || ""
+                                }
+                                onChange={(e) =>
+                                  setNewBoatForm({ ...newBoatForm, jetSkiDocumentUrl: e.target.value })
+                                }
+                              />
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="space-y-2 rounded-lg border border-border p-3">
+                        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                          <Checkbox checked={uploadRoutePhotos} onCheckedChange={(c) => setUploadRoutePhotos(c === true)} />
+                          {t("marinheiro.routePhotosEnable")}
+                        </label>
+                        {uploadRoutePhotos ? (
+                          <>
+                            <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
+                              <Checkbox
+                                checked={routePhotoRights}
+                                onCheckedChange={(c) => setRoutePhotoRights(c === true)}
+                                className="mt-0.5"
+                              />
+                              <span>{t("marinheiro.routePhotosDisclaimer")}</span>
+                            </label>
+                            <p className="text-xs font-semibold text-foreground">{t("marinheiro.routePhotosTitle")}</p>
+                            {(newBoatForm.routeIslands || []).map((island) => (
+                              <div key={island} className="space-y-1">
+                                <Label className="text-xs">{island}</Label>
+                                <Input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  disabled={!routePhotoRights}
+                                  onChange={async (e) => {
+                                    const files = Array.from(e.target.files || []);
+                                    const urls = await Promise.all(files.map(fileToDataUrl));
+                                    setRouteIslandImagesNew((prev) => ({ ...prev, [island]: urls }));
+                                  }}
+                                />
+                              </div>
+                            ))}
+                          </>
+                        ) : null}
+                      </div>
+                    </>
+                  ) : null}
                   <div className="space-y-1">
                     <Label>{t("marinheiro.video")}</Label>
                     <Input placeholder={t("marinheiro.videoPh")} value={newBoatForm.videoUrl || ""} onChange={(e) => setNewBoatForm({ ...newBoatForm, videoUrl: e.target.value })} />
@@ -1006,8 +1244,16 @@ const Marinheiro_Page = () => {
                   <div className="space-y-1">
                     <Label className="text-sm font-semibold text-foreground">{t("marinheiro.docs")}</Label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <Input placeholder={t("marinheiro.tie")} value={newBoatForm.tieDocumentUrl || ""} onChange={(e) => setNewBoatForm({ ...newBoatForm, tieDocumentUrl: e.target.value })} />
-                      <Input placeholder={t("marinheiro.tiem")} value={newBoatForm.tiemDocumentUrl || ""} onChange={(e) => setNewBoatForm({ ...newBoatForm, tiemDocumentUrl: e.target.value })} />
+                      <Input
+                        placeholder={t("marinheiro.tie")}
+                        value={newBoatForm.tieDocumentUrl || ""}
+                        onChange={(e) => setNewBoatForm({ ...newBoatForm, tieDocumentUrl: e.target.value })}
+                      />
+                      <Input
+                        placeholder={t("marinheiro.tiem")}
+                        value={newBoatForm.tiemDocumentUrl || ""}
+                        onChange={(e) => setNewBoatForm({ ...newBoatForm, tiemDocumentUrl: e.target.value })}
+                      />
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -1019,7 +1265,7 @@ const Marinheiro_Page = () => {
                       onClick={() => {
                         setRegistering(false);
                         setNewBoatForm(emptyBoatForm);
-                        setNewRouteIslandsText("");
+                        setNewRouteIslandRows([""]);
                         setNewEmbarkLocsText("");
                         setNewEmbarkTimesText("");
                         setUploadRoutePhotos(false);
@@ -1047,7 +1293,8 @@ const Marinheiro_Page = () => {
                               <div className="min-w-0">
                                 <p className="text-sm font-semibold text-foreground truncate">{boat.nome}</p>
                                 <p className="text-xs text-muted-foreground">
-                                  {boat.tipo} • {boat.tamanho} • {boat.capacidade} {t("common.people")}
+                                  {vesselTypeLabel(t, boat.tipo)} • {boat.tamanho} • {boat.capacidade}{" "}
+                                  {t("common.people")}
                                 </p>
                                 <p className="text-xs text-muted-foreground">{boat.distancia}</p>
                                 <p className="text-xs text-muted-foreground">
@@ -1082,7 +1329,51 @@ const Marinheiro_Page = () => {
                               </div>
                               <div className="space-y-1">
                                 <Label>{t("marinheiro.type")}</Label>
-                                <Input value={boatForm.tipo} onChange={(e) => setBoatForm({ ...boatForm, tipo: e.target.value })} />
+                                <Select
+                                  value={boatForm.tipo}
+                                  onValueChange={(v) => {
+                                    const moto = isMotoAquaticaVessel(v);
+                                    setBoatForm((prev) =>
+                                      prev
+                                        ? {
+                                            ...prev,
+                                            tipo: v,
+                                            ...(moto
+                                              ? {
+                                                  jetSkiOffered: false,
+                                                  jetSkiPriceCents: 0,
+                                                  jetSkiImageUrls: [],
+                                                  jetSkiDocumentUrl: "",
+                                                  routeIslandImages: {},
+                                                }
+                                              : {}),
+                                          }
+                                        : null
+                                    );
+                                    if (moto) {
+                                      setAmenityIncEdit((prev) => {
+                                        const o = { ...prev };
+                                        Object.keys(o).forEach((k) => {
+                                          o[k] = false;
+                                        });
+                                        return o;
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder={t("marinheiro.selectVesselType")} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {editVesselTypeOptions.map((tipo) => (
+                                      <SelectItem key={tipo} value={tipo}>
+                                        {BOAT_VESSEL_TYPES.includes(tipo as BoatVesselTypeId)
+                                          ? vesselTypeLabel(t, tipo)
+                                          : tipo}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                               </div>
                               <div className="space-y-1">
                                 <Label>{t("marinheiro.location")}</Label>
@@ -1154,25 +1445,48 @@ const Marinheiro_Page = () => {
                               <Label>{t("detalhes.description")}</Label>
                               <Textarea rows={3} value={boatForm.descricao} onChange={(e) => setBoatForm({ ...boatForm, descricao: e.target.value })} />
                             </div>
-                            <div className="space-y-1">
+                            <div className="space-y-2">
                               <Label>{t("marinheiro.routes")}</Label>
-                              <Input
-                                placeholder={t("marinheiro.routesPh")}
-                                value={editRouteIslandsText}
-                                onChange={(e) =>
-                                  {
-                                    const text = e.target.value;
-                                    setEditRouteIslandsText(text);
-                                    setBoatForm({
-                                      ...boatForm,
-                                      routeIslands: text
-                                        .split(",")
-                                        .map((s) => s.trim())
-                                        .filter(Boolean),
-                                    });
-                                  }
-                                }
-                              />
+                              {editRouteIslandRows.map((row, i) => (
+                                <div key={`edit-route-${i}`} className="flex gap-2 items-center">
+                                  <Input
+                                    className="flex-1"
+                                    placeholder={t("marinheiro.routesPh")}
+                                    value={row}
+                                    onChange={(e) => {
+                                      const next = [...editRouteIslandRows];
+                                      next[i] = e.target.value;
+                                      setEditRouteIslandRows(next);
+                                      setBoatForm({ ...boatForm, routeIslands: formRowsToStoredRouteIslands(next) });
+                                    }}
+                                  />
+                                  {editRouteIslandRows.length > 1 ? (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="shrink-0 text-muted-foreground"
+                                      onClick={() => {
+                                        const next = editRouteIslandRows.filter((_, j) => j !== i);
+                                        setEditRouteIslandRows(next);
+                                        setBoatForm({ ...boatForm, routeIslands: formRowsToStoredRouteIslands(next) });
+                                      }}
+                                      aria-label={t("marinheiro.routeIslandRemove")}
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              ))}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setEditRouteIslandRows((prev) => [...prev, ""])}
+                              >
+                                <Plus className="w-4 h-4 mr-1" />
+                                {t("marinheiro.routeIslandAdd")}
+                              </Button>
                               <p className="text-xs text-muted-foreground">{t("marinheiro.editRatingHint")}</p>
                             </div>
                             <div className="space-y-1">
@@ -1191,29 +1505,141 @@ const Marinheiro_Page = () => {
                               />
                               <p className="text-xs text-muted-foreground">{t("marinheiro.embarkTimesHint")}</p>
                             </div>
-                            <div className="space-y-2">
-                              <Label className="text-sm font-semibold">{t("marinheiro.amenitiesHeading")}</Label>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                {catalogAmenities.map((a) => (
-                                  <label key={a.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                                    <Checkbox
-                                      checked={Boolean(amenityIncEdit[a.id])}
-                                      onCheckedChange={(c) =>
-                                        setAmenityIncEdit((prev) => ({ ...prev, [a.id]: c === true }))
-                                      }
-                                    />
-                                    <span>{a.name}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
+                            {!isMotoAquaticaVessel(boatForm.tipo) ? (
+                              <>
+                                <div className="space-y-2">
+                                  <Label className="text-sm font-semibold">{t("marinheiro.amenitiesHeading")}</Label>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {catalogAmenities.map((a) => (
+                                      <label key={a.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                                        <Checkbox
+                                          checked={Boolean(amenityIncEdit[a.id])}
+                                          onCheckedChange={(c) =>
+                                            setAmenityIncEdit((prev) => ({ ...prev, [a.id]: c === true }))
+                                          }
+                                        />
+                                        <span>{a.name}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="space-y-3 rounded-lg border border-border p-3">
+                                  <div className="flex items-center gap-2">
+                                    <Waves className="w-5 h-5 text-primary shrink-0" />
+                                    <div className="flex flex-1 items-center justify-between gap-2">
+                                      <span className="text-sm font-semibold text-foreground">
+                                        {t("marinheiro.jetSkiHeading")}
+                                      </span>
+                                      <Switch
+                                        checked={Boolean(boatForm.jetSkiOffered)}
+                                        onCheckedChange={(v) =>
+                                          setBoatForm({
+                                            ...boatForm,
+                                            jetSkiOffered: v,
+                                            ...(!v
+                                              ? { jetSkiPriceCents: 0, jetSkiImageUrls: [], jetSkiDocumentUrl: "" }
+                                              : {}),
+                                          })
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">{t("marinheiro.jetSkiHint")}</p>
+                                  {boatForm.jetSkiOffered ? (
+                                    <div className="space-y-2">
+                                      <div className="space-y-1">
+                                        <Label>{t("marinheiro.jetSkiPrice")}</Label>
+                                        <div className="relative max-w-xs">
+                                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                                            {t("common.currency")}
+                                          </span>
+                                          <Input
+                                            type="number"
+                                            min={1}
+                                            step={1}
+                                            className="pl-10"
+                                            value={Math.max(1, Math.round((boatForm.jetSkiPriceCents || 0) / 100))}
+                                            onChange={(e) =>
+                                              setBoatForm({
+                                                ...boatForm,
+                                                jetSkiPriceCents: Math.max(100, Number(e.target.value || 1)) * 100,
+                                              })
+                                            }
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <Label>{t("marinheiro.jetSkiPhotos")}</Label>
+                                        <Input
+                                          type="file"
+                                          accept="image/*"
+                                          multiple
+                                          onChange={async (e) => {
+                                            const files = Array.from(e.target.files || []);
+                                            const urls = await Promise.all(files.map(fileToDataUrl));
+                                            setBoatForm({
+                                              ...boatForm,
+                                              jetSkiImageUrls: [...(boatForm.jetSkiImageUrls || []), ...urls],
+                                            });
+                                          }}
+                                        />
+                                        {(boatForm.jetSkiImageUrls?.length ?? 0) > 0 ? (
+                                          <p className="text-xs text-muted-foreground">
+                                            {t("marinheiro.jetSkiPhotosCount", {
+                                              n: boatForm.jetSkiImageUrls?.length ?? 0,
+                                            })}
+                                          </p>
+                                        ) : (
+                                          <p className="text-xs text-destructive">{t("marinheiro.jetSkiPhotosRequired")}</p>
+                                        )}
+                                      </div>
+                                      <div className="space-y-1">
+                                        <Label>{t("marinheiro.jetSkiDoc")}</Label>
+                                        <Input
+                                          type="file"
+                                          accept="image/*,.pdf,application/pdf"
+                                          onChange={async (e) => {
+                                            const f = e.target.files?.[0];
+                                            if (!f) return;
+                                            const url = await fileToDataUrl(f);
+                                            setBoatForm({ ...boatForm, jetSkiDocumentUrl: url });
+                                          }}
+                                        />
+                                        <Input
+                                          placeholder={t("marinheiro.jetSkiDocUrlPh")}
+                                          value={
+                                            boatForm.jetSkiDocumentUrl?.startsWith("data:")
+                                              ? ""
+                                              : boatForm.jetSkiDocumentUrl || ""
+                                          }
+                                          onChange={(e) =>
+                                            setBoatForm({ ...boatForm, jetSkiDocumentUrl: e.target.value })
+                                          }
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </>
+                            ) : null}
                             <div className="space-y-2 rounded-xl border border-border bg-muted/20 p-3">
                               <Label className="text-sm font-semibold text-foreground">{t("calendar.title")}</Label>
                               <BoatCalendarPanel variant="owner" boatId={boat.id} />
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <Input placeholder={t("marinheiro.tie")} value={boatForm.tieDocumentUrl || ""} onChange={(e) => setBoatForm({ ...boatForm, tieDocumentUrl: e.target.value })} />
-                              <Input placeholder={t("marinheiro.tiem")} value={boatForm.tiemDocumentUrl || ""} onChange={(e) => setBoatForm({ ...boatForm, tiemDocumentUrl: e.target.value })} />
+                            <div className="space-y-1">
+                              <Label className="text-sm font-semibold text-foreground">{t("marinheiro.docs")}</Label>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <Input
+                                  placeholder={t("marinheiro.tie")}
+                                  value={boatForm.tieDocumentUrl || ""}
+                                  onChange={(e) => setBoatForm({ ...boatForm, tieDocumentUrl: e.target.value })}
+                                />
+                                <Input
+                                  placeholder={t("marinheiro.tiem")}
+                                  value={boatForm.tiemDocumentUrl || ""}
+                                  onChange={(e) => setBoatForm({ ...boatForm, tiemDocumentUrl: e.target.value })}
+                                />
+                              </div>
                             </div>
                             <Input placeholder={t("marinheiro.video")} value={boatForm.videoUrl || ""} onChange={(e) => setBoatForm({ ...boatForm, videoUrl: e.target.value })} />
                             <div className="space-y-1">
@@ -1240,7 +1666,7 @@ const Marinheiro_Page = () => {
                                 onClick={() => {
                                   setEditingBoatId(null);
                                   setBoatForm(null);
-                                  setEditRouteIslandsText("");
+                                  setEditRouteIslandRows([""]);
                                   setEditEmbarkLocsText("");
                                   setEditEmbarkTimesText("");
                                 }}

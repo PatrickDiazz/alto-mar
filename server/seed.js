@@ -22,7 +22,16 @@ function hashToUnit(seed) {
 }
 
 function generateBoats() {
-  const tipos = ["Lancha", "Veleiro", "Catamarã", "Iate", "Escuna"];
+  const tipos = [
+    "Lancha",
+    "Veleiro",
+    "Catamarã",
+    "Iate",
+    "Escuna",
+    "Moto aquática",
+    "Saveiro",
+    "Lancha inflável",
+  ];
   const regioes = ["Angra dos Reis/RJ", "Paraty/RJ", "Ilha Grande/RJ", "Mangaratiba/RJ", "Ubatuba/SP"];
   const locais = {
     "Angra dos Reis/RJ": ["Marina de Angra", "Cais de Santa Luzia", "Pier do Frade"],
@@ -46,9 +55,15 @@ function generateBoats() {
     const n = i + 1;
     const tipo = tipos[i % tipos.length];
     const reg = regioes[i % regioes.length];
-    const capacity = [6, 8, 10, 12, 16][i % 5];
-    const sizeFeet = [22, 25, 28, 32, 36][i % 5];
-    const price = 1800 + (i % 9) * 350 + (tipo === "Iate" ? 1200 : 0);
+    const capacity =
+      tipo === "Moto aquática" ? 2 : [6, 8, 10, 12, 16][i % 5];
+    const sizeFeet =
+      tipo === "Moto aquática" ? 12 : [22, 25, 28, 32, 36][i % 5];
+    const price =
+      1800 +
+      (i % 9) * 350 +
+      (tipo === "Iate" ? 1200 : 0) -
+      (tipo === "Moto aquática" ? 900 : 0);
     const rating = Math.min(5, 4.1 + (i % 8) * 0.1);
 
     const name =
@@ -60,7 +75,15 @@ function generateBoats() {
             ? `Catamarã Atlântico ${n}`
             : tipo === "Iate"
               ? `Iate Aurora ${n}`
-              : `Escuna Encanto ${n}`;
+              : tipo === "Escuna"
+                ? `Escuna Encanto ${n}`
+                : tipo === "Moto aquática"
+                  ? `Moto aquática Splash ${n}`
+                  : tipo === "Saveiro"
+                    ? `Saveiro Caiçara ${n}`
+                    : tipo === "Lancha inflável"
+                      ? `Lancha inflável Onda ${n}`
+                      : `Embarcação Demo ${n}`;
 
     const images = imageSets[i % imageSets.length];
 

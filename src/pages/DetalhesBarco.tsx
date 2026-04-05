@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -14,6 +14,7 @@ import {
   Heart,
   Check,
   X,
+  Waves,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
@@ -24,9 +25,19 @@ import { getStoredUser, authFetch } from "@/lib/auth";
 import { readResponseErrorMessage } from "@/lib/responseError";
 import { toast } from "sonner";
 import i18n from "@/i18n";
+import { bcp47FromAppLang } from "@/lib/localeFormat";
+import { vesselTypeLabel } from "@/lib/boatVesselTypes";
 
 const DetalhesBarco = () => {
-  const { t } = useTranslation();
+  const { t, i18n: i18nReact } = useTranslation();
+  const currencyFmt = useMemo(
+    () =>
+      new Intl.NumberFormat(bcp47FromAppLang(i18nReact.language), {
+        style: "currency",
+        currency: "BRL",
+      }),
+    [i18nReact.language]
+  );
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const {
@@ -279,7 +290,7 @@ const DetalhesBarco = () => {
           {/* Details chips */}
           <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
             <span className="flex items-center gap-1 bg-secondary px-3 py-1 rounded-full">
-              <Ship className="w-4 h-4" /> {barco.tipo}
+              <Ship className="w-4 h-4" /> {vesselTypeLabel(t, barco.tipo)}
             </span>
             <span className="flex items-center gap-1 bg-secondary px-3 py-1 rounded-full">
               <Ruler className="w-4 h-4" /> {barco.tamanho}
@@ -324,6 +335,37 @@ const DetalhesBarco = () => {
                     </div>
                   ))}
                 </div>
+              </div>
+            </>
+          ) : null}
+
+          {barco.jetSkiOffered && barco.jetSkiPriceCents ? (
+            <>
+              <hr className="border-border" />
+              <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <Waves className="w-5 h-5 text-primary shrink-0" />
+                  {t("detalhes.jetSkiTitle")}
+                </h3>
+                <p className="text-xs text-muted-foreground">{t("detalhes.jetSkiIntro")}</p>
+                <p className="text-sm font-medium text-foreground">
+                  + {currencyFmt.format(barco.jetSkiPriceCents / 100)}
+                </p>
+                {(barco.jetSkiImageUrls?.length ?? 0) > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {(barco.jetSkiImageUrls ?? []).map((url, i) => (
+                      <a
+                        key={`jet-${i}`}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block aspect-video overflow-hidden rounded-lg border border-border bg-muted"
+                      >
+                        <img src={url} alt="" className="h-full w-full object-cover" />
+                      </a>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </>
           ) : null}

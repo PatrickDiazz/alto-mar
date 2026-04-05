@@ -173,6 +173,38 @@ async function ensureBookingsRescheduleColumns() {
   );
 }
 
+async function ensureJetSkiBoatAndBookingColumns() {
+  await query(`alter table boats add column if not exists jet_ski_offered boolean not null default false`);
+  await query(
+    `alter table boats add column if not exists jet_ski_price_cents integer not null default 0`
+  );
+  await query(
+    `alter table boats add column if not exists jet_ski_image_urls text[] not null default '{}'::text[]`
+  );
+  await query(`alter table boats add column if not exists jet_ski_document_url text null`);
+  await query(
+    `alter table bookings add column if not exists jet_ski_selected boolean not null default false`
+  );
+}
+
+/** Preço fixo do kit churrasco (R$ 250) em centavos — alinhado ao frontend. */
+const KIT_CHURRASCO_CENTS = 250 * 100;
+
+function expectedBookingTotalCents(row) {
+  const boatPrice = Number(row.price_cents ?? 0);
+  let t = boatPrice;
+  if (row.bbq_kit) t += KIT_CHURRASCO_CENTS;
+  if (row.jet_ski_selected) {
+    if (!row.jet_ski_offered || Number(row.jet_ski_price_cents ?? 0) <= 0) {
+      const e = new Error("Moto aquática não disponível para esta embarcação.");
+      e.code = "JET_SKI_INVALID";
+      throw e;
+    }
+    t += Number(row.jet_ski_price_cents);
+  }
+  return Math.round(t);
+}
+
 /**
  * @param {string} boatId
  */
@@ -752,7 +784,11 @@ app.get("/api/boats", async (req, res) => {
          b.description,
          b.verified,
          coalesce(b.route_islands, '{}'::text[]) as route_islands,
-         coalesce(b.route_island_images, '{}'::jsonb) as route_island_images
+         coalesce(b.route_island_images, '{}'::jsonb) as route_island_images,
+         coalesce(b.jet_ski_offered, false) as jet_ski_offered,
+         coalesce(b.jet_ski_price_cents, 0) as jet_ski_price_cents,
+         coalesce(b.jet_ski_image_urls, '{}'::text[]) as jet_ski_image_urls,
+         b.jet_ski_document_url
        from boats b
        ${whereSql}
        order by b.created_at desc`,
@@ -844,6 +880,10 @@ app.get("/api/boats", async (req, res) => {
         b.route_island_images && typeof b.route_island_images === "object"
           ? b.route_island_images
           : {},
+      jetSkiOffered: Boolean(b.jet_ski_offered),
+      jetSkiPriceCents: Number(b.jet_ski_price_cents ?? 0),
+      jetSkiImageUrls: Array.isArray(b.jet_ski_image_urls) ? b.jet_ski_image_urls : [],
+      jetSkiDocumentUrl: b.jet_ski_document_url ?? null,
     }));
 
     return res.json({ boats: payload });
@@ -872,7 +912,11 @@ app.get("/api/boats/:id", async (req, res) => {
          b.description,
          b.verified,
          coalesce(b.route_islands, '{}'::text[]) as route_islands,
-         coalesce(b.route_island_images, '{}'::jsonb) as route_island_images
+         coalesce(b.route_island_images, '{}'::jsonb) as route_island_images,
+         coalesce(b.jet_ski_offered, false) as jet_ski_offered,
+         coalesce(b.jet_ski_price_cents, 0) as jet_ski_price_cents,
+         coalesce(b.jet_ski_image_urls, '{}'::text[]) as jet_ski_image_urls,
+         b.jet_ski_document_url
        from boats b
        where b.id = $1
        limit 1`,
@@ -918,6 +962,10 @@ app.get("/api/boats/:id", async (req, res) => {
         routeIslands: normalizeRouteIslands(b.route_islands),
         routeIslandImages:
           b.route_island_images && typeof b.route_island_images === "object" ? b.route_island_images : {},
+        jetSkiOffered: Boolean(b.jet_ski_offered),
+        jetSkiPriceCents: Number(b.jet_ski_price_cents ?? 0),
+        jetSkiImageUrls: Array.isArray(b.jet_ski_image_urls) ? b.jet_ski_image_urls : [],
+        jetSkiDocumentUrl: b.jet_ski_document_url ?? null,
       },
     });
   } catch (e) {
@@ -1059,7 +1107,11 @@ app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, r
          b.tiem_document_url,
          b.video_url,
          b.route_islands,
-         coalesce(b.route_island_images, '{}'::jsonb) as route_island_images
+         coalesce(b.route_island_images, '{}'::jsonb) as route_island_images,
+         coalesce(b.jet_ski_offered, false) as jet_ski_offered,
+         coalesce(b.jet_ski_price_cents, 0) as jet_ski_price_cents,
+         coalesce(b.jet_ski_image_urls, '{}'::text[]) as jet_ski_image_urls,
+         b.jet_ski_document_url
        from boats b
        where b.owner_user_id = $1
        order by b.created_at desc`,
@@ -1148,6 +1200,10 @@ app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, r
         amenidades: amenitiesByBoat[b.id] || [],
         locaisEmbarque: locsByOwnerBoat[b.id] || [],
         horariosEmbarque: slotsByOwnerBoat[b.id] || [],
+        jetSkiOffered: Boolean(b.jet_ski_offered),
+        jetSkiPriceCents: Number(b.jet_ski_price_cents ?? 0),
+        jetSkiImageUrls: Array.isArray(b.jet_ski_image_urls) ? b.jet_ski_image_urls : [],
+        jetSkiDocumentUrl: b.jet_ski_document_url ?? null,
       })),
     });
   } catch (e) {
@@ -1175,6 +1231,10 @@ const ownerUpdateBoatSchema = z.object({
   imagens: z.array(assetOrUrlSchema).max(20).optional(),
   locaisEmbarque: z.array(z.string().min(1).max(200)).max(50).optional(),
   horariosEmbarque: z.array(z.string().min(1).max(5)).max(50).optional(),
+  jetSkiOffered: z.boolean(),
+  jetSkiPriceCents: z.number().int().min(0).max(500000000).optional(),
+  jetSkiImageUrls: z.array(assetOrUrlSchema).max(12).optional(),
+  jetSkiDocumentUrl: z.union([assetOrUrlSchema, z.null()]).optional(),
 });
 
 app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (req, res) => {
@@ -1182,7 +1242,27 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
     const boatId = req.params.id;
     const body = ownerUpdateBoatSchema.parse(req.body || {});
 
+    const jetOffered = body.jetSkiOffered === true;
+    const jetImgs = Array.isArray(body.jetSkiImageUrls) ? body.jetSkiImageUrls : [];
+    const jetDoc = body.jetSkiDocumentUrl != null ? String(body.jetSkiDocumentUrl).trim() : "";
+    if (jetOffered) {
+      const pc = Number(body.jetSkiPriceCents ?? 0);
+      if (!Number.isFinite(pc) || pc < 100) {
+        return res.status(400).send("Defina o preço da moto aquática (mínimo R$ 1,00).");
+      }
+      if (jetImgs.length < 1) {
+        return res.status(400).send("Envie pelo menos uma foto da moto aquática.");
+      }
+      if (!jetDoc) {
+        return res.status(400).send("Envie a documentação da moto aquática (ficheiro ou URL).");
+      }
+    }
+
     const riJson = body.routeIslandImages != null ? JSON.stringify(body.routeIslandImages) : "{}";
+
+    const jetSkiPriceFinal = jetOffered ? Number(body.jetSkiPriceCents ?? 0) : 0;
+    const jetSkiImagesFinal = jetOffered ? jetImgs : [];
+    const jetSkiDocFinal = jetOffered ? jetDoc : null;
 
     const updated = await query(
       `update boats
@@ -1198,9 +1278,13 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
            tiem_document_url = $12,
            video_url = $13,
            route_islands = $14,
-           route_island_images = $15::jsonb
+           route_island_images = $15::jsonb,
+           jet_ski_offered = $16,
+           jet_ski_price_cents = $17,
+           jet_ski_image_urls = $18,
+           jet_ski_document_url = $19
        where id = $1 and owner_user_id = $2
-       returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands, route_island_images`,
+       returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands, route_island_images, jet_ski_offered, jet_ski_price_cents, jet_ski_image_urls, jet_ski_document_url`,
       [
         boatId,
         req.user.sub,
@@ -1217,6 +1301,10 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
         body.videoUrl ?? null,
         body.routeIslands ?? [],
         riJson,
+        jetOffered,
+        jetSkiPriceFinal,
+        jetSkiImagesFinal,
+        jetSkiDocFinal,
       ]
     );
 
@@ -1274,6 +1362,10 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
         imagens: imgs.rows.map((r) => r.url),
         locaisEmbarque: embLocRows.rows.map((r) => r.name),
         horariosEmbarque: embSlotRows.rows.map((r) => r.t),
+        jetSkiOffered: Boolean(b.jet_ski_offered),
+        jetSkiPriceCents: Number(b.jet_ski_price_cents ?? 0),
+        jetSkiImageUrls: Array.isArray(b.jet_ski_image_urls) ? b.jet_ski_image_urls : [],
+        jetSkiDocumentUrl: b.jet_ski_document_url ?? null,
       },
     });
   } catch (e) {
@@ -1298,16 +1390,40 @@ const ownerCreateBoatSchema = z.object({
   imagens: z.array(assetOrUrlSchema).max(20).default([]),
   locaisEmbarque: z.array(z.string().min(1).max(200)).max(50).optional(),
   horariosEmbarque: z.array(z.string().min(1).max(5)).max(50).optional(),
+  jetSkiOffered: z.boolean().default(false),
+  jetSkiPriceCents: z.number().int().min(0).max(500000000).optional(),
+  jetSkiImageUrls: z.array(assetOrUrlSchema).max(12).optional(),
+  jetSkiDocumentUrl: z.union([assetOrUrlSchema, z.null()]).optional(),
 });
 
 app.post("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, res) => {
   try {
     const body = ownerCreateBoatSchema.parse(req.body || {});
+    const jetOffered = body.jetSkiOffered === true;
+    const jetImgs = Array.isArray(body.jetSkiImageUrls) ? body.jetSkiImageUrls : [];
+    const jetDoc = body.jetSkiDocumentUrl != null ? String(body.jetSkiDocumentUrl).trim() : "";
+    if (jetOffered) {
+      const pc = Number(body.jetSkiPriceCents ?? 0);
+      if (!Number.isFinite(pc) || pc < 100) {
+        return res.status(400).send("Defina o preço da moto aquática (mínimo R$ 1,00).");
+      }
+      if (jetImgs.length < 1) {
+        return res.status(400).send("Envie pelo menos uma foto da moto aquática.");
+      }
+      if (!jetDoc) {
+        return res.status(400).send("Envie a documentação da moto aquática (ficheiro ou URL).");
+      }
+    }
+    const jetSkiPriceFinal = jetOffered ? Number(body.jetSkiPriceCents ?? 0) : 0;
+    const jetSkiImagesFinal = jetOffered ? jetImgs : [];
+    const jetSkiDocFinal = jetOffered ? jetDoc : null;
+
     const riJson = body.routeIslandImages != null ? JSON.stringify(body.routeIslandImages) : "{}";
     const created = await query(
       `insert into boats
-        (owner_user_id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands, route_island_images)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb)
+        (owner_user_id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands, route_island_images,
+         jet_ski_offered, jet_ski_price_cents, jet_ski_image_urls, jet_ski_document_url)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19)
        returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands, route_island_images`,
       [
         req.user.sub,
@@ -1325,6 +1441,10 @@ app.post("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, 
         body.videoUrl ?? null,
         body.routeIslands ?? [],
         riJson,
+        jetOffered,
+        jetSkiPriceFinal,
+        jetSkiImagesFinal,
+        jetSkiDocFinal,
       ]
     );
     const b = created.rows[0];
@@ -1477,6 +1597,7 @@ const createBookingSchema = z.object({
   passengersChildren: z.number().int().min(0),
   hasKids: z.boolean(),
   bbqKit: z.boolean(),
+  jetSki: z.boolean().optional().default(false),
   embarkLocation: z.union([z.string().max(200), z.null()]).optional(),
   embarkTime: z.union([z.string().max(5), z.null()]).optional(),
   totalCents: z.number().int().min(0),
@@ -1487,7 +1608,10 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
   try {
     const body = createBookingSchema.parse(req.body);
 
-    const boat = await query(`select id, owner_user_id, capacity from boats where id = $1`, [body.boatId]);
+    const boat = await query(
+      `select id, owner_user_id, capacity, price_cents, jet_ski_offered, jet_ski_price_cents from boats where id = $1`,
+      [body.boatId]
+    );
     const b = boat.rows[0];
     if (!b) return res.status(404).send("Barco não encontrado.");
     if (body.passengersAdults + body.passengersChildren > Number(b.capacity ?? 0)) {
@@ -1522,12 +1646,33 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
       return res.status(400).send(msg);
     }
 
+    if (body.jetSki && !b.jet_ski_offered) {
+      return res.status(400).send("Esta embarcação não oferece moto aquática.");
+    }
+
+    let expectedTotal;
+    try {
+      expectedTotal = expectedBookingTotalCents({
+        price_cents: b.price_cents,
+        bbq_kit: body.bbqKit,
+        jet_ski_selected: body.jetSki,
+        jet_ski_offered: b.jet_ski_offered,
+        jet_ski_price_cents: b.jet_ski_price_cents,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Total inválido.";
+      return res.status(400).send(msg);
+    }
+    if (body.totalCents !== expectedTotal) {
+      return res.status(400).send("Total da reserva inconsistente. Atualize a página e tente novamente.");
+    }
+
     const created = await query(
       `insert into bookings
         (boat_id, renter_user_id, owner_user_id, status,
-         passengers_adults, passengers_children, has_kids, bbq_kit,
+         passengers_adults, passengers_children, has_kids, bbq_kit, jet_ski_selected,
          embark_location, embark_time, total_cents, route_islands, booking_date)
-       values ($1,$2,$3,'PENDING',$4,$5,$6,$7,$8,$9::time,$10,$11,$12)
+       values ($1,$2,$3,'PENDING',$4,$5,$6,$7,$8,$9,$10::time,$11,$12,$13)
        returning id, status, created_at`,
       [
         body.boatId,
@@ -1537,6 +1682,7 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
         body.passengersChildren,
         body.hasKids,
         body.bbqKit,
+        body.jetSki,
         locFinal,
         timeFinal,
         body.totalCents,
@@ -1586,6 +1732,7 @@ const renterUpdateBookingSchema = z.object({
   passengersChildren: z.number().int().min(0).optional(),
   hasKids: z.boolean().optional(),
   bbqKit: z.boolean().optional(),
+  jetSki: z.boolean().optional(),
   embarkLocation: z.union([z.string().max(200), z.null()]).optional(),
   embarkTime: z.union([z.string().max(5), z.null()]).optional(),
   totalCents: z.number().int().min(0).optional(),
@@ -1610,6 +1757,7 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
          bk.passengers_children,
          bk.has_kids,
          bk.bbq_kit,
+         bk.jet_ski_selected,
          bk.embark_location,
          to_char(bk.embark_time, 'HH24:MI') as embark_time,
          bk.total_cents,
@@ -1619,6 +1767,8 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
          b.name as boat_name,
          b.location_text as boat_location,
          b.capacity as boat_capacity,
+         coalesce(b.jet_ski_offered, false) as jet_ski_offered,
+         coalesce(b.jet_ski_price_cents, 0) as jet_ski_price_cents,
          br.boat_stars,
          br.boat_comment,
          br.boat_rated_at,
@@ -1654,6 +1804,7 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
         passengersChildren: r.passengers_children,
         hasKids: r.has_kids,
         bbqKit: r.bbq_kit,
+        jetSki: r.jet_ski_selected,
         embarkLocation: r.embark_location,
         embarkTime: r.embark_time,
         embarkLocationOptions: Array.isArray(r.embark_loc_options) ? r.embark_loc_options : [],
@@ -1661,7 +1812,14 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
         totalCents: r.total_cents,
         bookingDate: r.booking_date,
         routeIslands: Array.isArray(r.route_islands) ? r.route_islands : [],
-        boat: { id: r.boat_id, nome: r.boat_name, distancia: r.boat_location, capacidade: r.boat_capacity },
+        boat: {
+          id: r.boat_id,
+          nome: r.boat_name,
+          distancia: r.boat_location,
+          capacidade: r.boat_capacity,
+          jetSkiOffered: Boolean(r.jet_ski_offered),
+          jetSkiPriceCents: Number(r.jet_ski_price_cents ?? 0),
+        },
         rescheduleReason: r.reschedule_reason ?? null,
         rescheduleTitle: r.reschedule_title ?? null,
         rescheduleNote: r.reschedule_note ?? null,
@@ -1688,8 +1846,12 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
     const body = renterUpdateBookingSchema.parse(req.body || {});
     const cur = await query(
       `select bk.status, bk.boat_id, bk.passengers_adults, bk.passengers_children, bk.booking_date::text as bd,
-              bk.embark_location, to_char(bk.embark_time, 'HH24:MI') as embark_time
+              bk.embark_location, to_char(bk.embark_time, 'HH24:MI') as embark_time,
+              bk.bbq_kit, bk.jet_ski_selected,
+              b.price_cents, coalesce(b.jet_ski_offered, false) as jet_ski_offered,
+              coalesce(b.jet_ski_price_cents, 0) as jet_ski_price_cents
        from bookings bk
+       join boats b on b.id = bk.boat_id
        where bk.id = $1 and bk.renter_user_id = $2 limit 1`,
       [bookingId, req.user.sub]
     );
@@ -1773,6 +1935,31 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
       }
     }
 
+    const row0 = cur.rows[0];
+    const nextBbq = body.bbqKit !== undefined ? body.bbqKit : row0.bbq_kit;
+    const nextJet = body.jetSki !== undefined ? body.jetSki : row0.jet_ski_selected;
+    if (nextJet && !row0.jet_ski_offered) {
+      return res.status(400).send("Esta embarcação não oferece moto aquática.");
+    }
+    if (body.totalCents !== undefined) {
+      let expectedTotal;
+      try {
+        expectedTotal = expectedBookingTotalCents({
+          price_cents: row0.price_cents,
+          bbq_kit: nextBbq,
+          jet_ski_selected: nextJet,
+          jet_ski_offered: row0.jet_ski_offered,
+          jet_ski_price_cents: row0.jet_ski_price_cents,
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Total inválido.";
+        return res.status(400).send(msg);
+      }
+      if (body.totalCents !== expectedTotal) {
+        return res.status(400).send("Total da reserva inconsistente. Atualize a página e tente novamente.");
+      }
+    }
+
     const sets = [];
     const vals = [bookingId, req.user.sub];
     let n = 3;
@@ -1794,6 +1981,11 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
     if (body.bbqKit !== undefined) {
       sets.push(`bbq_kit = $${n}`);
       vals.push(body.bbqKit);
+      n += 1;
+    }
+    if (body.jetSki !== undefined) {
+      sets.push(`jet_ski_selected = $${n}`);
+      vals.push(body.jetSki);
       n += 1;
     }
     if (body.embarkLocation !== undefined) {
@@ -1932,6 +2124,7 @@ app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req
          bk.passengers_children,
          bk.has_kids,
          bk.bbq_kit,
+         bk.jet_ski_selected,
          bk.embark_location,
          to_char(bk.embark_time, 'HH24:MI') as embark_time,
          bk.total_cents,
@@ -1939,6 +2132,8 @@ app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req
          coalesce(bk.route_islands, '{}'::text[]) as route_islands,
          b.id as boat_id,
          b.name as boat_name,
+         coalesce(b.jet_ski_offered, false) as boat_jet_ski_offered,
+         coalesce(b.jet_ski_price_cents, 0) as boat_jet_ski_price_cents,
          u.id as renter_id,
          u.name as renter_name,
          u.email as renter_email,
@@ -1969,12 +2164,18 @@ app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req
         passengersChildren: r.passengers_children,
         hasKids: r.has_kids,
         bbqKit: r.bbq_kit,
+        jetSki: r.jet_ski_selected,
         embarkLocation: r.embark_location,
         embarkTime: r.embark_time,
         totalCents: r.total_cents,
         bookingDate: r.booking_date,
         routeIslands: Array.isArray(r.route_islands) ? r.route_islands : [],
-        boat: { id: r.boat_id, nome: r.boat_name },
+        boat: {
+          id: r.boat_id,
+          nome: r.boat_name,
+          jetSkiOffered: Boolean(r.boat_jet_ski_offered),
+          jetSkiPriceCents: Number(r.boat_jet_ski_price_cents ?? 0),
+        },
         renter: { id: r.renter_id, nome: r.renter_name, email: r.renter_email },
         rescheduleReason: r.reschedule_reason ?? null,
         rescheduleTitle: r.reschedule_title ?? null,
@@ -2293,6 +2494,7 @@ Teste: http://127.0.0.1:3001/api/health
     await ensureBookingRatingsTable();
     await ensureBoatEmbarkSlotsAndBookingEmbarkColumns();
     await ensureBookingsRescheduleColumns();
+    await ensureJetSkiBoatAndBookingColumns();
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
     // eslint-disable-next-line no-console

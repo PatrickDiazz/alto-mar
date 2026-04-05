@@ -26,11 +26,11 @@ export function useBarcos(amenityFilters?: string[] | null) {
     retry: import.meta.env.DEV ? 1 : 5,
     retryDelay: (attempt) =>
       import.meta.env.DEV ? Math.min(800, 200 + 200 * attempt) : Math.min(4000, 500 + 600 * 2 ** attempt),
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     refetchInterval: boatsRefetchInterval,
     refetchIntervalInBackground: true,
-    staleTime: 30_000,
+    staleTime: 120_000,
     gcTime: 10 * 60_000,
     networkMode: "online",
     queryFn: async (): Promise<Boat[]> => {

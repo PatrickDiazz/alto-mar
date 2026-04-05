@@ -24,4 +24,8 @@ npm run dev:all
 ## Variáveis (produção)
 
 - **Vercel:** `VITE_API_BASE_URL` = URL HTTPS da API (sem `/` no final).  
-- **Railway (API):** `DATABASE_URL`, `JWT_SECRET`, `FRONTEND_URL` = URL do site no Vercel.
+- **Railway (API):** `DATABASE_URL`, **`JWT_SECRET`** (obrigatório — string longa e aleatória, ex. `openssl rand -hex 32`), **`FRONTEND_URL`** = URL HTTPS do site no Vercel. Sem `JWT_SECRET` a API **não arranca**.
+
+### CORS
+
+- Por defeito a API aceita qualquer `Origin` (útil em dev e previews). Em **produção**, define **`CORS_STRICT=1`** (ou `true`) no serviço da API e garante **`FRONTEND_URL`** +, se precisares, **`EXTRA_CORS_ORIGINS`** (domínios extra separados por vírgula). Vê `server/.env.example` e [docs/DEPLOY.md](docs/DEPLOY.md).

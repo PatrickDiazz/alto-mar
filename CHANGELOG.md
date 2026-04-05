@@ -8,6 +8,37 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
+## [Unreleased]
+
+---
+
+## [0.11.0] — 2026-04-03
+
+### Adicionado
+
+- **Explorar (banhista)**: imagem de fundo no herói (`explore-banhista-hero`) com overlay e desvanecimento ao scroll; animação Tailwind **`explore-pill-in`** (e keyframes associados) na transição cartão de filtros ↔ pílula **Buscar e filtrar**.
+- **Filtros**: estado colapsado com **histerese** de scroll (evita flicker); abertura manual com âncora de scroll; ícones de filtro maiores e cartão até **`max-w-2xl`**, alinhado à coluna do título.
+- **Header Explorar**: barra única *sticky* com grelha **`1fr auto 1fr`** (logo · filtros centrados · conta).
+- **Listagem**: secções por destaque (melhor avaliação, melhor preço, por tipo de embarcação); cópias em **pt / en / es** (incl. `filtersCollapsedCta`, `sectionBestPriceHint`).
+- **Branding**: logo escuro (`logo-altomar-dark.png`) para tema escuro no header.
+
+### Alterado
+
+- **Explorar**: fluxo visual e cópias (título principal sem parágrafo introdutório removido do layout); **ExploreFiltersCard** sem `lg:max-w-none` forçado; **sheet** e outros ajustes de UI em ficheiros tocados nesta release.
+- **Barcos e reservas**: tipos e filtros de exploração (`boatVesselTypes`, `exploreFilters`, `useBarcos`); cartões e páginas **Detalhes**, **Reservar**, **Marinheiro**; painel de reservas do banhista alinhados ao modelo e à API.
+- **Base de dados**: `schema.sql`, `schema-cloud.sql`, `docker/init` e script **`jet_ski_option.sql`**; ajustes em **seed** e auth no servidor.
+- **API**: o servidor **termina ao arrancar** se `JWT_SECRET` estiver em falta ou vazio; removido o fallback inseguro nos tokens JWT.
+
+### Documentação
+
+- **README** e **`server/.env.example`**: `JWT_SECRET` obrigatório; CORS em produção (`CORS_STRICT`, `FRONTEND_URL`, `EXTRA_CORS_ORIGINS`).
+
+### Documentação / versões
+
+- **Semver**: cliente e servidor **0.11.0**; Android `versionName` **0.11.0**, `versionCode` **6**.
+
+---
+
 ## [0.10.6] — 2026-04-04
 
 ### Adicionado
@@ -240,5 +271,5 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ## Tags Git e releases
 
-- A tag **`v0.10.5`** marca o estado actual do código alinhado a este changelog.
+- A tag **`v0.11.0`** marca o estado actual do código alinhado a este changelog.
 - Versões **0.1.0–0.9.0** são documentais (histórico retroactivo); pode criar tags adicionais nos commits antigos se precisar de comparações no GitHub.

@@ -179,6 +179,8 @@ EXTRA_CORS_ORIGINS=https://alto-mar.vercel.app,https://alto-<preview>.vercel.app
 
 Sem barra `/` no final. Depois faça **Redeploy** da API.
 
+Para **restringir origens** (recomendado quando o front já tem URL estável), defina no Railway **`CORS_STRICT=1`**. A API passa a aceitar só `FRONTEND_URL`, localhost de dev, `*.vercel.app` e o que estiver em **`EXTRA_CORS_ORIGINS`**.
+
 ### E.2 — Erro 502 + CORS no navegador
 
 Se no navegador aparecer “blocked by CORS” junto com `502 Bad Gateway`, normalmente **não é CORS puro**: a API está quebrando antes de responder.
@@ -207,7 +209,7 @@ ALTER TABLE boats
 ## Checklist rápido
 
 - [ ] Postgres na nuvem com schema aplicado  
-- [ ] Railway: serviço em `server/`, `npm start`, `DATABASE_URL`, `JWT_SECRET`, `FRONTEND_URL`  
+- [ ] Railway: serviço em `server/`, `npm start`, `DATABASE_URL`, **`JWT_SECRET`** (obrigatório — sem ele a API não sobe), `FRONTEND_URL`  
 - [ ] `npm run seed` contra o banco de produção (opcional mas recomendado para demo)  
 - [ ] Vercel: `VITE_API_BASE_URL` = URL HTTPS da API  
 - [ ] `FRONTEND_URL` no Railway = URL HTTPS do Vercel + redeploy API  

@@ -23,5 +23,10 @@ export type Boat = {
   routeIslands?: string[];
   /** URLs de imagens por nome da parada (praias do roteiro) */
   routeIslandImages?: Record<string, string[]>;
+  /** Locador oferece moto aquática opcional na reserva */
+  jetSkiOffered?: boolean;
+  jetSkiPriceCents?: number;
+  jetSkiImageUrls?: string[];
+  jetSkiDocumentUrl?: string | null;
 };
 

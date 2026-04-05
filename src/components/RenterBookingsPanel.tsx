@@ -36,13 +36,21 @@ type RenterBooking = {
   passengersChildren: number;
   hasKids: boolean;
   bbqKit: boolean;
+  jetSki?: boolean;
   embarkLocation: string | null;
   embarkTime?: string | null;
   embarkLocationOptions?: string[];
   embarkTimeOptions?: string[];
   totalCents: number;
   routeIslands: string[];
-  boat: { id: string; nome: string; distancia: string; capacidade?: number };
+  boat: {
+    id: string;
+    nome: string;
+    distancia: string;
+    capacidade?: number;
+    jetSkiOffered?: boolean;
+    jetSkiPriceCents?: number;
+  };
   ratingBoat?: { stars: number; comment: string | null; ratedAt: string } | null;
   rescheduleReason?: RescheduleReason | null;
   rescheduleTitle?: string | null;
@@ -157,8 +165,16 @@ export function RenterBookingsPanel() {
     }
     try {
       const oldR = original.totalCents / 100;
-      const base = oldR - (original.bbqKit ? KIT_CHURRASCO_PRECO : 0);
-      const newTotalReais = base + (editDraft.bbqKit ? KIT_CHURRASCO_PRECO : 0);
+      const jetCents = original.boat.jetSkiOffered ? Number(original.boat.jetSkiPriceCents || 0) : 0;
+      const jetReais = jetCents / 100;
+      const base =
+        oldR -
+        (original.bbqKit ? KIT_CHURRASCO_PRECO : 0) -
+        (original.jetSki && jetCents > 0 ? jetReais : 0);
+      const newTotalReais =
+        base +
+        (editDraft.bbqKit ? KIT_CHURRASCO_PRECO : 0) +
+        (editDraft.jetSki && jetCents > 0 ? jetReais : 0);
       const locOpts = original.embarkLocationOptions ?? [];
       const timeOpts = original.embarkTimeOptions ?? [];
       const payload: Record<string, unknown> = {
@@ -166,6 +182,7 @@ export function RenterBookingsPanel() {
         passengersChildren: editDraft.passengersChildren,
         hasKids: editDraft.hasKids,
         bbqKit: editDraft.bbqKit,
+        jetSki: editDraft.jetSki ?? original.jetSki ?? false,
         embarkLocation: locOpts.length > 0 ? (editDraft.embarkLocation ?? null) : null,
         embarkTime: timeOpts.length > 0 ? (editDraft.embarkTime ?? null) : null,
         totalCents: Math.round(newTotalReais * 100),
@@ -552,6 +569,13 @@ function BookingCard({
             {d.hasKids ? ` + ${d.passengersChildren} ${t("reservar.kids")}` : ""} ·{" "}
             {t("reservar.maxCap", { n: cap })}
           </p>
+          {d.bbqKit || (Boolean(d.jetSki) && b.boat.jetSkiOffered) ? (
+            <p className="text-xs text-muted-foreground">
+              {d.bbqKit ? t("reservar.bbqTitle") : ""}
+              {d.bbqKit && Boolean(d.jetSki) && b.boat.jetSkiOffered ? " · " : ""}
+              {Boolean(d.jetSki) && b.boat.jetSkiOffered ? t("reservar.jetSkiTitle") : ""}
+            </p>
+          ) : null}
 
           {b.status === "ACCEPTED" ? (
             <div
@@ -819,6 +843,23 @@ function BookingCard({
               onCheckedChange={(v) => setEditDraft({ ...editDraft, bbqKit: v })}
             />
           </div>
+          {b.boat.jetSkiOffered ? (
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <Label>{t("reservar.jetSkiTitle")}</Label>
+                <p className="text-[11px] text-muted-foreground">{t("reservar.jetSkiDesc")}</p>
+                {b.boat.jetSkiPriceCents ? (
+                  <p className="text-xs font-medium text-foreground">
+                    + {currencyFmt.format(b.boat.jetSkiPriceCents / 100)}
+                  </p>
+                ) : null}
+              </div>
+              <Switch
+                checked={Boolean(editDraft.jetSki)}
+                onCheckedChange={(v) => setEditDraft({ ...editDraft, jetSki: v })}
+              />
+            </div>
+          ) : null}
           <div>
             <Label>{t("reservasConta.routeStops")}</Label>
             <Input

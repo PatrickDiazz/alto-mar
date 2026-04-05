@@ -88,11 +88,23 @@ export default {
           from: { opacity: "0", transform: "translateY(10px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        /** Explorar: pílula “Buscar e filtrar” — entrada com leve overshoot */
+        "explore-pill-in": {
+          "0%": { opacity: "0", transform: "translateY(10px) scale(0.82)" },
+          "65%": { opacity: "1", transform: "translateY(-2px) scale(1.04)" },
+          "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
+        },
+        "explore-pill-out": {
+          "0%": { opacity: "1", transform: "translateY(0) scale(1)" },
+          "100%": { opacity: "0", transform: "translateY(8px) scale(0.88)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "fade-in": "fade-in 0.4s ease-out forwards",
+        "explore-pill-in": "explore-pill-in 0.48s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "explore-pill-out": "explore-pill-out 0.32s cubic-bezier(0.4, 0, 0.2, 1) both",
       },
     },
   },

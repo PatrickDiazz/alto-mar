@@ -56,6 +56,10 @@ CREATE TABLE IF NOT EXISTS boats (
   video_url text NULL,
   route_islands text[] NOT NULL DEFAULT '{}'::text[],
   route_island_images jsonb NOT NULL DEFAULT '{}'::jsonb,
+  jet_ski_offered boolean NOT NULL DEFAULT false,
+  jet_ski_price_cents integer NOT NULL DEFAULT 0 CHECK (jet_ski_price_cents >= 0),
+  jet_ski_image_urls text[] NOT NULL DEFAULT '{}'::text[],
+  jet_ski_document_url text NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -121,6 +125,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   reschedule_title text NULL,
   reschedule_note text NULL,
   reschedule_attachments text[] NOT NULL DEFAULT '{}'::text[],
+  jet_ski_selected boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   decided_at timestamptz NULL,
   decision_note text NULL

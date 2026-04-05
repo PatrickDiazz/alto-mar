@@ -28,8 +28,6 @@ const FILTER_ICONS: Record<(typeof EXPLORE_MAIN_FILTER_KEYS)[number], LucideIcon
   included: Package,
 };
 
-const JETSKY_TYPE = "Jetsky";
-
 type ExploreFiltersCardProps = {
   busca: string;
   onBuscaChange: (v: string) => void;
@@ -49,6 +47,11 @@ type ExploreFiltersCardProps = {
   amenityNames: string[];
   tiposDisponiveis: string[];
   labelTipo: (tipo: string) => string;
+  /** Primeiro nível de scroll: mais enxuto. */
+  compact?: boolean;
+  /** Segundo nível (scroll longo): barra mínima. */
+  micro?: boolean;
+  className?: string;
 };
 
 export function ExploreFiltersCard({
@@ -69,8 +72,12 @@ export function ExploreFiltersCard({
   amenityNames,
   tiposDisponiveis,
   labelTipo,
+  compact = false,
+  micro = false,
+  className,
 }: ExploreFiltersCardProps) {
   const { t } = useTranslation();
+  const density = micro ? 2 : compact ? 1 : 0;
   const sugListId = useId();
   const [locFocused, setLocFocused] = useState(false);
   const [hi, setHi] = useState(-1);
@@ -92,11 +99,38 @@ export function ExploreFiltersCard({
   }, [showSug]);
 
   return (
-    <div className="mx-auto w-full max-w-md rounded-xl border border-border bg-card shadow-card">
-      <div className="p-3 space-y-3">
+    <div
+      className={cn(
+        "mx-auto w-full max-w-md border border-border bg-card/95 backdrop-blur-md transition-[padding,box-shadow,border-radius] duration-200",
+        density === 0 && "rounded-xl shadow-sm",
+        density === 1 && "rounded-lg shadow-sm",
+        density === 2 && "rounded-md border-border/70 shadow-none",
+        className
+      )}
+    >
+      <div
+        className={cn(
+          density === 0 && "space-y-2 p-2",
+          density === 1 && "space-y-1.5 p-1.5",
+          density === 2 && "space-y-1 p-1"
+        )}
+      >
         <div ref={wrapRef} className="relative">
-          <div className="flex items-center gap-2 rounded-full border border-input bg-background px-3 py-2.5 shadow-sm">
-            <MapPin className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+          <div
+            className={cn(
+              "flex items-center rounded-full border border-input bg-background",
+              density === 0 && "gap-1.5 px-2.5 py-1.5",
+              density === 1 && "gap-1 px-2 py-1",
+              density === 2 && "h-7 min-h-7 gap-1 px-1.5 py-0"
+            )}
+          >
+            <MapPin
+              className={cn(
+                "shrink-0 text-primary",
+                density === 0 ? "h-5 w-5" : density === 1 ? "h-4 w-4" : "h-3.5 w-3.5"
+              )}
+              aria-hidden
+            />
             <input
               value={busca}
               onChange={(e) => onBuscaChange(e.target.value)}
@@ -121,7 +155,11 @@ export function ExploreFiltersCard({
                 }
               }}
               placeholder={t("explorar.searchLocationPlaceholder")}
-              className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+              className={cn(
+                "min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground",
+                density === 0 && "text-xs",
+                density >= 1 && "text-[11px] leading-snug"
+              )}
               type="search"
               enterKeyHint="search"
               autoComplete="off"
@@ -164,27 +202,61 @@ export function ExploreFiltersCard({
           )}
         </div>
 
-        <div className="border-t border-border pt-3">
-          <p className="mb-2 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        <div className={cn("border-t border-border", density === 0 && "pt-1.5", density === 1 && "pt-1", density === 2 && "pt-1")}>
+          <p
+            className={cn(
+              "text-center font-medium uppercase tracking-wide text-muted-foreground",
+              density === 0 && "mb-1.5 text-[9px]",
+              density === 1 && "mb-1 text-[8px]",
+              density === 2 && "sr-only"
+            )}
+          >
             {t("explorar.filtersHeading")}
           </p>
-          <div className="grid grid-cols-5 gap-0.5 sm:gap-1">
+          <div
+            className={cn(
+              density === 2
+                ? "flex flex-nowrap gap-0 overflow-x-auto overscroll-x-contain py-0.5 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden touch-pan-x lg:flex-wrap lg:justify-center lg:overflow-visible"
+                : "grid max-lg:grid-cols-5 gap-0.5 lg:flex lg:flex-wrap lg:justify-center lg:gap-1"
+            )}
+          >
             {EXPLORE_MAIN_FILTER_KEYS.map((key) => {
               const Icon = FILTER_ICONS[key];
               const isActive = mainFilter === key;
+              const label = t(`explorar.filters.${key}`);
               return (
                 <button
                   key={key}
                   type="button"
+                  title={label}
+                  aria-label={label}
                   onClick={() => onMainFilterChange(isActive ? "all" : key)}
                   className={cn(
-                    "flex flex-col items-center gap-0.5 rounded-lg px-1 py-2 transition-all duration-200 sm:px-2",
+                    "flex flex-col items-center justify-center rounded-md transition-all duration-200",
+                    density === 2
+                      ? "min-w-[2.35rem] shrink-0 px-0.5 py-0.5"
+                      : "gap-0.5 lg:flex-1 lg:max-w-[140px] lg:flex-row lg:justify-center lg:gap-1.5",
+                    density === 0 && "px-0.5 py-1 lg:px-2",
+                    density === 1 && "px-0.5 py-0.5 lg:px-1.5",
                     isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                   )}
                 >
-                  <Icon className="h-5 w-5 shrink-0" />
-                  <span className={cn("text-[10px] leading-tight", isActive ? "font-bold" : "font-medium")}>
-                    {t(`explorar.filters.${key}`)}
+                  <Icon
+                    className={cn(
+                      "shrink-0",
+                      density === 0 ? "h-5 w-5" : density === 1 ? "h-4 w-4" : "h-3.5 w-3.5"
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      "leading-none text-center",
+                      density === 0 && "text-[9px]",
+                      density === 1 && "text-[8px]",
+                      density === 2 && "text-[7px] max-w-[2.35rem] truncate",
+                      isActive ? "font-bold" : "font-medium"
+                    )}
+                  >
+                    {label}
                   </span>
                 </button>
               );
@@ -193,10 +265,16 @@ export function ExploreFiltersCard({
         </div>
 
         {mainFilter !== "all" && (
-          <div className="border-t border-border pt-3">
+          <div className={cn("border-t border-border", density === 0 && "pt-1.5", density >= 1 && "pt-1")}>
             {mainFilter === "type" && (
               <Select value={tipoFiltro} onValueChange={onTipoFiltroChange}>
-                <SelectTrigger className="w-full bg-background">
+                <SelectTrigger
+                  className={cn(
+                    "w-full bg-background",
+                    density >= 1 && "h-8 text-xs",
+                    density === 2 && "h-7 min-h-7 text-[11px]"
+                  )}
+                >
                   <SelectValue placeholder={t("explorar.selectType")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -212,7 +290,13 @@ export function ExploreFiltersCard({
 
             {mainFilter === "size" && (
               <Select value={tamFiltro} onValueChange={(v) => onTamFiltroChange(v as SizeFilterKey)}>
-                <SelectTrigger className="w-full bg-background">
+                <SelectTrigger
+                  className={cn(
+                    "w-full bg-background",
+                    density >= 1 && "h-8 text-xs",
+                    density === 2 && "h-7 min-h-7 text-[11px]"
+                  )}
+                >
                   <SelectValue placeholder={t("explorar.selectSize")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -226,7 +310,13 @@ export function ExploreFiltersCard({
 
             {mainFilter === "seats" && (
               <Select value={vagasFiltro} onValueChange={(v) => onVagasFiltroChange(v as SeatsFilterKey)}>
-                <SelectTrigger className="w-full bg-background">
+                <SelectTrigger
+                  className={cn(
+                    "w-full bg-background",
+                    density >= 1 && "h-8 text-xs",
+                    density === 2 && "h-7 min-h-7 text-[11px]"
+                  )}
+                >
                   <SelectValue placeholder={t("explorar.selectSeats")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -241,7 +331,13 @@ export function ExploreFiltersCard({
 
             {mainFilter === "price" && (
               <Select value={precoFiltro} onValueChange={(v) => onPrecoFiltroChange(v as PriceFilterKey)}>
-                <SelectTrigger className="w-full bg-background">
+                <SelectTrigger
+                  className={cn(
+                    "w-full bg-background",
+                    density >= 1 && "h-8 text-xs",
+                    density === 2 && "h-7 min-h-7 text-[11px]"
+                  )}
+                >
                   <SelectValue placeholder={t("explorar.selectPrice")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -255,8 +351,16 @@ export function ExploreFiltersCard({
             )}
 
             {mainFilter === "included" && (
-              <div className="space-y-2">
-                <p className="text-[11px] text-muted-foreground leading-snug">{t("explorar.includedCheckboxHint")}</p>
+              <div className={cn("space-y-2", density === 2 && "space-y-1")}>
+                <p
+                  className={cn(
+                    "text-muted-foreground leading-snug",
+                    density === 0 && "text-[11px]",
+                    density >= 1 && "text-[10px]"
+                  )}
+                >
+                  {t("explorar.includedCheckboxHint")}
+                </p>
                 {amenityNames.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-2 rounded-md border border-dashed border-border">
                     {t("explorar.noAmenitiesCatalog")}
@@ -287,4 +391,3 @@ export function ExploreFiltersCard({
   );
 }
 
-export { JETSKY_TYPE };

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { BadgeCheck, Heart } from "lucide-react";
@@ -10,11 +10,24 @@ interface BoatCardProps {
   onToggleFavorite?: (boatId: string) => void;
 }
 
-const BoatCard = ({ barco, isFavorited = false, onToggleFavorite }: BoatCardProps) => {
+function BoatCardInner({ barco, isFavorited = false, onToggleFavorite }: BoatCardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState(false);
   const [currentImage, setCurrentImage] = useState(0);
   const n = barco.imagens?.length ?? 0;
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([e]) => setInView(e.isIntersecting),
+      { root: null, rootMargin: "120px 0px", threshold: 0 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
 
   useEffect(() => {
     setCurrentImage(0);
@@ -26,15 +39,20 @@ const BoatCard = ({ barco, isFavorited = false, onToggleFavorite }: BoatCardProp
   }, [n]);
 
   useEffect(() => {
-    if (n <= 0) return;
+    if (!inView || n <= 0) return;
     const timer = setInterval(nextImage, 3000);
     return () => clearInterval(timer);
-  }, [nextImage, n]);
+  }, [inView, nextImage, n]);
+
+  const goDetail = useCallback(() => {
+    navigate(`/barco/${barco.id}`);
+  }, [navigate, barco.id]);
 
   return (
     <div
-      className="cursor-pointer group animate-fade-in"
-      onClick={() => navigate(`/barco/${barco.id}`)}
+      ref={rootRef}
+      className="cursor-pointer group animate-fade-in [content-visibility:auto] [contain-intrinsic-size:200px_260px]"
+      onClick={goDetail}
     >
       <div className="aspect-square overflow-hidden rounded-lg relative">
         {n > 0 ? (
@@ -72,18 +90,23 @@ const BoatCard = ({ barco, isFavorited = false, onToggleFavorite }: BoatCardProp
       </div>
       <div className="mt-2 space-y-0.5">
         <div className="flex items-center justify-between gap-1">
-          <h3 className="text-sm font-semibold text-foreground truncate">
-            {barco.nome}
-          </h3>
-          {barco.verificado && (
-            <BadgeCheck className="w-4 h-4 text-verified shrink-0" />
-          )}
+          <h3 className="text-sm font-semibold text-foreground truncate">{barco.nome}</h3>
+          {barco.verificado && <BadgeCheck className="w-4 h-4 text-verified shrink-0" />}
         </div>
         <p className="text-xs text-muted-foreground">{barco.distancia}</p>
         <p className="text-sm font-semibold text-foreground">{barco.preco}</p>
       </div>
     </div>
   );
-};
+}
 
+function propsEqual(prev: BoatCardProps, next: BoatCardProps) {
+  return (
+    prev.barco === next.barco &&
+    prev.isFavorited === next.isFavorited &&
+    prev.onToggleFavorite === next.onToggleFavorite
+  );
+}
+
+const BoatCard = memo(BoatCardInner, propsEqual);
 export default BoatCard;

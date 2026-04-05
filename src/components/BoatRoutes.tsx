@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { parseOwnerRouteIslands } from "@/lib/routeIslandsParse";
 
 type BoatRoutesProps = {
   boatId: string;
@@ -146,8 +147,19 @@ function getRoutesForBoat(
   routeIslands: string[] | undefined,
   customOwnerRouteTitle: string
 ): RouteItem[] {
-  const custom = customRouteFromIslands(routeIslands, locationText, boatId, customOwnerRouteTitle);
-  if (custom) return [custom];
+  const parsed = parseOwnerRouteIslands(routeIslands);
+  if (parsed.kind === "multi") {
+    const items: RouteItem[] = [];
+    parsed.routes.forEach((stops, idx) => {
+      const title = `${customOwnerRouteTitle} (${idx + 1})`;
+      const c = customRouteFromIslands(stops, locationText, boatId, title);
+      if (c) items.push(c);
+    });
+    if (items.length > 0) return items;
+  } else if (parsed.stops.length > 0) {
+    const custom = customRouteFromIslands(parsed.stops, locationText, boatId, customOwnerRouteTitle);
+    if (custom) return [custom];
+  }
   const base = ROUTES_BY_REGION[locationText] || ROUTES_BY_REGION["Angra dos Reis/RJ"];
   if (base.length <= 1) return base;
   const rotateBy = Math.floor(hashToUnit(boatId) * base.length);

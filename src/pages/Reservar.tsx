@@ -16,6 +16,7 @@ import {
   Clock,
   Baby,
   UtensilsCrossed,
+  Waves,
   Minus,
   Plus,
 } from "lucide-react";
@@ -39,6 +40,8 @@ import i18n from "@/i18n";
 import { bcp47FromAppLang } from "@/lib/localeFormat";
 import { apiUrl, authFetch, getStoredUser } from "@/lib/auth";
 import { BoatCalendarPanel } from "@/components/BoatCalendarPanel";
+import { vesselTypeLabel } from "@/lib/boatVesselTypes";
+import { parseOwnerRouteIslands } from "@/lib/routeIslandsParse";
 
 const KIT_CHURRASCO_PRECO = 250;
 /** Primeira data permitida para reserva do banhista = hoje + N dias corridos */
@@ -111,6 +114,7 @@ async function criarReserva(input: {
   passengersChildren: number;
   hasKids: boolean;
   bbqKit: boolean;
+  jetSki: boolean;
   embarkLocation: string | null;
   embarkTime: string | null;
   totalCents: number;
@@ -158,6 +162,7 @@ const Reservar = () => {
   const [criancas, setCriancas] = useState(0);
   const [temCriancas, setTemCriancas] = useState(false);
   const [kitChurrasco, setKitChurrasco] = useState(false);
+  const [motoAquatica, setMotoAquatica] = useState(false);
   const [metodoPagamento, setMetodoPagamento] = useState("pix");
   const [localEmbarque, setLocalEmbarque] = useState("");
   const [horarioEmbarque, setHorarioEmbarque] = useState("");
@@ -167,8 +172,26 @@ const Reservar = () => {
   const [pagando, setPagando] = useState(false);
   /** Paradas do roteiro selecionadas para o passeio */
   const [paradasRoteiro, setParadasRoteiro] = useState<string[]>([]);
+  /** Índice do roteiro alternativo (quando o locador cadastrou vários) */
+  const [selectedRouteIdx, setSelectedRouteIdx] = useState(0);
   /** Data do passeio (YYYY-MM-DD) */
   const [dataPasseio, setDataPasseio] = useState<string | null>(null);
+
+  const routeParsed = useMemo(
+    () => (barco ? parseOwnerRouteIslands(barco.routeIslands) : null),
+    [barco?.id, (barco?.routeIslands ?? []).join("\u0001")]
+  );
+
+  const checkboxStops = useMemo(() => {
+    if (!barco || !routeParsed) return [];
+    const fallback = barco.distancia || t("reservar.routeFallback");
+    if (routeParsed.kind === "multi") {
+      const row = routeParsed.routes[selectedRouteIdx] || [];
+      return row.length > 0 ? row : [fallback];
+    }
+    if (routeParsed.stops.length > 0) return routeParsed.stops;
+    return [fallback];
+  }, [barco, routeParsed, selectedRouteIdx, t]);
 
   useEffect(() => {
     if (!barco) return;
@@ -193,12 +216,20 @@ const Reservar = () => {
 
   useEffect(() => {
     if (!barco) return;
-    const stops =
-      barco.routeIslands && barco.routeIslands.length > 0
-        ? [...barco.routeIslands]
-        : [barco.distancia || t("reservar.routeFallback")];
-    setParadasRoteiro(stops);
-  }, [barco, t]);
+    const p = parseOwnerRouteIslands(barco.routeIslands);
+    const fallback = barco.distancia || t("reservar.routeFallback");
+    if (p.kind === "multi") {
+      setSelectedRouteIdx(0);
+      const first = p.routes[0] || [];
+      setParadasRoteiro(first.length > 0 ? [...first] : [fallback]);
+    } else {
+      setParadasRoteiro(p.stops.length > 0 ? [...p.stops] : [fallback]);
+    }
+  }, [barco?.id, (barco?.routeIslands ?? []).join("\u0001"), barco?.distancia, t]);
+
+  useEffect(() => {
+    if (!barco?.jetSkiOffered) setMotoAquatica(false);
+  }, [barco?.id, barco?.jetSkiOffered]);
 
   useEffect(() => {
     if (!dataPasseio) return;
@@ -250,7 +281,10 @@ const Reservar = () => {
     barco.horariosEmbarque && barco.horariosEmbarque.length > 0 ? barco.horariosEmbarque : null;
 
   const precoBase = parseInt(barco.preco.replace(/[^0-9]/g, ""), 10);
-  const total = precoBase + (kitChurrasco ? KIT_CHURRASCO_PRECO : 0);
+  const jetSkiReais =
+    barco.jetSkiOffered && barco.jetSkiPriceCents ? barco.jetSkiPriceCents / 100 : 0;
+  const total =
+    precoBase + (kitChurrasco ? KIT_CHURRASCO_PRECO : 0) + (motoAquatica && jetSkiReais > 0 ? jetSkiReais : 0);
 
   const handleConfirmar = async () => {
     const u = getStoredUser();
@@ -314,6 +348,7 @@ const Reservar = () => {
         passengersChildren: criancas,
         hasKids: temCriancas,
         bbqKit: kitChurrasco,
+        jetSki: motoAquatica,
         embarkLocation: locaisOpcionais ? localEmbarque : null,
         embarkTime: horariosOpcionais ? horarioEmbarque : null,
         totalCents,
@@ -355,6 +390,7 @@ const Reservar = () => {
           `${t("reservar.waPlace")} ${waPlace}\n` +
           `${t("reservar.waTime")} ${waTime}\n` +
           `${t("reservar.waBbq")} ${kitChurrasco ? t("common.yes") : t("common.no")}\n` +
+          `${t("reservar.waJetSki")} ${motoAquatica ? t("common.yes") : t("common.no")}\n` +
           `${t("reservar.waPay")} ${payLabel}\n` +
           `${t("reservar.waTotal")} ${currencyFmt.format(total)}\n` +
           `${t("reservar.waName")} ${nomeCompleto}\n${t("reservar.waCpf")} ${formatCpf(cpfDigits)}\n${t("reservar.waTel")} ${formatTelefoneBR(telDigits)}\n` +
@@ -405,7 +441,7 @@ const Reservar = () => {
               <p className="text-sm text-muted-foreground">{barco.distancia}</p>
               <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
-                  <Ship className="w-3.5 h-3.5" /> {barco.tipo}
+                  <Ship className="w-3.5 h-3.5" /> {vesselTypeLabel(t, barco.tipo)}
                 </span>
                 <span className="flex items-center gap-1">
                   <Ruler className="w-3.5 h-3.5" /> {barco.tamanho}
@@ -481,12 +517,34 @@ const Reservar = () => {
         <section className="space-y-3">
           <h3 className="text-base font-bold text-foreground">{t("reservar.routeStops")}</h3>
           <p className="text-xs text-muted-foreground">{t("reservar.routeStopsHint")}</p>
+          {routeParsed?.kind === "multi" ? (
+            <div className="space-y-2 rounded-xl border border-border bg-card p-3">
+              <p className="text-xs font-medium text-foreground">{t("reservar.pickRouteVariant")}</p>
+              <RadioGroup
+                value={String(selectedRouteIdx)}
+                onValueChange={(v) => {
+                  const idx = Number(v);
+                  setSelectedRouteIdx(idx);
+                  const row = routeParsed.routes[idx] || [];
+                  const fallback = barco.distancia || t("reservar.routeFallback");
+                  setParadasRoteiro(row.length > 0 ? [...row] : [fallback]);
+                }}
+                className="space-y-2"
+              >
+                {routeParsed.routes.map((stops, i) => (
+                  <div key={`rv-${i}`} className="flex items-center space-x-2">
+                    <RadioGroupItem value={String(i)} id={`reservar-rv-${i}`} />
+                    <Label htmlFor={`reservar-rv-${i}`} className="font-normal cursor-pointer text-sm">
+                      {stops.join(", ")}
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            </div>
+          ) : null}
           <div className="space-y-2 rounded-xl border border-border bg-card p-3">
-            {(barco.routeIslands && barco.routeIslands.length > 0
-              ? barco.routeIslands
-              : [barco.distancia]
-            ).map((stop) => (
-              <label key={stop} className="flex items-center gap-3 text-sm cursor-pointer">
+            {checkboxStops.map((stop, si) => (
+              <label key={`${stop}-${si}`} className="flex items-center gap-3 text-sm cursor-pointer">
                 <Checkbox
                   checked={paradasRoteiro.includes(stop)}
                   onCheckedChange={(c) => {
@@ -590,6 +648,12 @@ const Reservar = () => {
               <strong className="text-foreground">{t("reservar.bbqTitle")}</strong>{" "}
               {kitChurrasco ? t("common.yes") : t("common.no")}
             </li>
+            {barco.jetSkiOffered && jetSkiReais > 0 ? (
+              <li>
+                <strong className="text-foreground">{t("reservar.jetSkiTitle")}</strong>{" "}
+                {motoAquatica ? t("common.yes") : t("common.no")}
+              </li>
+            ) : null}
             <li>
               <strong className="text-foreground">{t("common.total")}</strong> {currencyFmt.format(total)}
             </li>
@@ -680,6 +744,26 @@ const Reservar = () => {
             </div>
           </div>
         </section>
+
+        {barco.jetSkiOffered && jetSkiReais > 0 ? (
+          <section className="bg-card rounded-xl border border-border p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Waves className="w-5 h-5 text-primary shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-sm font-bold text-foreground">{t("reservar.jetSkiTitle")}</span>
+                  <p className="text-xs text-muted-foreground">{t("reservar.jetSkiDesc")}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="text-sm font-semibold text-primary tabular-nums">
+                  + {currencyFmt.format(jetSkiReais)}
+                </span>
+                <Switch checked={motoAquatica} onCheckedChange={setMotoAquatica} />
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         <section className="space-y-3">
           <h3 className="text-base font-bold text-foreground flex items-center gap-2">
