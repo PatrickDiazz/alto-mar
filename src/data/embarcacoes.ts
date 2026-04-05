@@ -1,6 +1,38 @@
-import boatExterior from "@/assets/boat-exterior.jpg";
-import boatInterior from "@/assets/boat-interior.jpg";
-import boatBathroom from "@/assets/boat-bathroom.jpg";
+/** URLs servidas a partir de /public/assets (alinhar com server/seed.js). */
+function imagensPorTipoEmbarcacao(tipo: string): string[] {
+  const b = "/assets";
+  const interior = `${b}/boat-interior.jpg`;
+  const bath = `${b}/boat-bathroom.jpg`;
+  const ext = `${b}/boat-exterior.jpg`;
+  switch (tipo) {
+    case "Lancha":
+      return [`${b}/lancha_exterior.png`, `${b}/lancha_interior_1.png`, `${b}/lancha_interior_2.png`];
+    case "Veleiro":
+      return [`${b}/veleiro_exterior.png`, `${b}/veleiro_interior_1.png`, `${b}/veleiro_interior_2.png`];
+    case "Catamarã":
+      return [`${b}/catamara_exterior.png`, `${b}/catamara_interior_1.png`, `${b}/catamara_interior_2.png`];
+    case "Iate":
+      return [`${b}/iate_exterior.png`, `${b}/iate_interior_1.png`, `${b}/iate_interior_2.png`];
+    case "Escuna":
+      return [`${b}/escuna_exterior.png`, `${b}/escuna_interior_1.png`, `${b}/escuna_interior_2.png`];
+    case "Moto aquática":
+      return [
+        `${b}/moto_aquatica_exterior.png`,
+        `${b}/moto_aquatica_interior_1.png`,
+        `${b}/moto_aquatica_interior_2.png`,
+      ];
+    case "Saveiro":
+      return [`${b}/saveiro_exterior.png`, `${b}/saveiro_interior_1.png`, `${b}/saveiro_interior_2.png`];
+    case "Lancha inflável":
+      return [
+        `${b}/lancha_inflavel_exterior.png`,
+        `${b}/lancha_inflavel_interior_1.png`,
+        `${b}/lancha_inflavel_interior_2.png`,
+      ];
+    default:
+      return [ext, interior, bath];
+  }
+}
 
 export interface Marinheiro {
   nome: string;
@@ -72,7 +104,7 @@ export const listaBarcosPadrao: Embarcacao[] = [
     preco: "R$ 3.500",
     nota: "4,9",
     verificado: true,
-    imagens: [boatBathroom, boatExterior, boatInterior],
+    imagens: imagensPorTipoEmbarcacao("Lancha"),
     descricao: "Luxo e conforto em Angra. Inclui marinheiro experiente, combustível e cooler com gelo.",
     tamanho: "32 pés",
     capacidade: 12,
@@ -89,7 +121,7 @@ export const listaBarcosPadrao: Embarcacao[] = [
     preco: "R$ 2.100",
     nota: "4,8",
     verificado: false,
-    imagens: [boatExterior, boatInterior],
+    imagens: imagensPorTipoEmbarcacao("Veleiro"),
     descricao: "Passeio clássico e silencioso pelas águas de Paraty.",
     tamanho: "28 pés",
     capacidade: 6,
@@ -106,7 +138,7 @@ export const listaBarcosPadrao: Embarcacao[] = [
     preco: "R$ 4.200",
     nota: "3,2",
     verificado: true,
-    imagens: [boatBathroom, boatExterior, boatInterior],
+    imagens: imagensPorTipoEmbarcacao("Lancha"),
     descricao: "A lancha mais rápida da região, ideal para grupos de 10 pessoas.",
     tamanho: "30 pés",
     capacidade: 10,
@@ -123,7 +155,7 @@ export const listaBarcosPadrao: Embarcacao[] = [
     preco: "R$ 2.360",
     nota: "4,5",
     verificado: false,
-    imagens: [boatBathroom, boatExterior, boatInterior],
+    imagens: imagensPorTipoEmbarcacao("Lancha"),
     descricao: "A lancha mais rápida da região, ideal para grupos de 10 pessoas.",
     tamanho: "25 pés",
     capacidade: 8,
@@ -173,10 +205,7 @@ export const listaBarcosPadrao: Embarcacao[] = [
       distancia: reg.distancia,
       preco: `R$ ${precoNumero.toLocaleString("pt-BR")}`,
       nota,
-      imagens:
-        idx % 2 === 0
-          ? [boatExterior, boatInterior]
-          : [boatBathroom, boatExterior, boatInterior],
+      imagens: imagensPorTipoEmbarcacao(tipo),
       descricao:
         "Embarcação fictícia para demonstração. Inclui itens básicos e roteiro personalizado conforme o clima.",
       verificado: false, // será recalculado abaixo

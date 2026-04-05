@@ -1,0 +1,4 @@
+Fotos por tipo de embarcação (*.png: lancha_, veleiro_, catamara_, iate_, escuna_, moto_aquatica_, saveiro_, lancha_inflavel_):
+origem pack_embarcacoes (projeto Alto Mar).
+
+Ficheiros boat-*.jpg: assets genéricos do projecto (interior/casa de banho/exterior).

@@ -12,6 +12,26 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
+## [0.11.1] — 2026-04-05
+
+### Adicionado
+
+- **`public/assets/`**: imagens de demonstração por tipo de embarcação em **PNG** (exterior + dois interiores: lancha, veleiro, catamarã, iate, escuna, moto aquática, saveiro, lancha inflável).
+
+### Alterado
+
+- **`server/seed.js`** e **`src/data/embarcacoes.ts`**: URLs de fotos alinhadas ao pack (`/assets/*_exterior.png`, `*_interior_1.png`, `*_interior_2.png`); **Moto aquática** passa a usar três imagens como os restantes tipos.
+
+### Documentação
+
+- **`public/assets/PHOTO_CREDITS.txt`**: referência ao pack do projecto; mantém nota sobre `boat-*.jpg` genéricos.
+
+### Documentação / versões
+
+- **Semver**: cliente e servidor **0.11.1**; Android `versionName` **0.11.1**, `versionCode` **7**.
+
+---
+
 ## [0.11.0] — 2026-04-03
 
 ### Adicionado
@@ -271,5 +291,5 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ## Tags Git e releases
 
-- A tag **`v0.11.0`** marca o estado actual do código alinhado a este changelog.
+- A tag **`v0.11.1`** marca o estado actual do código alinhado a este changelog.
 - Versões **0.1.0–0.9.0** são documentais (histórico retroactivo); pode criar tags adicionais nos commits antigos se precisar de comparações no GitHub.
