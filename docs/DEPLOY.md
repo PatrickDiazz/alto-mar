@@ -117,6 +117,15 @@ Só avance para a **Parte C** (API) quando o schema tiver rodado **sem erro** e 
 
    Ou use **Railway → serviço API → Shell** e rode `node seed.js` com as variáveis já injetadas (se o shell tiver `DATABASE_URL`).
 
+6. **Fotos dos barcos no site:** a listagem (**Explorar**) usa as URLs guardadas na tabela **`boat_images`**, não o código do front sozinho. Depois de fazer deploy no **Vercel** com ficheiros novos em `public/assets/`, actualize a BD de produção **sem** apagar reservas:
+
+   ```powershell
+   $env:DATABASE_URL = "postgresql://..."   # produção
+   npm run db:refresh-demo-images
+   ```
+
+   Isto reescreve as imagens só dos barcos do utilizador **`DEMO_OWNER_EMAIL`** (por omissão `locatario@demo.com`). No Railway Shell: `npm run refresh-demo-boat-images` dentro de `server/` (ou `node refresh-demo-boat-images.js`).
+
 ---
 
 ## Parte D — Front no Vercel

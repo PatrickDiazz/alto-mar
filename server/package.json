@@ -10,7 +10,8 @@
     "dev": "node --watch index.js",
     "dev:stable": "node index.js",
     "start": "node index.js",
-    "seed": "node seed.js"
+    "seed": "node seed.js",
+    "refresh-demo-boat-images": "node refresh-demo-boat-images.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

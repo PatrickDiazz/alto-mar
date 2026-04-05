@@ -13,6 +13,7 @@
     "db:reset": "docker compose down -v && docker compose up -d",
     "db:wait": "node scripts/wait-for-pg.mjs",
     "db:seed": "npm --prefix server run seed",
+    "db:refresh-demo-images": "npm --prefix server run refresh-demo-boat-images",
     "db:setup": "npm run db:up && npm run db:wait && npm run db:seed",
     "release:patch": "node scripts/release-patch.mjs",
     "fix:logos": "node scripts/remove-black-png-background.mjs",

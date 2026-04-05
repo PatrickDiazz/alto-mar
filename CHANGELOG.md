@@ -10,6 +10,14 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ## [Unreleased]
 
+### Adicionado
+
+- **`npm run db:refresh-demo-images`**: script que actualiza `boat_images` na BD só para barcos do locador demo (`DEMO_OWNER_EMAIL`), para o site em produção reflectir novos ficheiros em `public/assets/` sem correr o seed completo. Lógica partilhada em **`server/boatDemoImages.js`**.
+
+### Documentação
+
+- **README** e **`docs/DEPLOY.md`**: nota de que o Explorar usa URLs da base de dados e como refrescar imagens após deploy do front.
+
 ---
 
 ## [0.11.1] — 2026-04-05

@@ -12,7 +12,8 @@ npm run dev:all
 ```
 
 - Front: `http://localhost:8080` (ou porta que o Vite mostrar)  
-- Seed: `npm --prefix server run seed`
+- Seed: `npm --prefix server run seed`  
+- **Produção:** o site mostra fotos vindas da BD (`boat_images`). Se mudares `public/assets/` e fizeste deploy do front, corre `npm run db:refresh-demo-images` com `DATABASE_URL` de produção (só barcos do locador demo — vê `docs/DEPLOY.md`).
 
 ## Documentação
 
