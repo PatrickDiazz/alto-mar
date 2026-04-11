@@ -14,11 +14,20 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 - **`npm run db:refresh-demo-images`**: script que actualiza `boat_images` na BD só para barcos do locador demo (`DEMO_OWNER_EMAIL`), para o site em produção reflectir novos ficheiros em `public/assets/` sem correr o seed completo. Lógica partilhada em **`server/boatDemoImages.js`**.
 - **`npm run db:reset-demo-boats`**: apaga só os barcos do locador demo (e **reservas** associadas), recria **≥30** embarcações com imagens do pack. Não remove barcos de outros utilizadores. Geração/persistência partilhadas em **`server/demoFleet.js`** (o **seed** global também passou a usar este módulo).
+- **Barra de navegação inferior (mobile)** em **`/explorar`** (`MobileNavHost`, montado em **`App`**): **locatário** — Meus barcos, Favoritos, Conta e Menu (sheet com `SettingsMenuPanel`); **banhista** — Favoritos, Minhas reservas, Conta (sem item Explorar nem menu na barra); **visitante** — atalhos para login com contexto (favoritos, reservas, entrar).
+- **Página `/conta/reservas`** para o banhista com `RenterBookingsPanel` (deixa de ser só redireccionamento para âncora em `/conta`); atalhos em Explorar, `HeaderSettingsMenu` e conta.
+- **`SettingsMenuPanel`** em `HeaderSettingsMenu.tsx` (reutilizável na barra inferior e no menu do cabeçalho); **`loginLocationState.ts`** para `location.state` no login.
+- **Documentação** de desenho da integração Stripe: `docs/STRIPE-INTEGRATION-DESIGN.md` (e export HTML/PDF).
 
 ### Alterado
 
 - **`vercel.json`**: o rewrite SPA deixa de abranger **`/assets/*`** e **`/api`** — evita servir `index.html` no lugar dos PNG (imagens partidas ou que parecem não actualizar).
 - **`refresh-demo-boat-images`**: registo da BD usada (host mascarado); variável **`REFRESH_ALL_BOAT_IMAGES=1`** para actualizar fotos de **todos** os barcos.
+- **Marinheiro**: secção de reservas colapsável no mobile; lista de barcos com linha expansível (editar/apagar); **polling silencioso a cada 5 s** (e ao voltar ao separador) em reservas do locatário; `carregarPendentes` com modo silencioso.
+- **RenterBookingsPanel**: actualização periódica (5 s) e ao foco/visibilidade; recarga silenciosa após acções; **`ContaUsuario`** com atalho para reservas em vez de bloco embutido.
+- **BoatCalendarPanel** (variante dono): travas em vermelho; datas **só seleccionadas** (ainda não gravadas) com anel suave; travas **gravadas** e **por dia da semana** com preenchimento; legenda alinhada.
+- **ContaFavoritos**: botão voltar leva a **`/explorar`**.
+- **Explorar**, **Login**, **DetalhesBarco**, **Home**, **ExploreFiltersCard**, **`auth.ts`**, **`server/index.js`**, **Capacitor/Android**, **`.env.example`**, **Tailwind** e **i18n** (pt/en/es): ajustes associados ao fluxo mobile, conta e API.
 
 ### Documentação
 

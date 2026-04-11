@@ -88,7 +88,12 @@ const DetalhesBarco = () => {
   }, [id]);
 
   const toggleFavorite = useCallback(async () => {
-    if (!id || !getStoredUser()) return;
+    if (!id) return;
+    if (!getStoredUser()) {
+      toast.error(t("explorar.authRequiredAction"));
+      navigate("/login", { state: { from: `/barco/${id}` } });
+      return;
+    }
     let previous = false;
     setIsFavorited((prev) => {
       previous = prev;
@@ -110,7 +115,7 @@ const DetalhesBarco = () => {
       const m = (e instanceof Error ? e.message : i18n.t("explorar.favToggleError")).trim();
       toast.error(m || i18n.t("explorar.favToggleError"));
     }
-  }, [id]);
+  }, [id, navigate, t]);
 
   if (barcosLoading) {
     return (
@@ -202,20 +207,18 @@ const DetalhesBarco = () => {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            {user && (
-              <button
-                type="button"
-                onClick={toggleFavorite}
-                className="rounded-full p-2 text-foreground hover:bg-secondary transition-colors"
-                aria-label={
-                  isFavorited ? t("boatCard.favRemove") : t("boatCard.favAdd")
-                }
-              >
-                <Heart
-                  className={`w-5 h-5 ${isFavorited ? "fill-red-500 text-red-500" : "text-foreground"}`}
-                />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={toggleFavorite}
+              className="rounded-full p-2 text-foreground hover:bg-secondary transition-colors"
+              aria-label={
+                isFavorited ? t("boatCard.favRemove") : t("boatCard.favAdd")
+              }
+            >
+              <Heart
+                className={`w-5 h-5 ${isFavorited ? "fill-red-500 text-red-500" : "text-foreground"}`}
+              />
+            </button>
             <HeaderSettingsMenu />
           </div>
         </div>

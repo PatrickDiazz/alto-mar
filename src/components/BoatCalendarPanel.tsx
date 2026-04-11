@@ -130,8 +130,10 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
     };
   }, [data]);
 
+  /** Travas = vermelho preenchido (sem borda de destaque no calendário). */
   const modifiersClassNames = {
-    ownerLockDay: "!bg-rose-500/25 !text-foreground border border-rose-500/40",
+    ownerLockDay:
+      "!border-2 !border-transparent !bg-red-500/22 !text-foreground dark:!bg-red-950/55",
     tripConfirmed: "!bg-emerald-600/30 !text-foreground",
     tripPending: "!bg-amber-400/30 !text-foreground",
   };
@@ -184,7 +186,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
       <div className={cn("space-y-3", className)}>
         <div className="flex flex-wrap gap-3 text-xs">
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded-sm bg-rose-500/40 border border-rose-500/60" />
+            <span className="h-3 w-3 rounded-sm bg-red-500/35 dark:bg-red-950/65" />
             {t("calendar.legendLock")}
           </span>
           <span className="inline-flex items-center gap-1.5">
@@ -197,6 +199,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
           </span>
         </div>
         {loadErr ? <p className="text-sm text-destructive">{loadErr}</p> : null}
+        <div className="w-full max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
         <DayPicker
           mode="multiple"
           month={month}
@@ -208,9 +211,56 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
             const sorted = [...new Set(next)].sort();
             setLocksLocal({ ...value, dateLocks: sorted });
           }}
-          modifiers={{ ...modifiers }}
-          modifiersClassNames={modifiersClassNames}
-          className="rounded-xl border border-border p-3"
+          modifiers={{
+            ...modifiers,
+            /** Bloqueio por dia da semana (sem contar datas clicadas no calendário). */
+            ownerLockDay: (d: Date) => {
+              const key = dayKey(d);
+              if (value.dateLocks.includes(key)) return false;
+              const hasTrip = data?.bookings.some(
+                (b) =>
+                  b.date === key &&
+                  (b.status === "ACCEPTED" || b.status === "COMPLETED" || b.status === "PENDING")
+              );
+              if (hasTrip) return false;
+              return value.weekdayLocks.includes(d.getDay());
+            },
+            /** Data já gravada como trava: só preenchimento. */
+            ownerLockDateSaved: (d: Date) => {
+              const key = dayKey(d);
+              if (!value.dateLocks.includes(key)) return false;
+              const hasTrip = data?.bookings.some(
+                (b) =>
+                  b.date === key &&
+                  (b.status === "ACCEPTED" || b.status === "COMPLETED" || b.status === "PENDING")
+              );
+              if (hasTrip) return false;
+              const saved = data?.dateLocks ?? [];
+              return saved.includes(key);
+            },
+            /** Data escolhida ainda não gravada: só borda suave. */
+            ownerLockDateDraft: (d: Date) => {
+              const key = dayKey(d);
+              if (!value.dateLocks.includes(key)) return false;
+              const hasTrip = data?.bookings.some(
+                (b) =>
+                  b.date === key &&
+                  (b.status === "ACCEPTED" || b.status === "COMPLETED" || b.status === "PENDING")
+              );
+              if (hasTrip) return false;
+              if (!data) return true;
+              return !(data.dateLocks ?? []).includes(key);
+            },
+          }}
+          modifiersClassNames={{
+            ...modifiersClassNames,
+            ownerLockDay: "!box-border !rounded-md !border-2 !border-transparent !bg-red-500/22 !text-foreground dark:!bg-red-950/55",
+            ownerLockDateSaved:
+              "!box-border !rounded-md !border-2 !border-transparent !bg-red-500/26 !text-foreground !font-medium dark:!bg-red-950/62",
+            ownerLockDateDraft:
+              "!box-border !rounded-md !border-0 !bg-transparent !text-foreground !font-medium !shadow-none !ring-1 !ring-inset !ring-red-400/40 hover:!ring-red-400/55 dark:!ring-red-500/35 dark:hover:!ring-red-500/50",
+          }}
+          className="min-w-[260px] rounded-xl border border-border p-2 sm:p-3"
           classNames={{
             months: "flex flex-col sm:flex-row gap-4",
             month: "space-y-3",
@@ -222,17 +272,18 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
             head_cell: "text-muted-foreground w-9 font-normal text-[0.8rem]",
             row: "flex w-full mt-2",
             cell: "h-9 w-9 text-center text-sm p-0 relative",
-            day: "h-9 w-9 rounded-md p-0 font-normal aria-selected:opacity-100 hover:bg-accent",
+            day: "h-9 w-9 rounded-md p-0 font-normal box-border border-2 border-transparent aria-selected:opacity-100 hover:bg-accent",
             day_selected:
-              "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+              "!border-2 !border-transparent !bg-transparent !font-medium !shadow-none focus:!text-foreground",
             day_today: "ring-1 ring-primary/50",
             day_outside: "text-muted-foreground opacity-50",
             day_disabled: "text-muted-foreground opacity-40",
           }}
         />
+        </div>
         <div className="space-y-2">
           <p className="text-xs font-medium text-foreground">{t("calendar.weekdayLocks")}</p>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-4 gap-1.5 sm:flex sm:flex-wrap sm:gap-2">
             {(
               [
                 [0, t("calendar.weekdays.sun")],
@@ -249,7 +300,11 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
                 type="button"
                 size="sm"
                 variant={value.weekdayLocks.includes(dow) ? "default" : "outline"}
-                className="text-xs"
+                className={cn(
+                  "h-9 w-full px-1 text-[10px] leading-tight sm:h-9 sm:w-auto sm:px-3 sm:text-xs",
+                  value.weekdayLocks.includes(dow) &&
+                    "!border-red-700 !bg-red-600 text-white hover:!bg-red-700 dark:!border-red-500 dark:!bg-red-700 dark:hover:!bg-red-600"
+                )}
                 onClick={() => toggleWeekday(dow)}
               >
                 {label}
@@ -258,7 +313,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
           </div>
           <p className="text-[11px] text-muted-foreground">{t("calendar.ownerHint")}</p>
         </div>
-        <Button type="button" size="sm" onClick={() => void saveLocks()} disabled={saving}>
+        <Button type="button" size="sm" className="w-full sm:w-auto" onClick={() => void saveLocks()} disabled={saving}>
           {saving ? t("common.loading") : t("calendar.saveLocks")}
         </Button>
       </div>
@@ -272,7 +327,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
     <div className={cn("space-y-3", className)}>
       <div className="flex flex-wrap gap-3 text-xs">
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-sm bg-rose-500/40 border border-rose-500/60" />
+          <span className="h-3 w-3 rounded-sm bg-red-500/35 dark:bg-red-950/65" />
           {t("calendar.legendLock")}
         </span>
         <span className="inline-flex items-center gap-1.5">
@@ -285,6 +340,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
         </span>
       </div>
       {loadErr ? <p className="text-sm text-destructive">{loadErr}</p> : null}
+      <div className="w-full max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
       <DayPicker
         mode="single"
         month={month}
@@ -301,7 +357,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
         disabled={props.variant === "picker" ? disabledMatcher : false}
         modifiers={{ ...modifiers }}
         modifiersClassNames={modifiersClassNames}
-        className="rounded-xl border border-border p-3"
+        className="min-w-[260px] rounded-xl border border-border p-2 sm:p-3"
         classNames={{
           months: "flex flex-col sm:flex-row gap-4",
           month: "space-y-3",
@@ -321,6 +377,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
           day_disabled: "text-muted-foreground opacity-40 line-through",
         }}
       />
+      </div>
       {props.variant === "picker" ? (
         <div className="space-y-1 text-[11px] text-muted-foreground">
           <p>{t("calendar.pickerHint")}</p>

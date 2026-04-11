@@ -9,6 +9,7 @@ import { PageLoader } from "@/components/PageLoader";
 import Home from "./pages/Home";
 import { RequireAuth } from "@/components/RequireAuth";
 import { BoatsQueryRecovery } from "@/components/BoatsQueryRecovery";
+import { MobileNavHost } from "@/components/MobileNavHost";
 
 const Explorar = lazy(() => import("./pages/Explorar"));
 const DetalhesBarco = lazy(() => import("./pages/DetalhesBarco"));
@@ -50,88 +51,76 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<Signup />} />
-              <Route path="/recuperar-senha" element={<RecuperarSenha />} />
-              <Route path="/redefinir-senha" element={<RedefinirSenha />} />
-              <Route
-                path="/conta"
-                element={
-                  <RequireAuth>
-                    <ContaUsuario />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/conta/reservas"
-                element={
-                  <RequireAuth>
-                    <ContaReservas />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/conta/favoritos"
-                element={
-                  <RequireAuth>
-                    <ContaFavoritos />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/conta/dados"
-                element={
-                  <RequireAuth>
-                    <ContaDados />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/conta/ajuda-teste"
-                element={
-                  <RequireAuth>
-                    <AjudaTeste />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/explorar"
-                element={
-                  <RequireAuth>
-                    <Explorar />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/barco/:id"
-                element={
-                  <RequireAuth>
-                    <DetalhesBarco />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/reservar/:id"
-                element={
-                  <RequireAuth>
-                    <Reservar />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/marinheiro"
-                element={
-                  <RequireAuth>
-                    <Marinheiro />
-                  </RequireAuth>
-                }
-              />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
+          <MobileNavHost>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<Signup />} />
+                <Route path="/recuperar-senha" element={<RecuperarSenha />} />
+                <Route path="/redefinir-senha" element={<RedefinirSenha />} />
+                <Route
+                  path="/conta"
+                  element={
+                    <RequireAuth>
+                      <ContaUsuario />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/conta/reservas"
+                  element={
+                    <RequireAuth>
+                      <ContaReservas />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/conta/favoritos"
+                  element={
+                    <RequireAuth>
+                      <ContaFavoritos />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/conta/dados"
+                  element={
+                    <RequireAuth>
+                      <ContaDados />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/conta/ajuda-teste"
+                  element={
+                    <RequireAuth>
+                      <AjudaTeste />
+                    </RequireAuth>
+                  }
+                />
+                <Route path="/explorar" element={<Explorar />} />
+                <Route path="/barco/:id" element={<DetalhesBarco />} />
+                <Route
+                  path="/reservar/:id"
+                  element={
+                    <RequireAuth>
+                      <Reservar />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/marinheiro"
+                  element={
+                    <RequireAuth>
+                      <Marinheiro />
+                    </RequireAuth>
+                  }
+                />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+          </MobileNavHost>
         </BrowserRouter>
       </TooltipProvider>
     </ThemeProvider>

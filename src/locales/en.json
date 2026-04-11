@@ -26,6 +26,20 @@
     "es": "Español",
     "label": "Language"
   },
+  "nav": {
+    "bottom": {
+      "boats": "Boats",
+      "myBoats": "My boats",
+      "reservations": "Bookings",
+      "favorites": "Favorites",
+      "account": "Account",
+      "menu": "Menu",
+      "myReservations": "My bookings",
+      "menuAria": "Open menu (language, theme, and shortcuts)",
+      "signIn": "Sign in",
+      "aria": "Bottom navigation"
+    }
+  },
   "calendar": {
     "title": "Boat calendar",
     "loadFail": "Could not load the calendar.",
@@ -60,7 +74,8 @@
     "roleArea": "Area",
     "roleAreaHint": "As an owner, you can browse boats or manage your dashboard.",
     "banhistaMode": "Guest",
-    "marinheiroMode": "Owner"
+    "marinheiroMode": "Owner",
+    "quickLinks": "Shortcuts"
   },
   "home": {
     "welcome": "Welcome. You are?",
@@ -76,11 +91,13 @@
     "filtersHeading": "Filters",
     "filtersCollapsedCta": "Search & filters",
     "filtersCollapsedAria": "Open search and filters",
+    "becomeRenterCtaShort": "List your boat",
+    "becomeRenterAria": "Have a boat? Open the owner area to list it and manage bookings",
     "login": "Log in",
     "signup": "Sign up",
     "logout": "Log out",
     "logoutConfirm": "You have been logged out. Click OK to go to the home screen or Cancel to stay on Explore.",
-    "sectionIdeal": "Find the ideal boat",
+    "sectionIdeal": "Find the ideal vessel",
     "pageIntro": "Use the bar at the top, then browse by rating, price, and vessel type.",
     "sectionTopRated": "Top rated",
     "sectionTopRatedHint": "Highest guest ratings — quality first.",
@@ -89,6 +106,9 @@
     "sectionByType": "By vessel type",
     "sectionByTypeHint": "Pick the style of outing that fits you.",
     "stripScrollHint": "Swipe sideways to see more boats.",
+    "stripLoadMore": "Show more",
+    "stripLoadMoreAria": "Load {{count}} more vessels in this section",
+    "stripLoadMoreHint": "{{shown}} of {{total}} shown",
     "sectionAngrenses": "Local favorites",
     "sectionAngrensesHint": "Boats rated above 4.5",
     "loadingBoats": "Loading boats…",
@@ -99,6 +119,7 @@
     "fixLoadAbove": "When loading works again, this section will appear here.",
     "favLoadError": "Failed to load favorites.",
     "favToggleError": "Failed to update favorite.",
+    "authRequiredAction": "Log in or create an account to continue.",
     "filters": {
       "type": "Type",
       "size": "Size",
@@ -147,7 +168,9 @@
     "failUnavailable": "Service unavailable. Try again shortly or check that the API is running.",
     "failNetwork": "Could not reach the server. Check your connection or that the API is running (e.g. npm run dev:server).",
     "failCredentials": "Invalid email or password.",
-    "sessionExpired": "Your session expired. Please sign in again."
+    "sessionExpired": "Your session expired. Please sign in again.",
+    "hintReservations": "To view your bookings, create an account or sign in.",
+    "hintFavorites": "To access your favorites, create an account or sign in."
   },
   "signup": {
     "title": "Sign up",
@@ -280,6 +303,8 @@
     "needRole": "You must be signed in as {{role}} to see bookings.",
     "roleName": "Owner",
     "goLogin": "Go to sign in",
+    "guestLandingTitle": "Your bookings hub starts here",
+    "guestLandingSubtitle": "List your boat, manage availability, and accept trip requests from guests.",
     "bookingsHubTitle": "Bookings",
     "reservationsButton": "Bookings",
     "reservationsButtonTitle": "Mark updates as seen and jump to pending requests",
@@ -374,6 +399,10 @@
     "photoCountEdit": "{{n}} photo(s)",
     "pendingTitle": "Pending bookings",
     "noPending": "No pending bookings.",
+    "mobilePendingToggleAria": "Request: {{boat}}. Tap to view details and respond.",
+    "mobileBoatToggleAria": "{{name}}. Tap to edit or delete.",
+    "mobileReservasToggleAria": "Show or hide bookings (pending, active, and completed).",
+    "mobileReservasSummary": "{{pending}} pend. · {{accepted}} active · {{completed}} done",
     "client": "Client:",
     "embark": "Boarding:",
     "rescheduleJustificationHeading": "Reschedule justification (guest)",
@@ -443,6 +472,7 @@
   },
   "reservasConta": {
     "title": "My bookings",
+    "liveSyncHint": "Refreshes every 5 seconds and when you return to this tab.",
     "loadFail": "Could not load bookings.",
     "saveOk": "Booking updated. The owner must accept again.",
     "saveFail": "Could not save.",

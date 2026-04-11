@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Anchor, Pencil, Plus, ClipboardList, Trash2, Star, Waves } from "lucide-react";
+import { Anchor, Pencil, Plus, ClipboardList, Trash2, Star, Waves, LogOut, RefreshCw, ChevronDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +39,7 @@ import {
   vesselTypeLabel,
 } from "@/lib/boatVesselTypes";
 import { formRowsToStoredRouteIslands, storedRouteIslandsToFormRows } from "@/lib/routeIslandsParse";
+import { cn } from "@/lib/utils";
 
 function translateRescheduleReason(
   tr: (k: string) => string,
@@ -110,7 +111,7 @@ function OwnerRescheduleJustification({
 }) {
   if (!b.rescheduleTitle) return null;
   return (
-    <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2 text-xs">
+    <div className="space-y-2 break-words rounded-lg border border-border bg-muted/30 p-3 text-xs">
       <p className="font-semibold text-foreground">{t("marinheiro.rescheduleJustificationHeading")}</p>
       {b.rescheduleReason ? (
         <p className="text-muted-foreground">
@@ -227,10 +228,10 @@ function RateRenterForm({
           </button>
         ))}
       </div>
-      <div>
+      <div className="min-w-0">
         <Label className="text-xs">{t("marinheiro.rateRenterComment")}</Label>
         <Input
-          className="mt-1 h-9 text-sm"
+          className="mt-1 h-9 min-w-0 text-sm"
           value={comment}
           onChange={(e) => setComment(e.target.value)}
           maxLength={1000}
@@ -275,12 +276,27 @@ const Marinheiro_Page = () => {
   const [routeIslandImagesNew, setRouteIslandImagesNew] = useState<Record<string, string[]>>({});
   const [calendarBoatId, setCalendarBoatId] = useState<string | null>(null);
   const [boatPendingDelete, setBoatPendingDelete] = useState<OwnerBoat | null>(null);
+  const [mobileExpandedPendingId, setMobileExpandedPendingId] = useState<string | null>(null);
+  const [mobileExpandedBoatId, setMobileExpandedBoatId] = useState<string | null>(null);
+  const [mobileReservasExpanded, setMobileReservasExpanded] = useState(false);
 
   const isLocatario = user?.role === "locatario";
   const pendentes = useMemo(() => bookings.filter((b) => b.status === "PENDING"), [bookings]);
   const aceitas = useMemo(() => bookings.filter((b) => b.status === "ACCEPTED"), [bookings]);
   const concluidas = useMemo(() => bookings.filter((b) => b.status === "COMPLETED"), [bookings]);
   const coastalCityOptions = useMemo(() => [...CIDADES_LITORAL_RJ].sort((a, b) => a.localeCompare(b, "pt")), []);
+
+  useEffect(() => {
+    if (mobileExpandedPendingId && !pendentes.some((b) => b.id === mobileExpandedPendingId)) {
+      setMobileExpandedPendingId(null);
+    }
+  }, [pendentes, mobileExpandedPendingId]);
+
+  useEffect(() => {
+    if (mobileExpandedBoatId && !boats.some((b) => b.id === mobileExpandedBoatId)) {
+      setMobileExpandedBoatId(null);
+    }
+  }, [boats, mobileExpandedBoatId]);
 
   const editVesselTypeOptions = useMemo(() => {
     if (!boatForm) return [...BOAT_VESSEL_TYPES];
@@ -323,24 +339,32 @@ const Marinheiro_Page = () => {
     navigate(goHome ? "/" : "/explorar", { replace: true });
   };
 
-  const carregarPendentes = async () => {
-    setLoading(true);
-    try {
-      const resp = await authFetch("/api/owner/bookings");
-      if (resp.status === 401) return;
-      if (!resp.ok) {
-        throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastBookings")));
+  const OWNER_BOOKINGS_POLL_MS = 5_000;
+
+  const carregarPendentes = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const silent = Boolean(opts?.silent);
+      if (!silent) setLoading(true);
+      try {
+        const resp = await authFetch("/api/owner/bookings");
+        if (resp.status === 401) return;
+        if (!resp.ok) {
+          throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastBookings")));
+        }
+        const data = (await resp.json()) as { bookings: OwnerBookingRow[] };
+        const list = data.bookings || [];
+        setBookings(list);
+      } catch (e) {
+        if (!silent) {
+          const m = (e instanceof Error ? e.message : t("marinheiro.toastBookings")).trim();
+          toast.error(m || t("marinheiro.toastBookings"), { id: "owner-bookings" });
+        }
+      } finally {
+        if (!silent) setLoading(false);
       }
-      const data = (await resp.json()) as { bookings: OwnerBookingRow[] };
-      const list = data.bookings || [];
-      setBookings(list);
-    } catch (e) {
-      const m = (e instanceof Error ? e.message : t("marinheiro.toastBookings")).trim();
-      toast.error(m || t("marinheiro.toastBookings"), { id: "owner-bookings" });
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [t]
+  );
 
   const concluirReserva = async (bookingId: string) => {
     setLoading(true);
@@ -398,6 +422,7 @@ const Marinheiro_Page = () => {
   };
 
   const iniciarEdicao = (boat: OwnerBoat) => {
+    setMobileExpandedBoatId(boat.id);
     setEditingBoatId(boat.id);
     setBoatForm({ ...boat, tipo: normalizeVesselTipo(boat.tipo) });
     setEditRouteIslandRows(storedRouteIslandsToFormRows(boat.routeIslands));
@@ -430,6 +455,7 @@ const Marinheiro_Page = () => {
         setEditEmbarkLocsText("");
         setEditEmbarkTimesText("");
       }
+      if (mobileExpandedBoatId === deletedId) setMobileExpandedBoatId(null);
       if (calendarBoatId === deletedId) setCalendarBoatId(null);
       await carregarMeusBarcos();
     } catch (e) {
@@ -504,6 +530,7 @@ const Marinheiro_Page = () => {
       toast.success(t("marinheiro.toastUpdate"));
       setEditingBoatId(null);
       setBoatForm(null);
+      setMobileExpandedBoatId(null);
       setEditRouteIslandRows([""]);
       setEditEmbarkLocsText("");
       setEditEmbarkTimesText("");
@@ -584,9 +611,24 @@ const Marinheiro_Page = () => {
   useEffect(() => {
     if (!isLocatario) return;
     carregarMeusBarcos();
-    carregarPendentes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLocatario]);
+    void carregarPendentes();
+  }, [isLocatario, carregarPendentes]);
+
+  useEffect(() => {
+    if (!isLocatario) return;
+    const tick = () => void carregarPendentes({ silent: true });
+    const interval = window.setInterval(tick, OWNER_BOOKINGS_POLL_MS);
+    const onVisibleOrFocus = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisibleOrFocus);
+    window.addEventListener("focus", onVisibleOrFocus);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibleOrFocus);
+      window.removeEventListener("focus", onVisibleOrFocus);
+    };
+  }, [isLocatario, carregarPendentes]);
 
   useEffect(() => {
     if (boats.length > 0 && !calendarBoatId) setCalendarBoatId(boats[0].id);
@@ -618,59 +660,137 @@ const Marinheiro_Page = () => {
   }, [isLocatario]);
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-4 py-3">
-        <div className="max-w-3xl mx-auto flex items-center justify-between gap-2">
-          <div className="flex items-center gap-3 min-w-0">
-            <h1 className="text-lg font-semibold text-foreground flex items-center gap-2 min-w-0 truncate">
-              <Anchor className="w-5 h-5 text-primary shrink-0" />
+    <div className="min-h-screen min-w-0 overflow-x-hidden bg-background">
+      <header className="sticky top-0 z-10 border-b border-border bg-background/80 px-3 py-2.5 backdrop-blur-md sm:px-4 sm:py-3">
+        <div className="mx-auto flex max-w-3xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <h1 className="flex min-w-0 items-center gap-2 text-base font-semibold text-foreground sm:text-lg">
+              <Anchor className="h-5 w-5 shrink-0 text-primary" />
               <span className="truncate">{t("marinheiro.title")}</span>
             </h1>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-2">
             <HeaderSettingsMenu />
-            <Button size="sm" variant="secondary" onClick={handleLogout}>
-              {t("marinheiro.logout")}
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                carregarMeusBarcos();
-                carregarPendentes();
-              }}
-              disabled={loading || !isLocatario}
-            >
-              {loading ? t("marinheiro.loading") : t("marinheiro.refresh")}
-            </Button>
+            {isLocatario ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="gap-1 px-2 sm:px-3"
+                  onClick={handleLogout}
+                  title={t("marinheiro.logout")}
+                >
+                  <LogOut className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">{t("marinheiro.logout")}</span>
+                </Button>
+                <Button
+                  size="sm"
+                  className="gap-1 px-2 sm:px-3"
+                  onClick={() => {
+                    carregarMeusBarcos();
+                    carregarPendentes();
+                  }}
+                  disabled={loading}
+                  title={t("marinheiro.refresh")}
+                >
+                  <RefreshCw className={cn("h-4 w-4 shrink-0", loading && "animate-spin")} />
+                  <span className="hidden sm:inline">{loading ? t("marinheiro.loading") : t("marinheiro.refresh")}</span>
+                </Button>
+              </>
+            ) : user ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="gap-1 px-2 sm:px-3"
+                onClick={handleLogout}
+                title={t("marinheiro.logout")}
+              >
+                <LogOut className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">{t("marinheiro.logout")}</span>
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" className="max-w-[9rem] truncate px-2 sm:max-w-none sm:px-3" onClick={() => navigate("/explorar")}>
+                {t("explorar.title")}
+              </Button>
+            )}
           </div>
         </div>
       </header>
 
-      <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
+      <div className="mx-auto max-w-3xl space-y-4 px-3 py-4 sm:px-4 sm:py-6">
         <datalist id="marinheiro-cidades-rj">
           {coastalCityOptions.map((city) => (
             <option key={city} value={city} />
           ))}
         </datalist>
         {!isLocatario ? (
-          <div className="bg-card border border-border rounded-xl p-6 shadow-card">
-            <p className="text-sm text-muted-foreground">
-              {t("marinheiro.needRole", { role: t("marinheiro.roleName") })}
-            </p>
-            <Button className="mt-4" onClick={() => navigate("/login", { state: { from: "/marinheiro" } })}>
+          <div className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-card sm:p-6">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">{t("marinheiro.guestLandingTitle")}</h2>
+              <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                {user ? t("marinheiro.needRole", { role: t("marinheiro.roleName") }) : t("marinheiro.guestLandingSubtitle")}
+              </p>
+            </div>
+            <Button onClick={() => navigate("/login", { state: { from: "/marinheiro" } })}>
               {t("marinheiro.goLogin")}
             </Button>
           </div>
         ) : (
           <>
-            <section id="marinheiro-reservas" className="space-y-5 rounded-xl border border-primary/25 bg-card p-4 shadow-card">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <ClipboardList className="w-5 h-5 text-primary shrink-0" />
-                  <h2 className="text-lg font-semibold text-foreground truncate">{t("marinheiro.bookingsHubTitle")}</h2>
+            <section id="marinheiro-reservas" className="overflow-hidden rounded-xl border border-primary/25 bg-card shadow-card">
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-muted/45 active:bg-muted/60 sm:p-4 md:hidden"
+                onClick={() => setMobileReservasExpanded((v) => !v)}
+                aria-expanded={mobileReservasExpanded}
+                aria-controls="marinheiro-reservas-body"
+                id="marinheiro-reservas-trigger"
+                aria-label={t("marinheiro.mobileReservasToggleAria")}
+              >
+                <ClipboardList className="h-5 w-5 shrink-0 text-primary" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-base font-semibold text-foreground">{t("marinheiro.bookingsHubTitle")}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {t("marinheiro.mobileReservasSummary", {
+                      pending: pendentes.length,
+                      accepted: aceitas.length,
+                      completed: concluidas.length,
+                    })}
+                  </p>
                 </div>
-              </div>
-              <p className="text-xs text-muted-foreground -mt-2">{t("marinheiro.bookingsHubHint")}</p>
+                {pendentes.length > 0 ? (
+                  <Badge className="shrink-0 bg-destructive text-destructive-foreground">{pendentes.length}</Badge>
+                ) : null}
+                <ChevronDown
+                  className={cn(
+                    "h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200",
+                    mobileReservasExpanded && "rotate-180"
+                  )}
+                  aria-hidden
+                />
+              </button>
+
+              <div
+                id="marinheiro-reservas-body"
+                role="region"
+                aria-label={t("marinheiro.bookingsHubTitle")}
+                className={cn(
+                  "space-y-5 p-3 sm:p-4",
+                  mobileReservasExpanded ? "block" : "hidden",
+                  "md:block"
+                )}
+              >
+                <div className="hidden md:block md:space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <ClipboardList className="h-5 w-5 shrink-0 text-primary" />
+                      <h2 className="truncate text-base font-semibold text-foreground sm:text-lg">{t("marinheiro.bookingsHubTitle")}</h2>
+                    </div>
+                  </div>
+                  <p className="text-pretty text-xs leading-relaxed text-muted-foreground">{t("marinheiro.bookingsHubHint")}</p>
+                </div>
+
+                <p className="text-pretty text-xs leading-relaxed text-muted-foreground md:hidden">{t("marinheiro.bookingsHubHint")}</p>
 
               <div id="marinheiro-reservas-pendente" className="space-y-3 scroll-mt-24">
                 <div className="flex items-center justify-between gap-2">
@@ -682,62 +802,109 @@ const Marinheiro_Page = () => {
                   <p className="text-center text-muted-foreground py-8">{t("marinheiro.noPending")}</p>
                 ) : (
                   <div className="space-y-3">
-                    {pendentes.map((b) => (
-                      <div key={b.id} className="border border-border rounded-xl bg-card p-4 shadow-card space-y-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-foreground truncate">{b.boat.nome}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {t("marinheiro.client")} {b.renter.nome} ({b.renter.email})
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {t("marinheiro.embark")}{" "}
-                              {[b.embarkLocation, b.embarkTime].filter(Boolean).join(" · ") ||
-                                t("reservar.embarkToArrangeShort")}{" "}
-                              • {t("marinheiro.total")} {currencyFmt.format(b.totalCents / 100)}
-                            </p>
-                            {b.bookingDate ? (
-                              <p className="text-xs font-medium text-foreground">
-                                {t("marinheiro.bookingDateLabel")}: {b.bookingDate}
-                              </p>
-                            ) : null}
-                            <p className="text-xs text-muted-foreground">
-                              {t("marinheiro.passengers")} {b.passengersAdults} {t("marinheiro.adults")}
-                              {b.hasKids ? ` + ${b.passengersChildren} ${t("marinheiro.kids")}` : ""}
-                              {b.bbqKit ? ` • ${t("marinheiro.bbq")}` : ""}
-                              {b.jetSki ? ` • ${t("marinheiro.jetSkiShort")}` : ""}
-                            </p>
-                            {b.routeIslands && b.routeIslands.length > 0 ? (
+                    {pendentes.map((b) => {
+                      const openMobile = mobileExpandedPendingId === b.id;
+                      return (
+                        <div
+                          key={b.id}
+                          className="overflow-hidden rounded-xl border border-border bg-card shadow-card"
+                        >
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-muted/45 active:bg-muted/60 md:hidden"
+                            onClick={() => setMobileExpandedPendingId((id) => (id === b.id ? null : b.id))}
+                            aria-expanded={openMobile}
+                            aria-controls={`marinheiro-pend-body-${b.id}`}
+                            id={`marinheiro-pend-trigger-${b.id}`}
+                            aria-label={t("marinheiro.mobilePendingToggleAria", { boat: b.boat.nome })}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold text-foreground">{b.boat.nome}</p>
+                              <p className="truncate text-xs text-muted-foreground">{b.renter.nome}</p>
                               <p className="text-xs text-muted-foreground">
-                                {t("marinheiro.bookingRoute")}: {b.routeIslands.join(", ")}
+                                {t("marinheiro.total")} {currencyFmt.format(b.totalCents / 100)}
                               </p>
-                            ) : null}
+                            </div>
+                            <Badge className="shrink-0 bg-accent text-accent-foreground">{t("marinheiro.pendingBadge")}</Badge>
+                            <ChevronDown
+                              className={cn(
+                                "h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200",
+                                openMobile && "rotate-180"
+                              )}
+                              aria-hidden
+                            />
+                          </button>
+                          <div
+                            id={`marinheiro-pend-body-${b.id}`}
+                            role="region"
+                            aria-labelledby={`marinheiro-pend-trigger-${b.id}`}
+                            className={cn(
+                              "space-y-3 border-border p-3 md:p-4",
+                              openMobile ? "block border-t md:border-t-0" : "hidden",
+                              "md:block"
+                            )}
+                          >
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-semibold text-foreground">{b.boat.nome}</p>
+                                <p className="break-words text-xs text-muted-foreground">
+                                  {t("marinheiro.client")} {b.renter.nome} ({b.renter.email})
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {t("marinheiro.embark")}{" "}
+                                  {[b.embarkLocation, b.embarkTime].filter(Boolean).join(" · ") ||
+                                    t("reservar.embarkToArrangeShort")}{" "}
+                                  • {t("marinheiro.total")} {currencyFmt.format(b.totalCents / 100)}
+                                </p>
+                                {b.bookingDate ? (
+                                  <p className="text-xs font-medium text-foreground">
+                                    {t("marinheiro.bookingDateLabel")}: {b.bookingDate}
+                                  </p>
+                                ) : null}
+                                <p className="text-xs text-muted-foreground">
+                                  {t("marinheiro.passengers")} {b.passengersAdults} {t("marinheiro.adults")}
+                                  {b.hasKids ? ` + ${b.passengersChildren} ${t("marinheiro.kids")}` : ""}
+                                  {b.bbqKit ? ` • ${t("marinheiro.bbq")}` : ""}
+                                  {b.jetSki ? ` • ${t("marinheiro.jetSkiShort")}` : ""}
+                                </p>
+                                {b.routeIslands && b.routeIslands.length > 0 ? (
+                                  <p className="break-words text-xs text-muted-foreground">
+                                    {t("marinheiro.bookingRoute")}: {b.routeIslands.join(", ")}
+                                  </p>
+                                ) : null}
+                              </div>
+                              <Badge className="hidden w-fit shrink-0 bg-accent text-accent-foreground md:flex">{t("marinheiro.pendingBadge")}</Badge>
+                            </div>
+
+                            <OwnerRescheduleJustification b={b} t={t} />
+
+                            <div className="space-y-1">
+                              <Label>{t("marinheiro.noteLabel")}</Label>
+                              <Textarea
+                                value={noteById[b.id] || ""}
+                                onChange={(e) => setNoteById((p) => ({ ...p, [b.id]: e.target.value }))}
+                                placeholder={t("marinheiro.notePh")}
+                                rows={2}
+                              />
+                            </div>
+
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                              <Button className="w-full sm:flex-1" onClick={() => decidir(b.id, "accept")} disabled={loading}>
+                                {t("marinheiro.accept")}
+                              </Button>
+                              <Button
+                                className="w-full sm:flex-1"
+                                variant="destructive"
+                                onClick={() => decidir(b.id, "decline")}
+                                disabled={loading}
+                              >
+                                {t("marinheiro.decline")}
+                              </Button>
+                            </div>
                           </div>
-                          <Badge className="bg-accent text-accent-foreground">{t("marinheiro.pendingBadge")}</Badge>
                         </div>
-
-                        <OwnerRescheduleJustification b={b} t={t} />
-
-                        <div className="space-y-1">
-                          <Label>{t("marinheiro.noteLabel")}</Label>
-                          <Textarea
-                            value={noteById[b.id] || ""}
-                            onChange={(e) => setNoteById((p) => ({ ...p, [b.id]: e.target.value }))}
-                            placeholder={t("marinheiro.notePh")}
-                            rows={2}
-                          />
-                        </div>
-
-                        <div className="flex gap-2">
-                          <Button className="flex-1" onClick={() => decidir(b.id, "accept")} disabled={loading}>
-                            {t("marinheiro.accept")}
-                          </Button>
-                          <Button className="flex-1" variant="destructive" onClick={() => decidir(b.id, "decline")} disabled={loading}>
-                            {t("marinheiro.decline")}
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -752,11 +919,10 @@ const Marinheiro_Page = () => {
                 ) : (
                   <div className="space-y-3">
                     {aceitas.map((b) => (
-                      <div key={b.id} className="border border-border rounded-xl bg-card p-4 shadow-card space-y-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-foreground truncate">{b.boat.nome}</p>
-                            <p className="text-xs text-muted-foreground">
+                      <div key={b.id} className="space-y-3 rounded-xl border border-border bg-card p-3 shadow-card sm:p-4">
+                        <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-foreground">{b.boat.nome}</p>
+                            <p className="break-words text-xs text-muted-foreground">
                               {t("marinheiro.client")} {b.renter.nome}
                             </p>
                             <p className="text-xs text-muted-foreground">
@@ -773,11 +939,10 @@ const Marinheiro_Page = () => {
                                 t("reservar.embarkToArrangeShort")}
                             </p>
                             {b.routeIslands && b.routeIslands.length > 0 ? (
-                              <p className="text-xs text-muted-foreground">
+                              <p className="break-words text-xs text-muted-foreground">
                                 {t("marinheiro.bookingRoute")}: {b.routeIslands.join(", ")}
                               </p>
                             ) : null}
-                          </div>
                         </div>
                         <OwnerRescheduleJustification b={b} t={t} />
                         <Button onClick={() => concluirReserva(b.id)} disabled={loading} className="w-full">
@@ -799,11 +964,11 @@ const Marinheiro_Page = () => {
                 ) : (
                   <div className="space-y-3">
                     {concluidas.map((b) => (
-                      <div key={b.id} className="border border-border rounded-xl bg-card p-4 shadow-card space-y-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-foreground truncate">{b.boat.nome}</p>
-                            <p className="text-xs text-muted-foreground">
+                      <div key={b.id} className="space-y-3 rounded-xl border border-border bg-card p-3 shadow-card sm:p-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-foreground">{b.boat.nome}</p>
+                            <p className="break-words text-xs text-muted-foreground">
                               {t("marinheiro.client")} {b.renter.nome} ({b.renter.email})
                             </p>
                             <p className="text-xs text-muted-foreground">
@@ -815,7 +980,7 @@ const Marinheiro_Page = () => {
                               </p>
                             ) : null}
                           </div>
-                          <Badge variant="secondary">{t("marinheiro.completedBadge")}</Badge>
+                          <Badge className="w-fit shrink-0" variant="secondary">{t("marinheiro.completedBadge")}</Badge>
                         </div>
                         {b.ratingRenter ? (
                           <p className="text-xs text-foreground flex items-center gap-1.5">
@@ -834,14 +999,18 @@ const Marinheiro_Page = () => {
                   </div>
                 )}
               </div>
+              </div>
             </section>
 
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-foreground">{t("marinheiro.myBoats")}</h2>
-                <div className="flex items-center gap-2">
+            <section className="min-w-0 space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <h2 className="text-base font-semibold text-foreground sm:text-lg">{t("marinheiro.myBoats")}</h2>
                   <Badge variant="outline">{boats.length}</Badge>
+                </div>
+                <div className="flex w-full sm:w-auto sm:shrink-0">
                   <Button
+                    className="w-full sm:w-auto"
                     size="sm"
                     onClick={() => {
                       setRegistering((wasOpen) => {
@@ -864,20 +1033,20 @@ const Marinheiro_Page = () => {
                       });
                     }}
                   >
-                    <Plus className="w-4 h-4 mr-1" />
+                    <Plus className="mr-1 h-4 w-4" />
                     {t("marinheiro.registerBoat")}
                   </Button>
                 </div>
               </div>
 
               {registering && (
-                <div className="border border-border rounded-xl bg-card p-4 shadow-card space-y-3">
+                <div className="space-y-3 rounded-xl border border-border bg-card p-3 shadow-card sm:p-4">
                   <h3 className="font-semibold text-foreground">{t("marinheiro.newBoat")}</h3>
                   <p className="text-xs text-muted-foreground">{t("marinheiro.stepsHint")}</p>
                   <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
                     <p className="text-xs font-semibold text-foreground">{t("marinheiro.previewTitle")}</p>
-                    <div className="grid grid-cols-[92px,1fr] gap-3 items-center">
-                      <div className="h-20 w-[92px] overflow-hidden rounded-md border border-border bg-secondary">
+                    <div className="grid grid-cols-1 items-center gap-3 sm:grid-cols-[92px_1fr]">
+                      <div className="mx-auto h-20 w-[92px] shrink-0 overflow-hidden rounded-md border border-border bg-secondary sm:mx-0">
                         {newBoatForm.imagens?.[0] ? (
                           <img src={newBoatForm.imagens[0]} alt={newBoatForm.nome || t("marinheiro.previewAlt")} className="h-full w-full object-cover" />
                         ) : null}
@@ -1115,7 +1284,7 @@ const Marinheiro_Page = () => {
                           <div className="space-y-2">
                             <div className="space-y-1">
                               <Label>{t("marinheiro.jetSkiPrice")}</Label>
-                              <div className="relative max-w-xs">
+                              <div className="relative w-full max-w-full sm:max-w-xs">
                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                                   {t("common.currency")}
                                 </span>
@@ -1256,11 +1425,12 @@ const Marinheiro_Page = () => {
                       />
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button onClick={registrarEmbarcacao} disabled={loading || !newBoatReady}>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button className="w-full sm:w-auto" onClick={registrarEmbarcacao} disabled={loading || !newBoatReady}>
                       {t("marinheiro.saveBoat")}
                     </Button>
                     <Button
+                      className="w-full sm:w-auto"
                       variant="secondary"
                       onClick={() => {
                         setRegistering(false);
@@ -1285,13 +1455,51 @@ const Marinheiro_Page = () => {
                 <div className="space-y-3">
                   {boats.map((boat) => {
                     const editing = editingBoatId === boat.id && boatForm;
+                    const openMobile = mobileExpandedBoatId === boat.id;
+                    const showMobileBoatBody = Boolean(editing || openMobile);
                     return (
-                      <div key={boat.id} className="border border-border rounded-xl bg-card p-4 shadow-card space-y-3">
+                      <div key={boat.id} className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
+                        {!editing ? (
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-muted/45 active:bg-muted/60 md:hidden"
+                            onClick={() => setMobileExpandedBoatId((id) => (id === boat.id ? null : boat.id))}
+                            aria-expanded={openMobile}
+                            aria-controls={`marinheiro-boat-body-${boat.id}`}
+                            id={`marinheiro-boat-trigger-${boat.id}`}
+                            aria-label={t("marinheiro.mobileBoatToggleAria", { name: boat.nome })}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold text-foreground">{boat.nome}</p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {vesselTypeLabel(t, boat.tipo)} • {boat.capacidade} {t("common.people")}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">{boat.distancia}</p>
+                            </div>
+                            <ChevronDown
+                              className={cn(
+                                "h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200",
+                                openMobile && "rotate-180"
+                              )}
+                              aria-hidden
+                            />
+                          </button>
+                        ) : null}
+                        <div
+                          id={`marinheiro-boat-body-${boat.id}`}
+                          role="region"
+                          aria-labelledby={editing ? undefined : `marinheiro-boat-trigger-${boat.id}`}
+                          className={cn(
+                            "space-y-3 p-3 md:p-4",
+                            showMobileBoatBody ? "block" : "hidden",
+                            "md:block"
+                          )}
+                        >
                         {!editing ? (
                           <>
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="text-sm font-semibold text-foreground truncate">{boat.nome}</p>
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-semibold text-foreground">{boat.nome}</p>
                                 <p className="text-xs text-muted-foreground">
                                   {vesselTypeLabel(t, boat.tipo)} • {boat.tamanho} • {boat.capacidade}{" "}
                                   {t("common.people")}
@@ -1301,19 +1509,19 @@ const Marinheiro_Page = () => {
                                   {boat.preco} • {t("marinheiro.ratingLabel")} {boat.nota}
                                 </p>
                               </div>
-                              <div className="flex flex-wrap items-center gap-2 shrink-0">
-                                <Button variant="secondary" size="sm" onClick={() => iniciarEdicao(boat)}>
-                                  <Pencil className="w-4 h-4 mr-1" />
+                              <div className="flex w-full flex-col gap-2 sm:w-auto sm:shrink-0 sm:flex-row sm:flex-wrap sm:justify-end">
+                                <Button className="w-full sm:w-auto" variant="secondary" size="sm" onClick={() => iniciarEdicao(boat)}>
+                                  <Pencil className="mr-1 h-4 w-4" />
                                   {t("marinheiro.edit")}
                                 </Button>
                                 <Button
                                   type="button"
                                   variant="outline"
                                   size="sm"
-                                  className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                                  className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
                                   onClick={() => setBoatPendingDelete(boat)}
                                 >
-                                  <Trash2 className="w-4 h-4 mr-1" />
+                                  <Trash2 className="mr-1 h-4 w-4" />
                                   {t("marinheiro.deleteBoat")}
                                 </Button>
                               </div>
@@ -1549,7 +1757,7 @@ const Marinheiro_Page = () => {
                                     <div className="space-y-2">
                                       <div className="space-y-1">
                                         <Label>{t("marinheiro.jetSkiPrice")}</Label>
-                                        <div className="relative max-w-xs">
+                                        <div className="relative w-full max-w-full sm:max-w-xs">
                                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                                             {t("common.currency")}
                                           </span>
@@ -1656,16 +1864,17 @@ const Marinheiro_Page = () => {
                               />
                               <p className="text-xs text-muted-foreground">{t("marinheiro.photoCountEdit", { n: (boatForm.imagens || []).length })}</p>
                             </div>
-                            <div className="flex gap-2">
-                              <Button className="flex-1" onClick={salvarEdicao} disabled={loading}>
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                              <Button className="w-full sm:flex-1" onClick={salvarEdicao} disabled={loading}>
                                 {t("marinheiro.saveEdit")}
                               </Button>
                               <Button
-                                className="flex-1"
+                                className="w-full sm:flex-1"
                                 variant="secondary"
                                 onClick={() => {
                                   setEditingBoatId(null);
                                   setBoatForm(null);
+                                  setMobileExpandedBoatId(null);
                                   setEditRouteIslandRows([""]);
                                   setEditEmbarkLocsText("");
                                   setEditEmbarkTimesText("");
@@ -1677,6 +1886,7 @@ const Marinheiro_Page = () => {
                             </div>
                           </div>
                         )}
+                        </div>
                       </div>
                     );
                   })}
@@ -1685,11 +1895,11 @@ const Marinheiro_Page = () => {
             </section>
 
             {boats.length > 0 ? (
-              <section className="space-y-3 rounded-xl border border-border bg-card p-4">
-                <h2 className="text-lg font-semibold text-foreground">{t("calendar.title")}</h2>
+              <section className="min-w-0 space-y-3 rounded-xl border border-border bg-card p-3 sm:p-4">
+                <h2 className="text-base font-semibold text-foreground sm:text-lg">{t("calendar.title")}</h2>
                 <p className="text-xs text-muted-foreground">{t("calendar.panelHint")}</p>
                 <Select value={calendarBoatId ?? ""} onValueChange={(v) => setCalendarBoatId(v)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="min-w-0 w-full">
                     <SelectValue placeholder={t("calendar.pickBoat")} />
                   </SelectTrigger>
                   <SelectContent>

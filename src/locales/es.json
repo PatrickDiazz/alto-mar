@@ -26,6 +26,20 @@
     "es": "Español",
     "label": "Idioma"
   },
+  "nav": {
+    "bottom": {
+      "boats": "Barcos",
+      "myBoats": "Mis barcos",
+      "reservations": "Reservas",
+      "favorites": "Favoritos",
+      "account": "Cuenta",
+      "menu": "Menú",
+      "myReservations": "Mis reservas",
+      "menuAria": "Abrir menú (idioma, tema y accesos)",
+      "signIn": "Entrar",
+      "aria": "Navegación inferior"
+    }
+  },
   "calendar": {
     "title": "Calendario del barco",
     "loadFail": "No se pudo cargar el calendario.",
@@ -60,7 +74,8 @@
     "roleArea": "Área",
     "roleAreaHint": "Como armador, puedes explorar embarcaciones o gestionar el panel.",
     "banhistaMode": "Turista",
-    "marinheiroMode": "Armador"
+    "marinheiroMode": "Armador",
+    "quickLinks": "Accesos"
   },
   "home": {
     "welcome": "Bienvenido. ¿Quién eres?",
@@ -76,11 +91,13 @@
     "filtersHeading": "Filtros",
     "filtersCollapsedCta": "Buscar y filtrar",
     "filtersCollapsedAria": "Abrir búsqueda y filtros",
+    "becomeRenterCtaShort": "Sé armador",
+    "becomeRenterAria": "¿Tienes embarcación? Accede al área de armador para anunciarla",
     "login": "Entrar",
     "signup": "Crear cuenta",
     "logout": "Salir",
     "logoutConfirm": "Cerraste sesión. Pulsa Aceptar para ir al inicio o Cancelar para quedarte en Explorar.",
-    "sectionIdeal": "Encuentra el barco ideal",
+    "sectionIdeal": "Encuentra la embarcación ideal",
     "pageIntro": "Filtra arriba y explora por valoración, precio y tipo de embarcación.",
     "sectionTopRated": "Mejor valorados",
     "sectionTopRatedHint": "Las mejores notas de los bañistas — calidad primero.",
@@ -89,6 +106,9 @@
     "sectionByType": "Por tipo de embarcación",
     "sectionByTypeHint": "Elige el estilo de salida que más te guste.",
     "stripScrollHint": "Desliza a los lados para ver más embarcaciones.",
+    "stripLoadMore": "Ver más",
+    "stripLoadMoreAria": "Cargar {{count}} embarcaciones más en esta sección",
+    "stripLoadMoreHint": "{{shown}} de {{total}} en pantalla",
     "sectionAngrenses": "Favoritos locales",
     "sectionAngrensesHint": "Embarcaciones con valoración superior a 4,5",
     "loadingBoats": "Cargando embarcaciones…",
@@ -99,6 +119,7 @@
     "fixLoadAbove": "Cuando la carga esté disponible, esta sección aparecerá aquí.",
     "favLoadError": "Error al cargar favoritos.",
     "favToggleError": "Error al actualizar favorito.",
+    "authRequiredAction": "Inicia sesión o crea una cuenta para continuar.",
     "filters": {
       "type": "Tipo",
       "size": "Tamaño",
@@ -147,7 +168,9 @@
     "failUnavailable": "Servicio no disponible. Inténtalo de nuevo en unos minutos o comprueba que la API esté en marcha.",
     "failNetwork": "No se pudo conectar al servidor. Comprueba la conexión o que la API esté en ejecución (p. ej. npm run dev:server).",
     "failCredentials": "Correo o contraseña incorrectos.",
-    "sessionExpired": "La sesión expiró o no es válida. Vuelve a iniciar sesión."
+    "sessionExpired": "La sesión expiró o no es válida. Vuelve a iniciar sesión.",
+    "hintReservations": "Para ver tus reservas, crea una cuenta o inicia sesión.",
+    "hintFavorites": "Para acceder a tus favoritos, crea una cuenta o inicia sesión."
   },
   "signup": {
     "title": "Crear cuenta",
@@ -280,6 +303,8 @@
     "needRole": "Debes iniciar sesión como {{role}} para ver reservas.",
     "roleName": "Armador",
     "goLogin": "Ir al inicio de sesión",
+    "guestLandingTitle": "Tus salidas al mar, centralizadas aquí",
+    "guestLandingSubtitle": "Publica tu embarcación, gestiona el calendario y recibe solicitudes de reserva.",
     "bookingsHubTitle": "Reservas",
     "reservationsButton": "Reservas",
     "reservationsButtonTitle": "Marcar novedades como vistas e ir a solicitudes pendientes",
@@ -374,6 +399,10 @@
     "photoCountEdit": "{{n}} foto(s)",
     "pendingTitle": "Reservas pendientes",
     "noPending": "Ninguna reserva pendiente.",
+    "mobilePendingToggleAria": "Solicitud: {{boat}}. Toca para ver detalles y responder.",
+    "mobileBoatToggleAria": "{{name}}. Toca para editar o eliminar.",
+    "mobileReservasToggleAria": "Mostrar u ocultar reservas (pendientes, en curso y concluidas).",
+    "mobileReservasSummary": "{{pending}} pend. · {{accepted}} en curso · {{completed}} concl.",
     "client": "Cliente:",
     "embark": "Embarque:",
     "rescheduleJustificationHeading": "Justificación de reprogramación (bañista)",
@@ -443,6 +472,7 @@
   },
   "reservasConta": {
     "title": "Mis reservas",
+    "liveSyncHint": "Se actualiza cada 5 segundos y al volver a esta pestaña.",
     "loadFail": "No se pudieron cargar las reservas.",
     "saveOk": "Reserva actualizada. El armador deberá aceptarla de nuevo.",
     "saveFail": "No se pudo guardar.",

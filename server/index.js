@@ -2501,9 +2501,9 @@ Teste: http://127.0.0.1:3001/api/health
     console.error("Falha ao garantir estrutura inicial:", msg);
   }
 
-  app.listen(PORT, () => {
+  app.listen(PORT, "0.0.0.0", () => {
     // eslint-disable-next-line no-console
-    console.log(`API running on http://localhost:${PORT}`);
+    console.log(`API running on http://localhost:${PORT} (also LAN / emulador Android: porta ${PORT})`);
   }).on("error", (err) => {
     if (err.code === "EADDRINUSE") {
       // eslint-disable-next-line no-console

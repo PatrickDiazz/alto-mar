@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { format } from "date-fns";
 import { ptBR, enUS, es } from "date-fns/locale";
 import { useTranslation } from "react-i18next";
@@ -61,6 +61,9 @@ type RenterBooking = {
 const KIT_CHURRASCO_PRECO = 250;
 const BANHISTA_BOOKING_LEAD_DAYS = 2;
 
+/** Intervalo para alinhar lista com o servidor (aceite/recusa do locador, etc.). */
+const RENTER_BOOKINGS_POLL_MS = 5_000;
+
 function readOnlyStatusBadgeLabel(
   status: string,
   t: (k: string, o?: Record<string, unknown>) => string
@@ -94,26 +97,48 @@ export function RenterBookingsPanel() {
   const [editDraft, setEditDraft] = useState<Partial<RenterBooking> | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const resp = await authFetch("/api/renter/bookings");
-      if (resp.status === 401) return;
-      if (!resp.ok) throw new Error(await readResponseErrorMessage(resp, t("reservasConta.loadFail")));
-      const data = (await resp.json()) as { bookings: RenterBooking[] };
-      setList(data.bookings || []);
-    } catch (e) {
-      const m = (e instanceof Error ? e.message : t("reservasConta.loadFail")).trim();
-      toast.error(m || t("reservasConta.loadFail"));
-    } finally {
-      setLoading(false);
-    }
-  };
+  const load = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const silent = Boolean(opts?.silent);
+      if (!silent) setLoading(true);
+      try {
+        const resp = await authFetch("/api/renter/bookings");
+        if (resp.status === 401) return;
+        if (!resp.ok) throw new Error(await readResponseErrorMessage(resp, t("reservasConta.loadFail")));
+        const data = (await resp.json()) as { bookings: RenterBooking[] };
+        setList(data.bookings || []);
+      } catch (e) {
+        if (!silent) {
+          const m = (e instanceof Error ? e.message : t("reservasConta.loadFail")).trim();
+          toast.error(m || t("reservasConta.loadFail"));
+        }
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [t]
+  );
 
   useEffect(() => {
     if (!user || user.role !== "banhista") return;
     void load();
-  }, [user?.id, user?.role]);
+  }, [user?.id, user?.role, load]);
+
+  useEffect(() => {
+    if (!user || user.role !== "banhista") return;
+    const tick = () => void load({ silent: true });
+    const interval = window.setInterval(tick, RENTER_BOOKINGS_POLL_MS);
+    const onVisibleOrFocus = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisibleOrFocus);
+    window.addEventListener("focus", onVisibleOrFocus);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibleOrFocus);
+      window.removeEventListener("focus", onVisibleOrFocus);
+    };
+  }, [user?.id, user?.role, load]);
 
   const pending = useMemo(() => list.filter((b) => b.status === "PENDING"), [list]);
   const inProgress = useMemo(() => list.filter((b) => b.status === "ACCEPTED"), [list]);
@@ -205,7 +230,7 @@ export function RenterBookingsPanel() {
       toast.success(t("reservasConta.saveOk"));
       setEditingId(null);
       setEditDraft(null);
-      await load();
+      await load({ silent: true });
     } catch (e) {
       const m = (e instanceof Error ? e.message : t("reservasConta.saveFail")).trim();
       toast.error(m || t("reservasConta.saveFail"));
@@ -225,7 +250,7 @@ export function RenterBookingsPanel() {
           setEditingId(null);
           setEditDraft(null);
         }
-        await load();
+        await load({ silent: true });
       } catch (e) {
         const m = (e instanceof Error ? e.message : t("reservasConta.cancelFail")).trim();
         toast.error(m || t("reservasConta.cancelFail"));
@@ -311,7 +336,14 @@ export function RenterBookingsPanel() {
                 <p className="text-sm text-muted-foreground py-4 text-center">{t("reservasConta.emptyDone")}</p>
               ) : (
                 done.map((b) => (
-                  <BookingCard key={b.id} b={b} currencyFmt={currencyFmt} t={t} readOnly onRated={load} />
+                  <BookingCard
+                    key={b.id}
+                    b={b}
+                    currencyFmt={currencyFmt}
+                    t={t}
+                    readOnly
+                    onRated={() => void load({ silent: true })}
+                  />
                 ))
               )}
             </section>

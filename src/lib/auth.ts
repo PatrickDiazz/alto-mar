@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import i18n from "@/i18n";
 
 export type UserRole = "banhista" | "locatario";
@@ -41,6 +42,20 @@ function normalizeApiBase(raw: string | undefined): string | undefined {
   return b.replace(/\/$/, "");
 }
 
+/** API no PC: emulador Android usa 10.0.2.2; iOS Simulator usa 127.0.0.1. Telefone físico: defina VITE_API_BASE_URL no build. */
+function nativeFallbackApiBase(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    if (!Capacitor.isNativePlatform()) return undefined;
+  } catch {
+    return undefined;
+  }
+  const platform = Capacitor.getPlatform();
+  if (platform === "android") return "http://10.0.2.2:3001";
+  if (platform === "ios") return "http://127.0.0.1:3001";
+  return undefined;
+}
+
 /**
  * Monta a URL da API.
  *
@@ -64,6 +79,12 @@ export function apiUrl(path: string) {
 
   if (base) {
     return `${base}${pathNorm}`;
+  }
+
+  const nativeBase = nativeFallbackApiBase();
+  if (nativeBase) {
+    const n = normalizeApiBase(nativeBase);
+    if (n) return `${n}${pathNorm}`;
   }
 
   return pathNorm;

@@ -26,6 +26,20 @@
     "es": "Español",
     "label": "Idioma"
   },
+  "nav": {
+    "bottom": {
+      "boats": "Barcos",
+      "myBoats": "Meus barcos",
+      "reservations": "Reservas",
+      "favorites": "Favoritos",
+      "account": "Conta",
+      "menu": "Menu",
+      "myReservations": "Minhas reservas",
+      "menuAria": "Abrir menu (idioma, tema e atalhos)",
+      "signIn": "Entrar",
+      "aria": "Navegação inferior"
+    }
+  },
   "calendar": {
     "title": "Calendário do barco",
     "loadFail": "Não foi possível carregar o calendário.",
@@ -60,7 +74,8 @@
     "roleArea": "Área",
     "roleAreaHint": "Como locador, você pode explorar embarcações ou gerir o painel.",
     "banhistaMode": "Banhista",
-    "marinheiroMode": "Marinheiro"
+    "marinheiroMode": "Marinheiro",
+    "quickLinks": "Atalhos"
   },
   "home": {
     "welcome": "Seja bem-vindo. Você é?",
@@ -76,11 +91,13 @@
     "filtersHeading": "Filtros",
     "filtersCollapsedCta": "Buscar e filtrar",
     "filtersCollapsedAria": "Abrir busca e filtros",
+    "becomeRenterCtaShort": "Seja um locador",
+    "becomeRenterAria": "Tem embarcação? Aceda à área de locador para anunciar",
     "login": "Entrar",
     "signup": "Criar conta",
     "logout": "Sair",
     "logoutConfirm": "Você saiu da conta. Clique em OK para ir à tela inicial ou Cancelar para ficar no Explorar.",
-    "sectionIdeal": "Encontre o barco ideal",
+    "sectionIdeal": "Encontre a embarcação ideal",
     "pageIntro": "Filtre pelo topo e navegue por destaques: avaliação, preço e tipo de embarcação.",
     "sectionTopRated": "Os mais bem avaliados",
     "sectionTopRatedHint": "Quem leva as melhores notas dos banhistas — qualidade em primeiro lugar.",
@@ -89,6 +106,9 @@
     "sectionByType": "Por tipo de embarcação",
     "sectionByTypeHint": "Escolha o estilo de passeio que combina com você.",
     "stripScrollHint": "Deslize para o lado para ver mais barcos.",
+    "stripLoadMore": "Mostrar mais",
+    "stripLoadMoreAria": "Carregar mais {{count}} embarcações nesta secção",
+    "stripLoadMoreHint": "{{shown}} de {{total}} em exibição",
     "sectionAngrenses": "Favorito dos angrenses",
     "sectionAngrensesHint": "Barcos com avaliação acima de 4,5",
     "loadingBoats": "Carregando barcos…",
@@ -99,6 +119,7 @@
     "fixLoadAbove": "Quando o carregamento estiver disponível, esta seção aparecerá aqui.",
     "favLoadError": "Falha ao carregar favoritos.",
     "favToggleError": "Falha ao atualizar favorito.",
+    "authRequiredAction": "Entre ou crie uma conta para continuar.",
     "filters": {
       "type": "Tipo",
       "size": "Tam.",
@@ -147,7 +168,9 @@
     "failUnavailable": "Serviço indisponível. Tente daqui a pouco ou confira se a API está no ar.",
     "failNetwork": "Não foi possível ligar ao servidor. Verifique a internet ou se a API está a correr (ex.: npm run dev:server).",
     "failCredentials": "Email ou senha inválidos.",
-    "sessionExpired": "Sessão expirada ou inválida. Entre de novo."
+    "sessionExpired": "Sessão expirada ou inválida. Entre de novo.",
+    "hintReservations": "Para acessar suas reservas, crie uma conta ou faça login.",
+    "hintFavorites": "Para acessar seus favoritos, crie uma conta ou faça login."
   },
   "signup": {
     "title": "Criar conta",
@@ -280,6 +303,8 @@
     "needRole": "Você precisa estar logado como {{role}} para ver reservas.",
     "roleName": "Locador",
     "goLogin": "Ir para login",
+    "guestLandingTitle": "Passeios no mar começam no seu painel",
+    "guestLandingSubtitle": "Publique sua embarcação, organize o calendário e receba pedidos de reserva dos banhistas.",
     "bookingsHubTitle": "Reservas",
     "reservationsButton": "Reservas",
     "reservationsButtonTitle": "Marcar novidades como vistas e saltar para pedidos pendentes",
@@ -374,6 +399,10 @@
     "photoCountEdit": "{{n}} foto(s)",
     "pendingTitle": "Reservas pendentes",
     "noPending": "Nenhuma reserva pendente.",
+    "mobilePendingToggleAria": "Pedido: {{boat}}. Toque para ver detalhes e responder.",
+    "mobileBoatToggleAria": "{{name}}. Toque para editar ou apagar.",
+    "mobileReservasToggleAria": "Mostrar ou ocultar reservas (pendentes, em curso e concluídas).",
+    "mobileReservasSummary": "{{pending}} pend. · {{accepted}} em curso · {{completed}} concl.",
     "client": "Cliente:",
     "embark": "Embarque:",
     "rescheduleJustificationHeading": "Justificativa de remarcação (banhista)",
@@ -443,6 +472,7 @@
   },
   "reservasConta": {
     "title": "Minhas reservas",
+    "liveSyncHint": "Atualiza automaticamente a cada 5 segundos e ao voltar ao separador.",
     "loadFail": "Não foi possível carregar as reservas.",
     "saveOk": "Reserva atualizada. O locador precisará aceitar novamente.",
     "saveFail": "Não foi possível salvar.",

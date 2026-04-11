@@ -82,8 +82,9 @@ const ContaFavoritos = () => {
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
-              onClick={() => navigate("/conta")}
+              onClick={() => navigate("/explorar")}
               className="text-foreground hover:text-primary transition-colors shrink-0"
+              aria-label={t("common.back")}
             >
               <ArrowLeft className="w-5 h-5" />
             </button>

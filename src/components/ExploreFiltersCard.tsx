@@ -101,7 +101,7 @@ export function ExploreFiltersCard({
   return (
     <div
       className={cn(
-        "mx-auto w-full max-w-md border border-border bg-card/95 backdrop-blur-md transition-[padding,box-shadow,border-radius] duration-200",
+        "mx-auto w-full max-w-md border border-border bg-card/95 backdrop-blur-md transition-[padding,box-shadow,border-radius] duration-300 ease-out",
         density === 0 && "rounded-xl shadow-sm",
         density === 1 && "rounded-lg shadow-sm",
         density === 2 && "rounded-md border-border/70 shadow-none",
@@ -216,7 +216,7 @@ export function ExploreFiltersCard({
           <div
             className={cn(
               density === 2
-                ? "flex flex-nowrap gap-0 overflow-x-auto overscroll-x-contain py-0.5 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden touch-pan-x lg:flex-wrap lg:justify-center lg:overflow-visible"
+                ? "flex flex-nowrap gap-0 overflow-x-auto overscroll-x-contain py-0.5 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden touch-pan-x touch-pan-y lg:flex-wrap lg:justify-center lg:overflow-visible"
                 : "grid max-lg:grid-cols-5 gap-0.5 lg:flex lg:flex-wrap lg:justify-center lg:gap-1"
             )}
           >

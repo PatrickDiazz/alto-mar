@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { apiUrl, setSession, type AuthUser } from "@/lib/auth";
 import { readJsonOrThrow } from "@/lib/apiResponse";
+import type { LoginLocationState } from "@/lib/loginLocationState";
 
 const Login = () => {
   const { t } = useTranslation();
@@ -17,8 +18,17 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const from = (location.state as { from?: string } | null)?.from || "/";
+  const locState = (location.state as LoginLocationState | null) ?? null;
+  const from = locState?.from || "/";
+  const loginContext = locState?.loginContext;
   const isMarinheiroLogin = from === "/marinheiro";
+
+  const contextualSubtitle =
+    loginContext === "reservations"
+      ? t("login.hintReservations")
+      : loginContext === "favorites"
+        ? t("login.hintFavorites")
+        : null;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -84,16 +94,22 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+    <div className="relative min-h-screen flex items-center justify-center bg-background px-4">
       <div className="absolute top-4 right-4">
         <HeaderSettingsMenu />
       </div>
       <div className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-card space-y-4">
         <div>
           <h1 className="text-xl font-bold text-foreground">{t("login.title")}</h1>
-          <p className="text-sm text-muted-foreground">
-            {isMarinheiroLogin ? t("login.subtitleRenter") : t("login.subtitleDefault")}
-          </p>
+          {contextualSubtitle ? (
+            <p className="text-sm text-foreground/90 leading-relaxed mt-1 rounded-lg border border-primary/20 bg-primary/[0.08] px-3 py-2.5">
+              {contextualSubtitle}
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground mt-1">
+              {isMarinheiroLogin ? t("login.subtitleRenter") : t("login.subtitleDefault")}
+            </p>
+          )}
         </div>
 
         <form className="space-y-3" onSubmit={onSubmit}>

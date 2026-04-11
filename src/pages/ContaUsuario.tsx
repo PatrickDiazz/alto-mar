@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, LogOut, Trash2, UserRound, CircleHelp, Heart, Star } from "lucide-react";
+import { ArrowLeft, CalendarDays, LogOut, Trash2, UserRound, CircleHelp, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
-import { RenterBookingsPanel } from "@/components/RenterBookingsPanel";
 import { authFetch, clearSession, getStoredUser } from "@/lib/auth";
 import { readResponseErrorMessage } from "@/lib/responseError";
 
@@ -61,14 +60,6 @@ const ContaUsuario = () => {
       active = false;
     };
   }, [currentUser?.id, navigate, t]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || window.location.hash !== "#conta-reservas") return;
-    const id = window.setTimeout(() => {
-      document.getElementById("conta-reservas")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 150);
-    return () => clearTimeout(id);
-  }, [me?.id, me?.role]);
 
   const logout = () => {
     clearSession();
@@ -146,31 +137,23 @@ const ContaUsuario = () => {
               </p>
             ) : null}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Button variant="secondary" onClick={() => navigate("/conta/dados")}>
               <UserRound className="w-4 h-4 mr-1" />
               {t("conta.accountData")}
-            </Button>
-            <Button variant="secondary" onClick={() => navigate("/conta/favoritos")}>
-              <Heart className="w-4 h-4 mr-1" />
-              {t("conta.favorites")}
             </Button>
             <Button variant="secondary" onClick={() => navigate("/conta/ajuda-teste")}>
               <CircleHelp className="w-4 h-4 mr-1" />
               {t("conta.helpTest")}
             </Button>
+            {me?.role === "banhista" ? (
+              <Button variant="default" className="sm:col-span-2" onClick={() => navigate("/conta/reservas")}>
+                <CalendarDays className="w-4 h-4 mr-1" />
+                {t("conta.reservations")}
+              </Button>
+            ) : null}
           </div>
         </section>
-
-        {me?.role === "banhista" ? (
-          <section
-            id="conta-reservas"
-            className="rounded-xl border border-border bg-card p-4 shadow-card space-y-4 scroll-mt-24"
-          >
-            <h2 className="text-lg font-semibold text-foreground">{t("reservasConta.title")}</h2>
-            <RenterBookingsPanel />
-          </section>
-        ) : null}
 
         <section className="rounded-xl border border-border bg-card p-4 shadow-card">
           <h2 className="text-base font-semibold text-foreground mb-1">{t("conta.helpSectionTitle")}</h2>

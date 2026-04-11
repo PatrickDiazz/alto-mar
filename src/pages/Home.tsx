@@ -18,10 +18,6 @@ const Home = () => {
   }, [navigate, user]);
 
   const goBanhista = () => {
-    if (!getStoredUser()) {
-      navigate("/login", { state: { from: "/explorar" } });
-      return;
-    }
     navigate("/explorar");
   };
 
