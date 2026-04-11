@@ -10,6 +10,8 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-04-11
+
 ### Adicionado
 
 - **`npm run db:refresh-demo-images`**: script que actualiza `boat_images` na BD só para barcos do locador demo (`DEMO_OWNER_EMAIL`), para o site em produção reflectir novos ficheiros em `public/assets/` sem correr o seed completo. Lógica partilhada em **`server/boatDemoImages.js`**.
@@ -32,6 +34,10 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 ### Documentação
 
 - **README** e **`docs/DEPLOY.md`**: nota de que o Explorar usa URLs da base de dados e como refrescar imagens após deploy do front.
+
+### Versões
+
+- Cliente e servidor **0.12.0**; Android **`versionName` 0.12.0**, **`versionCode` 8**.
 
 ---
 
@@ -314,5 +320,5 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ## Tags Git e releases
 
-- A tag **`v0.11.1`** marca o estado actual do código alinhado a este changelog.
+- A tag **`v0.12.0`** marca o estado actual do código alinhado a este changelog.
 - Versões **0.1.0–0.9.0** são documentais (histórico retroactivo); pode criar tags adicionais nos commits antigos se precisar de comparações no GitHub.
