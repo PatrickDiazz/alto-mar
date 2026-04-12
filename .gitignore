@@ -8,6 +8,9 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+# Lockfile do Bun — o repositório usa npm (`package-lock.json` na raiz e em `server/`)
+bun.lock
+
 dist
 dist-ssr
 *.local
