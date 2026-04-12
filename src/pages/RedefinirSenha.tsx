@@ -92,7 +92,7 @@ const RedefinirSenha = () => {
         <div className="absolute top-4 right-4">
           <HeaderSettingsMenu />
         </div>
-        <div className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-card space-y-4 text-center">
+        <div className="surface-elevated w-full max-w-md rounded-xl p-6 space-y-4 text-center">
           <h1 className="text-xl font-bold text-foreground">{t("redefinir.invalidTitle")}</h1>
           <p className="text-sm text-muted-foreground">{t("redefinir.invalidHint")}</p>
           <Button asChild className="w-full">
@@ -111,7 +111,7 @@ const RedefinirSenha = () => {
       <div className="absolute top-4 right-4">
         <HeaderSettingsMenu />
       </div>
-      <div className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-card space-y-4">
+      <div className="surface-elevated w-full max-w-md rounded-xl p-6 space-y-4">
         <div>
           <h1 className="text-xl font-bold text-foreground">{t("redefinir.newPassTitle")}</h1>
           <p className="text-sm text-muted-foreground">{t("redefinir.newPassSubtitle")}</p>

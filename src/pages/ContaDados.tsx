@@ -69,7 +69,7 @@ const ContaDados = () => {
       </header>
 
       <div className="max-w-2xl mx-auto px-4 py-5">
-        <section className="rounded-xl border border-border bg-card p-4 shadow-card space-y-2 text-sm">
+        <section className="surface-elevated rounded-xl p-4 space-y-2 text-sm">
           <p>
             <span className="text-muted-foreground">{t("contaDados.name")} </span>
             <span className="text-foreground font-semibold">{me?.name || currentUser?.name}</span>

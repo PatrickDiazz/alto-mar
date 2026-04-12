@@ -39,8 +39,8 @@
 
     --radius: 0.75rem;
 
-    --font-heading: 'Plus Jakarta Sans', sans-serif;
-    --font-body: 'Plus Jakarta Sans', sans-serif;
+    --font-heading: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
 
     --shadow-card: 0 2px 12px -2px hsl(210 20% 50% / 0.12);
     --shadow-elevated: 0 8px 30px -8px hsl(210 20% 50% / 0.18);
@@ -103,6 +103,42 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
   }
+}
+
+@layer components {
+  /** Painéis sem borda: claro = muted sólido + sombra; escuro = cartão do tema. */
+  .surface-elevated {
+    @apply border-0 bg-muted shadow-elevated;
+    @apply dark:bg-card dark:shadow-card;
+  }
+  .surface-elevated-risk {
+    @apply border-0 bg-destructive/10 shadow-elevated;
+    @apply dark:bg-destructive/25 dark:shadow-card;
+  }
+}
+
+@layer utilities {
+  /** Esconde a barra de rolagem mantendo scroll (Explorar mobile, listas horizontais). */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+}
+
+/* Rolar a página no Explorar (mobile): sem barra vertical visível */
+html.explorar-mobile-scroll-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+html.explorar-mobile-scroll-hide::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 /* Leaflet cria panes com z-index alto; isso impede o mapa de "passar por cima" de footers sticky */

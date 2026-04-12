@@ -10,6 +10,29 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ## [Unreleased]
 
+## [0.12.1] — 2026-04-10
+
+### Adicionado
+
+- **Marinheiro**: secção de reservas **aceites em atraso** (data do passeio já passou e ainda não marcadas como concluídas), com destaque e cópias em **pt / en / es**; o locador só pode **marcar concluído** no dia do passeio ou depois (UI e validação em **`POST /api/owner/bookings/:id/complete`**).
+
+### Alterado
+
+- **Painel do locador** (PT): título **«Painel do Locador»** (singular).
+- **Reservar** / **`BoatCalendarPanel`**: calendário com navegação alinhada (mês centrado, setas nas pontas); tema escuro nos botões de mês (contraste sem fundo «quase branco»); barra inferior *sticky* opaca com `z-index` e mais espaço de rodapé; no **mobile**, foco dos botões de mês remove-se após toque; no **desktop** escuro, hover dos botões de mês só escurece o fundo (sem anel/borda).
+- **Calendário do dono** (`BoatCalendarPanel` variante **owner**): travas **gravadas** visíveis (correcção do `day_selected` e datas da API); **`GET /api/boats/:id/calendar`** com **`to_char(..., 'YYYY-MM-DD')`**; cliente **`boatCalendarApi`** normaliza `dateLocks` e datas de reservas; rascunho = só **borda vermelha clara**; gravado e **trava por dia da semana** no grid = **mesmo preenchimento vermelho**, **sem borda** colorida nas travas já guardadas.
+- **Explorar**, **BoatCard**, **DetalhesBarco**, páginas de **conta** e **autenticação**, **RenterBookingsPanel**, **BoatRoutes**, **BoatLiveGps**, componente **`card`**, **`tailwind.config`** e **`index.css`**: refinamentos de layout e tema alinhados ao restante desta release.
+
+### Corrigido
+
+- **Calendário**: datas de travas/reservas da API alinhadas a **`YYYY-MM-DD`** para os modificadores e estado local coincidirem com o calendário.
+
+### Versões
+
+- Cliente e servidor **0.12.1**; Android **`versionName` 0.12.1**, **`versionCode` 9**.
+
+---
+
 ## [0.12.0] — 2026-04-11
 
 ### Adicionado
@@ -320,5 +343,5 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ## Tags Git e releases
 
-- A tag **`v0.12.0`** marca o estado actual do código alinhado a este changelog.
+- A tag **`v0.12.1`** marca o estado actual do código alinhado a este changelog.
 - Versões **0.1.0–0.9.0** são documentais (histórico retroactivo); pode criar tags adicionais nos commits antigos se precisar de comparações no GitHub.

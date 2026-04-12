@@ -992,12 +992,12 @@ app.get("/api/boats/:id/calendar", async (req, res) => {
 
     const [dateLocks, weekdayLocks, bookingRows] = await Promise.all([
       query(
-        `select locked_date::text as d from boat_date_locks where boat_id = $1 order by locked_date`,
+        `select to_char(locked_date, 'YYYY-MM-DD') as d from boat_date_locks where boat_id = $1 order by locked_date`,
         [boatId]
       ),
       query(`select weekday from boat_weekday_locks where boat_id = $1 order by weekday`, [boatId]),
       query(
-        `select bk.id, bk.booking_date::text as d, bk.status
+        `select bk.id, to_char(bk.booking_date, 'YYYY-MM-DD') as d, bk.status
          from bookings bk
          where bk.boat_id = $1
            and bk.booking_date >= $2::date
@@ -1035,13 +1035,29 @@ app.get("/api/favorites", requireAuth, async (req, res) => {
        order by f.created_at desc`,
       [req.user.sub]
     );
+    const boatIds = rows.rows.map((r) => r.boat_id);
+    const images =
+      boatIds.length === 0
+        ? { rows: [] }
+        : await query(
+            `select boat_id, url, sort
+             from boat_images
+             where boat_id = any($1::uuid[])
+             order by boat_id, sort asc`,
+            [boatIds]
+          );
+    const imagesByBoat = images.rows.reduce((acc, r) => {
+      (acc[r.boat_id] ||= []).push(r.url);
+      return acc;
+    }, {});
     return res.json({
-      boatIds: rows.rows.map((r) => r.boat_id),
+      boatIds: boatIds,
       boats: rows.rows.map((r) => ({
         id: r.boat_id,
         nome: r.name,
         distancia: r.location_text,
         preco: formatBoatPreco(r.price_cents),
+        imagens: imagesByBoat[r.boat_id] || [],
       })),
     });
   } catch (e) {
@@ -1587,6 +1603,23 @@ function assertBanhistaBookingLead(bookingDateStr) {
     );
     err.code = "BOOKING_MIN_LEAD";
     throw err;
+  }
+}
+
+/** Locador: não concluir antes do dia do passeio; no dia ou depois (atraso) pode. */
+function assertOwnerCanCompleteBooking(yyyyMmDd) {
+  const s = String(yyyyMmDd || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    throw new Error("Data do passeio inválida.");
+  }
+  const diff = calendarDaysFromTodayLocal(s);
+  if (!Number.isFinite(diff)) {
+    throw new Error("Data do passeio inválida.");
+  }
+  if (diff > 0) {
+    throw new Error(
+      "Só é possível concluir no dia do passeio ou após essa data, se a conclusão estiver em atraso."
+    );
   }
 }
 
@@ -2281,6 +2314,15 @@ app.post(
   async (req, res) => {
     try {
       const bookingId = req.params.id;
+      const cur = await query(
+        `select booking_date::text as bd
+         from bookings
+         where id = $1::uuid and owner_user_id = $2::uuid and status = 'ACCEPTED'`,
+        [bookingId, req.user.sub]
+      );
+      const found = cur.rows[0];
+      if (!found) return res.status(404).send("Reserva não encontrada ou não está aceita.");
+      assertOwnerCanCompleteBooking(found.bd);
       const updated = await query(
         `update bookings
          set status = 'COMPLETED', decided_at = coalesce(decided_at, now())

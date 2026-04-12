@@ -244,7 +244,7 @@ export function BoatRoutes({ boatId, locationText, routeIslands }: BoatRoutesPro
   const selected = routes[selectedIdx] || routes[0];
 
   return (
-    <section className="bg-card rounded-xl border border-border p-4 space-y-3">
+    <section className="surface-elevated rounded-xl p-4 space-y-3">
       <div>
         <h3 className="text-base font-bold text-foreground">{t("boatRoutes.title")}</h3>
         <p className="text-xs text-muted-foreground">{t("boatRoutes.subtitle")}</p>

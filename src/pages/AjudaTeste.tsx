@@ -23,7 +23,7 @@ const AjudaTeste = () => {
       </header>
 
       <div className="max-w-2xl mx-auto w-full flex-1 px-4 py-5 space-y-3 text-sm">
-        <section className="rounded-xl border border-border bg-card p-4 shadow-card">
+        <section className="surface-elevated rounded-xl p-4">
           <h2 className="font-semibold text-foreground mb-2">{t("ajudaTeste.checklistTitle")}</h2>
           <ul className="list-disc list-inside text-muted-foreground space-y-1">
             <li>{t("ajudaTeste.l1")}</li>
@@ -34,7 +34,7 @@ const AjudaTeste = () => {
           </ul>
         </section>
 
-        <section className="rounded-xl border border-border bg-card p-4 shadow-card">
+        <section className="surface-elevated rounded-xl p-4">
           <h2 className="font-semibold text-foreground mb-2">{t("ajudaTeste.accountsTitle")}</h2>
           <p className="text-muted-foreground">{t("ajudaTeste.demoRenter")}</p>
           <p className="text-muted-foreground">{t("ajudaTeste.demoGuest")}</p>

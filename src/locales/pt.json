@@ -296,7 +296,7 @@
     "rescheduleNoticeAfterAccept": "Depois que o locador aceitar a reserva, alterar a data do passeio (remarcação) só é permitido com justificativa obrigatória: motivo previsto, título, texto descritivo e, se quiser, imagens em anexo."
   },
   "marinheiro": {
-    "title": "Painel dos Locadores",
+    "title": "Painel do Locador",
     "logout": "Sair",
     "refresh": "Atualizar",
     "loading": "Carregando...",
@@ -360,6 +360,13 @@
     "toastCompleteOk": "Reserva marcada como concluída.",
     "toastCompleteFail": "Não foi possível concluir a reserva.",
     "acceptedTitle": "Reservas em curso",
+    "acceptedOverdueTitle": "Conclusão pendente (atraso)",
+    "acceptedOverdueSectionHint": "A data do passeio já passou e o passeio ainda não foi marcado como concluído. Trate como prioridade — o banhista continua com reserva aceita.",
+    "acceptedOverdueBadge": "Atraso",
+    "acceptedOverdueHint": "Conclua o passeio assim que possível para manter o histórico correto.",
+    "completeAvailableOnDay": "Só é possível marcar como concluído no dia do passeio ou depois (se estiver em atraso).",
+    "completeNoDateHint": "Sem data do passeio registada — não é possível concluir até existir uma data válida.",
+    "noUpcomingAccepted": "Não há passeios futuros ou de hoje em curso; verifique acima se há conclusões em atraso.",
     "noAccepted": "Nenhuma reserva aceita no momento.",
     "completeBooking": "Marcar passeio como concluído",
     "completedTitle": "Passeios concluídos",
@@ -402,7 +409,7 @@
     "mobilePendingToggleAria": "Pedido: {{boat}}. Toque para ver detalhes e responder.",
     "mobileBoatToggleAria": "{{name}}. Toque para editar ou apagar.",
     "mobileReservasToggleAria": "Mostrar ou ocultar reservas (pendentes, em curso e concluídas).",
-    "mobileReservasSummary": "{{pending}} pend. · {{accepted}} em curso · {{completed}} concl.",
+    "mobileReservasSummary": "{{pending}} pend. · {{overdue}} atraso · {{accepted}} em curso · {{completed}} concl.",
     "client": "Cliente:",
     "embark": "Embarque:",
     "rescheduleJustificationHeading": "Justificativa de remarcação (banhista)",
@@ -583,7 +590,9 @@
   },
   "boatCard": {
     "favAdd": "Adicionar aos favoritos",
-    "favRemove": "Remover dos favoritos"
+    "favRemove": "Remover dos favoritos",
+    "noRating": "—",
+    "ratingHint": "Nota dos banhistas (0 a 5)"
   },
   "boatRoutes": {
     "title": "Roteiros sugeridos",

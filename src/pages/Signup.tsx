@@ -53,7 +53,7 @@ const Signup = () => {
       <div className="absolute top-4 right-4">
         <HeaderSettingsMenu />
       </div>
-      <div className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-card space-y-4">
+      <div className="surface-elevated w-full max-w-md rounded-xl p-6 space-y-4">
         <div>
           <h1 className="text-xl font-bold text-foreground">{t("signup.title")}</h1>
           <p className="text-sm text-muted-foreground">{t("signup.subtitle")}</p>
@@ -97,14 +97,14 @@ const Signup = () => {
           <div className="space-y-2">
             <Label>{t("signup.youAre")}</Label>
             <RadioGroup value={role} onValueChange={(v) => setRole(v as UserRole)} className="space-y-2">
-              <label className="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3 cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+              <label className="flex cursor-pointer items-center gap-3 rounded-xl border-0 bg-muted px-4 py-3 shadow-card ring-offset-background has-[:checked]:bg-primary/15 has-[:checked]:ring-2 has-[:checked]:ring-primary dark:bg-card">
                 <RadioGroupItem value="banhista" id="banhista" />
                 <div>
                   <span className="text-sm font-semibold text-foreground">{t("signup.banhista")}</span>
                   <p className="text-xs text-muted-foreground">{t("signup.banhistaHint")}</p>
                 </div>
               </label>
-              <label className="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3 cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+              <label className="flex cursor-pointer items-center gap-3 rounded-xl border-0 bg-muted px-4 py-3 shadow-card ring-offset-background has-[:checked]:bg-primary/15 has-[:checked]:ring-2 has-[:checked]:ring-primary dark:bg-card">
                 <RadioGroupItem value="locatario" id="locatario" />
                 <div>
                   <span className="text-sm font-semibold text-foreground">{t("signup.locatario")}</span>

@@ -116,7 +116,7 @@ const ContaUsuario = () => {
       </header>
 
       <div className="max-w-2xl mx-auto px-4 py-5 space-y-5">
-        <section className="rounded-xl border border-border bg-card p-4 shadow-card space-y-3">
+        <section className="surface-elevated rounded-2xl p-4 space-y-3">
           <div className="text-sm text-foreground space-y-1">
             <p className="font-semibold">{me?.name || currentUser?.name}</p>
             <p className="text-muted-foreground">{maskEmail(me?.email || currentUser?.email || "")}</p>
@@ -155,7 +155,7 @@ const ContaUsuario = () => {
           </div>
         </section>
 
-        <section className="rounded-xl border border-border bg-card p-4 shadow-card">
+        <section className="surface-elevated rounded-2xl p-4">
           <h2 className="text-base font-semibold text-foreground mb-1">{t("conta.helpSectionTitle")}</h2>
           <p className="text-xs text-muted-foreground mb-3">{t("conta.helpSectionDesc")}</p>
           <Button variant="secondary" onClick={() => navigate("/conta/ajuda-teste")}>
@@ -164,7 +164,7 @@ const ContaUsuario = () => {
           </Button>
         </section>
 
-        <section className="rounded-xl border border-red-200/50 bg-card p-4 shadow-card">
+        <section className="surface-elevated-risk rounded-2xl p-4">
           <h2 className="text-base font-semibold text-foreground mb-1">{t("conta.riskTitle")}</h2>
           <p className="text-xs text-muted-foreground mb-3">{t("conta.riskDesc")}</p>
           <Button variant="destructive" onClick={deleteAccount} disabled={loading}>

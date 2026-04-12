@@ -360,6 +360,13 @@
     "toastCompleteOk": "Reserva marcada como completada.",
     "toastCompleteFail": "No se pudo completar la reserva.",
     "acceptedTitle": "Reservas en curso",
+    "acceptedOverdueTitle": "Conclusión pendiente (retraso)",
+    "acceptedOverdueSectionHint": "La fecha del paseo ya pasó y aún no está marcado como completado. Priorízalo — el bañista sigue con reserva aceptada.",
+    "acceptedOverdueBadge": "Retraso",
+    "acceptedOverdueHint": "Marca el paseo como completado cuanto antes para mantener el historial correcto.",
+    "completeAvailableOnDay": "Solo puedes marcar como completado el día del paseo o después (si hay retraso).",
+    "completeNoDateHint": "Sin fecha de paseo registrada — no se puede completar hasta que haya una fecha válida.",
+    "noUpcomingAccepted": "No hay paseos de hoy o futuros en esta lista; revisa arriba si hay conclusiones atrasadas.",
     "noAccepted": "Ninguna reserva aceptada por ahora.",
     "completeBooking": "Marcar paseo como completado",
     "completedTitle": "Paseos completados",
@@ -402,7 +409,7 @@
     "mobilePendingToggleAria": "Solicitud: {{boat}}. Toca para ver detalles y responder.",
     "mobileBoatToggleAria": "{{name}}. Toca para editar o eliminar.",
     "mobileReservasToggleAria": "Mostrar u ocultar reservas (pendientes, en curso y concluidas).",
-    "mobileReservasSummary": "{{pending}} pend. · {{accepted}} en curso · {{completed}} concl.",
+    "mobileReservasSummary": "{{pending}} pend. · {{overdue}} retraso · {{accepted}} en curso · {{completed}} concl.",
     "client": "Cliente:",
     "embark": "Embarque:",
     "rescheduleJustificationHeading": "Justificación de reprogramación (bañista)",
@@ -583,7 +590,9 @@
   },
   "boatCard": {
     "favAdd": "Añadir a favoritos",
-    "favRemove": "Quitar de favoritos"
+    "favRemove": "Quitar de favoritos",
+    "noRating": "—",
+    "ratingHint": "Valoración de los bañistas (de 0 a 5)"
   },
   "boatRoutes": {
     "title": "Itinerarios sugeridos",

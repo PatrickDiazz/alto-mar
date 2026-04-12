@@ -318,7 +318,7 @@ const DetalhesBarco = () => {
           {barco.amenidades?.length ? (
             <>
               <hr className="border-border" />
-              <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+              <div className="surface-elevated rounded-xl p-4 space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">{t("reservar.included")}</h3>
                 <div className="grid grid-cols-2 gap-1.5">
                   {barco.amenidades.map((a) => (
@@ -345,7 +345,7 @@ const DetalhesBarco = () => {
           {barco.jetSkiOffered && barco.jetSkiPriceCents ? (
             <>
               <hr className="border-border" />
-              <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+              <div className="surface-elevated rounded-xl p-4 space-y-3">
                 <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                   <Waves className="w-5 h-5 text-primary shrink-0" />
                   {t("detalhes.jetSkiTitle")}
@@ -362,7 +362,7 @@ const DetalhesBarco = () => {
                         href={url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block aspect-video overflow-hidden rounded-lg border border-border bg-muted"
+                        className="block aspect-video overflow-hidden rounded-lg border-0 bg-muted shadow-sm"
                       >
                         <img src={url} alt="" className="h-full w-full object-cover" />
                       </a>
@@ -380,7 +380,7 @@ const DetalhesBarco = () => {
 
           <hr className="border-border" />
 
-          <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+          <div className="surface-elevated rounded-xl p-4 space-y-3">
             <h2 className="text-lg font-bold text-foreground">{t("detalhes.availabilityTitle")}</h2>
             <p className="text-xs text-muted-foreground leading-relaxed">{t("detalhes.availabilityHint")}</p>
             <BoatCalendarPanel variant="readonly" boatId={barco.id} />
@@ -392,7 +392,7 @@ const DetalhesBarco = () => {
         </div>
       </div>
 
-      <div className="sticky bottom-0 z-20 bg-card border-t border-border px-4 py-4">
+      <div className="sticky bottom-0 z-20 border-0 bg-muted px-4 py-4 dark:bg-card">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <span className="text-xl font-bold text-foreground">{barco.preco}</span>
           <Button

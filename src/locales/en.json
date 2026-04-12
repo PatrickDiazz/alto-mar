@@ -360,6 +360,13 @@
     "toastCompleteOk": "Booking marked as completed.",
     "toastCompleteFail": "Could not complete booking.",
     "acceptedTitle": "Bookings in progress",
+    "acceptedOverdueTitle": "Completion pending (overdue)",
+    "acceptedOverdueSectionHint": "The trip date has passed but the trip is not marked completed yet. Treat as priority — the guest still has an accepted booking.",
+    "acceptedOverdueBadge": "Overdue",
+    "acceptedOverdueHint": "Mark the trip completed as soon as you can to keep records accurate.",
+    "completeAvailableOnDay": "You can only mark as completed on the trip day or later (if overdue).",
+    "completeNoDateHint": "No trip date on file — completion is unavailable until there is a valid date.",
+    "noUpcomingAccepted": "No trips today or in the future in this list; check above for overdue completions.",
     "noAccepted": "No accepted bookings yet.",
     "completeBooking": "Mark trip as completed",
     "completedTitle": "Completed trips",
@@ -402,7 +409,7 @@
     "mobilePendingToggleAria": "Request: {{boat}}. Tap to view details and respond.",
     "mobileBoatToggleAria": "{{name}}. Tap to edit or delete.",
     "mobileReservasToggleAria": "Show or hide bookings (pending, active, and completed).",
-    "mobileReservasSummary": "{{pending}} pend. · {{accepted}} active · {{completed}} done",
+    "mobileReservasSummary": "{{pending}} pend. · {{overdue}} overdue · {{accepted}} active · {{completed}} done",
     "client": "Client:",
     "embark": "Boarding:",
     "rescheduleJustificationHeading": "Reschedule justification (guest)",
@@ -583,7 +590,9 @@
   },
   "boatCard": {
     "favAdd": "Add to favorites",
-    "favRemove": "Remove from favorites"
+    "favRemove": "Remove from favorites",
+    "noRating": "—",
+    "ratingHint": "Guest rating (out of 5)"
   },
   "boatRoutes": {
     "title": "Suggested itineraries",

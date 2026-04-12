@@ -123,7 +123,7 @@ export function BoatLiveGps({ boatId, boatName }: BoatLiveGpsProps) {
   }, [position.lat, position.lng]);
 
   return (
-    <section className="bg-card rounded-xl border border-border p-4 space-y-3">
+    <section className="surface-elevated rounded-xl p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-bold text-foreground">GPS ao vivo</h3>
@@ -163,7 +163,7 @@ export function BoatLiveGps({ boatId, boatName }: BoatLiveGpsProps) {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border">
+      <div className="overflow-hidden rounded-xl shadow-sm">
         <MapContainer
           center={[position.lat, position.lng]}
           zoom={13}

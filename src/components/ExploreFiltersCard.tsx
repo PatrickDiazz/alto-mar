@@ -101,10 +101,10 @@ export function ExploreFiltersCard({
   return (
     <div
       className={cn(
-        "mx-auto w-full max-w-md border border-border bg-card/95 backdrop-blur-md transition-[padding,box-shadow,border-radius] duration-300 ease-out",
-        density === 0 && "rounded-xl shadow-sm",
-        density === 1 && "rounded-lg shadow-sm",
-        density === 2 && "rounded-md border-border/70 shadow-none",
+        "mx-auto w-full max-w-md border-0 bg-muted/95 backdrop-blur-md transition-[padding,box-shadow,border-radius] duration-300 ease-out dark:bg-card/95",
+        density === 0 && "rounded-xl shadow-elevated dark:shadow-card",
+        density === 1 && "rounded-lg shadow-card",
+        density === 2 && "rounded-md shadow-none",
         className
       )}
     >

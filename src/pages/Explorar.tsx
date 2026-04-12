@@ -21,7 +21,6 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import logoLight from "@/assets/logo-altomar-light.png";
 import logoDark from "@/assets/logo-altomar-dark.png";
-import exploreHeroBg from "@/assets/explore-banhista-hero.png";
 import {
   matchesExploreFilters,
   type ExploreMainFilter,
@@ -60,7 +59,7 @@ function parseBoatRating(b: Boat): number {
 
 function ExploreSectionHeading({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <div className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/[0.16] via-primary/[0.06] to-card px-4 py-3.5 shadow-sm">
+    <div className="rounded-xl border-0 bg-gradient-to-br from-primary/[0.16] via-primary/[0.06] to-card px-4 py-3.5 shadow-sm">
       <h2 className="text-lg font-bold tracking-tight text-foreground">{title}</h2>
       <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{subtitle}</p>
     </div>
@@ -101,10 +100,10 @@ function ExploreBoatStrip({
       ) : null}
       <div
         className={cn(
-          "gap-3 pb-2 -mx-4 px-4 md:mx-0 md:px-0 [scrollbar-width:thin]",
+          "gap-3 pb-2 md:mx-0 md:px-0 md:[scrollbar-width:thin]",
           isMdUp
             ? "grid md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 md:gap-4 md:overflow-visible"
-            : "flex overflow-x-auto snap-x snap-mandatory md:snap-none overscroll-x-contain touch-pan-x touch-pan-y"
+            : "flex overflow-x-auto snap-x snap-mandatory md:snap-none overscroll-x-contain touch-pan-x touch-pan-y scrollbar-none max-md:pl-[max(1rem,calc(50vw-min(39vw,140px)))] max-md:pr-[max(1rem,calc(50vw-min(39vw,140px)))] max-md:-mx-4"
         )}
         style={!isMdUp ? { WebkitOverflowScrolling: "touch" } : undefined}
       >
@@ -112,7 +111,7 @@ function ExploreBoatStrip({
           <div
             key={barco.id}
             className={cn(
-              !isMdUp && "w-[min(78vw,280px)] shrink-0 snap-start",
+              !isMdUp && "w-[min(78vw,280px)] shrink-0 snap-center",
               isMdUp && "md:w-auto md:min-w-0"
             )}
           >
@@ -131,10 +130,10 @@ function ExploreBoatStrip({
             type="button"
             variant="secondary"
             className={cn(
-              "group relative h-auto min-h-11 gap-2.5 rounded-full border border-primary/25 bg-card/90 px-6 py-2.5",
-              "shadow-md shadow-primary/[0.06] backdrop-blur-sm",
-              "transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out",
-              "hover:border-primary/40 hover:bg-primary/[0.08] hover:shadow-lg hover:shadow-primary/[0.08]",
+              "group relative h-auto min-h-11 gap-2.5 rounded-full border-0 bg-muted px-6 py-2.5 dark:bg-card",
+              "shadow-md backdrop-blur-sm",
+              "transition-[transform,box-shadow,background-color] duration-200 ease-out",
+              "hover:bg-primary/12 hover:shadow-lg dark:hover:bg-primary/15",
               "active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             )}
             onClick={() =>
@@ -331,7 +330,6 @@ const Explorar = () => {
   const filtersBarCollapsed = filtersScrollCollapsed && !filtersOpenedByUser;
   const headerPadPx = filtersBarCollapsed ? HEADER_PAD_PX_MIN : HEADER_PAD_PX_MAX;
   const headerInnerGapPx = filtersBarCollapsed ? HEADER_GAP_PX_COLLAPSED : HEADER_GAP_PX_EXPANDED;
-  const heroBgOpacity = Math.max(0, 1 - filterScrollY / 240);
   const headerPadTransition = "padding-top 220ms cubic-bezier(0.33, 1, 0.32, 1), padding-bottom 220ms cubic-bezier(0.33, 1, 0.32, 1)";
   const headerGapTransition = "gap 220ms cubic-bezier(0.33, 1, 0.32, 1)";
 
@@ -425,21 +423,22 @@ const Explorar = () => {
 
   const headerLogo = resolvedTheme === "dark" ? logoDark : logoLight;
 
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const sync = () => {
+      if (mq.matches) document.documentElement.classList.add("explorar-mobile-scroll-hide");
+      else document.documentElement.classList.remove("explorar-mobile-scroll-hide");
+    };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => {
+      mq.removeEventListener("change", sync);
+      document.documentElement.classList.remove("explorar-mobile-scroll-hide");
+    };
+  }, []);
+
   return (
     <div className="relative z-0 min-h-screen bg-background">
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-x-0 top-0 z-[5] h-[min(62vh,540px)] overflow-hidden transition-[opacity] duration-300 ease-out"
-        style={{ opacity: heroBgOpacity }}
-      >
-        <div
-          className="absolute inset-0 bg-cover bg-[center_40%] blur-[3px] scale-[1.03]"
-          style={{ backgroundImage: `url(${exploreHeroBg})` }}
-        />
-        <div className="absolute inset-0 bg-primary/[0.14] dark:bg-primary/[0.18]" />
-        <div className="absolute inset-0 bg-background/44 dark:bg-background/52" />
-        <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.08] via-background/18 to-background" />
-      </div>
       <header className="sticky top-0 z-40 border-b border-border/80 bg-background/90 backdrop-blur-md supports-[backdrop-filter]:bg-background/85">
         <div
           className="mx-auto max-w-6xl xl:max-w-7xl px-4"
@@ -552,7 +551,7 @@ const Explorar = () => {
                   type="button"
                   onClick={handleExpandFilters}
                   className={cn(
-                    "flex h-11 min-h-11 items-center justify-center gap-1.5 rounded-full border border-primary/25 bg-card/95 px-3 shadow-md backdrop-blur-md transition-[transform,box-shadow] duration-200 ease-out hover:scale-[1.02] hover:border-primary/40 hover:shadow-lg active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:gap-2 sm:px-4",
+                    "flex h-11 min-h-11 items-center justify-center gap-1.5 rounded-full border-0 bg-muted px-3 shadow-md backdrop-blur-md transition-[transform,box-shadow] duration-200 ease-out hover:scale-[1.02] hover:bg-primary/12 hover:shadow-lg active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 dark:bg-card sm:gap-2 sm:px-4",
                     filtersBarCollapsed
                       ? "min-w-0 max-lg:w-auto max-lg:max-w-[min(100%,17rem)] max-lg:shrink lg:w-auto lg:max-w-none"
                       : "w-full max-w-md sm:w-auto sm:max-w-none"
@@ -637,7 +636,7 @@ const Explorar = () => {
 
         {barcosLoading && <p className="text-center text-muted-foreground py-8">{t("explorar.loadingBoats")}</p>}
         {barcosError && (
-          <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-2 text-sm">
+          <div className="surface-elevated space-y-2 rounded-lg p-4 text-sm">
             <p className="font-medium text-foreground">{t("explorar.loadErrorTitle")}</p>
             <p className="text-muted-foreground">{t("common.boatsUnavailable")}</p>
             <Button

@@ -13,7 +13,9 @@ const ContaFavoritos = () => {
   const navigate = useNavigate();
   const currentUser = getStoredUser();
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
-  const [favoriteBoats, setFavoriteBoats] = useState<Array<{ id: string; nome: string; distancia: string; preco: string }>>([]);
+  const [favoriteBoats, setFavoriteBoats] = useState<
+    Array<{ id: string; nome: string; distancia: string; preco: string; imagens?: string[] }>
+  >([]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -30,7 +32,7 @@ const ContaFavoritos = () => {
         }
         const favData = (await favResp.json()) as {
           boatIds: string[];
-          boats?: Array<{ id: string; nome: string; distancia: string; preco: string }>;
+          boats?: Array<{ id: string; nome: string; distancia: string; preco: string; imagens?: string[] }>;
         };
         if (!active) return;
         const ids = Array.isArray(favData.boatIds) ? favData.boatIds : [];
@@ -102,26 +104,48 @@ const ContaFavoritos = () => {
           <p className="text-center text-muted-foreground py-8">{t("conta.noFavorites")}</p>
         ) : (
           <div className="space-y-2">
-            {favoriteBoats.map((barco) => (
-              <div
-                key={barco.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2"
-              >
-                <button
-                  type="button"
-                  onClick={() => navigate(`/barco/${barco.id}`)}
-                  className="text-left min-w-0 flex-1"
+            {favoriteBoats.map((barco) => {
+              const thumb = barco.imagens?.[0];
+              return (
+                <div
+                  key={barco.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border-0 bg-muted px-3 py-2.5 shadow-card dark:bg-card"
                 >
-                  <p className="text-sm font-semibold text-foreground truncate">{barco.nome}</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {barco.distancia} • {barco.preco}
-                  </p>
-                </button>
-                <Button variant="ghost" size="sm" onClick={() => toggleFavorite(barco.id)}>
-                  <Heart className="w-4 h-4 fill-red-500 text-red-500" />
-                </Button>
-              </div>
-            ))}
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/barco/${barco.id}`)}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  >
+                    <div className="relative h-16 w-20 shrink-0 overflow-hidden rounded-lg bg-secondary">
+                      {thumb ? (
+                        <img
+                          src={thumb}
+                          alt={barco.nome}
+                          className="h-full w-full object-cover"
+                          width={160}
+                          height={128}
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      ) : (
+                        <span className="flex h-full w-full items-center justify-center px-1 text-center text-[10px] leading-tight text-muted-foreground">
+                          {barco.nome}
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-foreground truncate">{barco.nome}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {barco.distancia} • {barco.preco}
+                      </p>
+                    </div>
+                  </button>
+                  <Button variant="ghost" size="sm" onClick={() => toggleFavorite(barco.id)}>
+                    <Heart className="w-4 h-4 fill-red-500 text-red-500" />
+                  </Button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

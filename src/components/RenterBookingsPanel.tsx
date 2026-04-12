@@ -494,10 +494,10 @@ function BookingCard({
 
   return (
     <div
-      className={`rounded-xl border text-sm transition-[box-shadow,border-color] ${
+      className={`rounded-xl border-0 text-sm transition-[box-shadow] ${
         compactReadOnly
-          ? "border-border/50 bg-muted/20 p-1 shadow-sm hover:border-border/70 hover:shadow-md"
-          : "border-border bg-card p-4 space-y-2.5 shadow-sm"
+          ? "bg-muted/50 p-1 shadow-sm hover:bg-muted/65 hover:shadow-md dark:bg-card/50"
+          : "surface-elevated space-y-2.5 p-4"
       }`}
     >
       {compactReadOnly ? (
@@ -674,7 +674,7 @@ function BookingCard({
             )}
           </div>
           {isRescheduling ? (
-            <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
+            <div className="surface-elevated space-y-3 rounded-lg p-3">
               <p className="text-sm font-semibold text-foreground">{t("reservasConta.rescheduleSectionTitle")}</p>
               <p className="text-xs text-muted-foreground">{t("reservasConta.rescheduleSectionHint")}</p>
               <div className="space-y-2">

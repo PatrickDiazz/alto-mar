@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { BadgeCheck, Heart } from "lucide-react";
+import { BadgeCheck, Heart, Star } from "lucide-react";
 import type { Boat } from "@/lib/types";
 
 interface BoatCardProps {
@@ -47,6 +47,9 @@ function BoatCardInner({ barco, isFavorited = false, onToggleFavorite }: BoatCar
   const goDetail = useCallback(() => {
     navigate(`/barco/${barco.id}`);
   }, [navigate, barco.id]);
+
+  const ratingN = parseFloat(String(barco.nota).replace(",", ".").trim());
+  const hasRating = Number.isFinite(ratingN) && ratingN > 0;
 
   return (
     <div
@@ -94,7 +97,21 @@ function BoatCardInner({ barco, isFavorited = false, onToggleFavorite }: BoatCar
           {barco.verificado && <BadgeCheck className="w-4 h-4 text-verified shrink-0" />}
         </div>
         <p className="text-xs text-muted-foreground">{barco.distancia}</p>
-        <p className="text-sm font-semibold text-foreground">{barco.preco}</p>
+        <div className="flex items-center justify-between gap-2 pt-0.5">
+          <p className="text-sm font-semibold text-foreground">{barco.preco}</p>
+          <span
+            className={`inline-flex shrink-0 items-center gap-0.5 text-xs font-semibold tabular-nums ${
+              hasRating ? "text-foreground" : "text-muted-foreground"
+            }`}
+            title={t("boatCard.ratingHint")}
+          >
+            <Star
+              className={`h-3.5 w-3.5 ${hasRating ? "fill-amber-500 text-amber-500" : "text-muted-foreground"}`}
+              aria-hidden
+            />
+            {hasRating ? barco.nota : t("boatCard.noRating")}
+          </span>
+        </div>
       </div>
     </div>
   );

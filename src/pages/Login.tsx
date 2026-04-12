@@ -98,7 +98,7 @@ const Login = () => {
       <div className="absolute top-4 right-4">
         <HeaderSettingsMenu />
       </div>
-      <div className="w-full max-w-md bg-card border border-border rounded-xl p-6 shadow-card space-y-4">
+      <div className="surface-elevated w-full max-w-md rounded-xl p-6 space-y-4">
         <div>
           <h1 className="text-xl font-bold text-foreground">{t("login.title")}</h1>
           {contextualSubtitle ? (

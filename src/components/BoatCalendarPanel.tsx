@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { format, parseISO, startOfDay, isBefore, addMonths, addDays } from "date-fns";
 import { ptBR, enUS, es } from "date-fns/locale";
@@ -6,12 +6,62 @@ import { DayPicker, type Matcher } from "react-day-picker";
 import "react-day-picker/dist/style.css";
 import { cn } from "@/lib/utils";
 import { fetchBoatCalendar, type BoatCalendarResponse } from "@/lib/boatCalendarApi";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { authFetch } from "@/lib/auth";
 import { readResponseErrorMessage } from "@/lib/responseError";
 
+/**
+ * Caption: mês centrado na linha; nav em overlay com setas nas pontas (alinhado ao eixo vertical do texto).
+ * Claro: borda + fundo como antes. Escuro: mesmo esquema “botão preenchido”, sem borda, contraste com o card.
+ */
+const boatCalendarCaptionNavClassNames = {
+  caption: "relative flex min-h-9 items-center justify-center pt-1",
+  caption_label:
+    "relative z-[1] truncate px-11 text-center text-sm font-medium tabular-nums leading-none text-foreground",
+  nav: "pointer-events-none absolute inset-0 z-[2] flex items-center justify-between gap-1 px-0.5",
+  nav_button:
+    "touch-manipulation pointer-events-auto h-7 w-7 shrink-0 rounded-md border border-border bg-background text-foreground opacity-90 hover:opacity-100 inline-flex items-center justify-center [-webkit-tap-highlight-color:transparent] dark:border-0 dark:bg-secondary dark:text-secondary-foreground dark:opacity-100 dark:hover:!border-transparent dark:hover:!bg-[hsl(210_20%_24%)] dark:hover:text-foreground dark:hover:!shadow-none dark:hover:!ring-0 dark:hover:!ring-offset-0 dark:focus-visible:!outline-none dark:focus-visible:!border-transparent dark:focus-visible:!shadow-none dark:focus-visible:!ring-0 dark:focus-visible:!ring-offset-0 dark:focus-visible:!bg-[hsl(210_20%_24%)] [@media(hover:none)_and_(pointer:coarse)]:active:!border-transparent [@media(hover:none)_and_(pointer:coarse)]:active:!bg-transparent [@media(hover:none)_and_(pointer:coarse)]:active:!shadow-none [@media(hover:none)_and_(pointer:coarse)]:focus:!border-transparent [@media(hover:none)_and_(pointer:coarse)]:focus:!bg-transparent [@media(hover:none)_and_(pointer:coarse)]:focus:!shadow-none [@media(hover:none)_and_(pointer:coarse)]:focus-visible:!border-transparent [@media(hover:none)_and_(pointer:coarse)]:focus-visible:!bg-transparent [@media(hover:none)_and_(pointer:coarse)]:focus-visible:!shadow-none [@media(hover:none)_and_(pointer:coarse)]:hover:!border-border [@media(hover:none)_and_(pointer:coarse)]:hover:!bg-background dark:[@media(hover:none)_and_(pointer:coarse)]:hover:!border-transparent dark:[@media(hover:none)_and_(pointer:coarse)]:hover:!bg-secondary dark:[@media(hover:none)_and_(pointer:coarse)]:focus-visible:!bg-transparent",
+  nav_button_previous: "static translate-y-0",
+  nav_button_next: "static translate-y-0",
+} as const;
+
+const boatDayPickerIcons = {
+  IconLeft: ({ className, ...props }: ComponentProps<typeof ChevronLeft>) => (
+    <ChevronLeft className={cn("h-4 w-4", className)} {...props} />
+  ),
+  IconRight: ({ className, ...props }: ComponentProps<typeof ChevronRight>) => (
+    <ChevronRight className={cn("h-4 w-4", className)} {...props} />
+  ),
+};
+
 const RANGE_BACK = 6;
 const RANGE_FORWARD = 18;
+
+/** Em toque, o foco fica no botão e o contorno do RDP persiste; blur após o pointerup remove-o já no mobile. */
+function useBlurRdpMonthNavAfterTouch(
+  containerRef: RefObject<HTMLElement | null>,
+  /** Re-liga ao mudar de ramo (owner vs picker) para o ref apontar ao contentor certo. */
+  instanceKey: string
+) {
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const onPointerUpCapture = (e: PointerEvent) => {
+      if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
+      const t = e.target;
+      if (!(t instanceof Element)) return;
+      const btn = t.closest('button[name="next-month"], button[name="previous-month"]');
+      if (btn instanceof HTMLButtonElement) {
+        queueMicrotask(() => btn.blur());
+      }
+    };
+
+    el.addEventListener("pointerup", onPointerUpCapture, true);
+    return () => el.removeEventListener("pointerup", onPointerUpCapture, true);
+  }, [instanceKey]);
+}
 
 function localeForLang(lang: string) {
   if (lang.startsWith("pt")) return ptBR;
@@ -53,6 +103,8 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
   const { i18n, t } = useTranslation();
   const loc = localeForLang(i18n.language);
   const [month, setMonth] = useState(() => new Date());
+  const monthNavHostRef = useRef<HTMLDivElement>(null);
+  useBlurRdpMonthNavAfterTouch(monthNavHostRef, props.variant);
   const [data, setData] = useState<BoatCalendarResponse | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -110,6 +162,9 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
     [isDayBlockedForPicker, props.variant, pickerLeadDays]
   );
 
+  const pickerSelectedKey =
+    props.variant === "picker" && props.selectedDate ? props.selectedDate : null;
+
   const modifiers = useMemo(() => {
     if (!data) return {};
     return {
@@ -119,24 +174,36 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
       },
       tripConfirmed: (d: Date) => {
         const key = dayKey(d);
+        if (pickerSelectedKey && key === pickerSelectedKey) return false;
         return data.bookings.some(
           (b) => b.date === key && (b.status === "ACCEPTED" || b.status === "COMPLETED")
         );
       },
       tripPending: (d: Date) => {
         const key = dayKey(d);
+        if (pickerSelectedKey && key === pickerSelectedKey) return false;
         return data.bookings.some((b) => b.date === key && b.status === "PENDING");
       },
     };
-  }, [data]);
+  }, [data, pickerSelectedKey]);
 
-  /** Travas = vermelho preenchido (sem borda de destaque no calendário). */
+  /** Travas = vermelho preenchido (picker/readonly; sem borda). */
   const modifiersClassNames = {
     ownerLockDay:
-      "!border-2 !border-transparent !bg-red-500/22 !text-foreground dark:!bg-red-950/55",
+      "!border-2 !border-transparent !bg-red-500/40 !text-foreground !font-medium dark:!bg-red-950/75",
     tripConfirmed: "!bg-emerald-600/30 !text-foreground",
     tripPending: "!bg-amber-400/30 !text-foreground",
   };
+
+  /** No picker, dia escolhido deve manter destaque (primary) mesmo com foco noutro sítio — `!` dos outros modificadores não pode ganhar. */
+  const modifiersClassNamesPicker =
+    props.variant === "picker"
+      ? {
+          ...modifiersClassNames,
+          selected:
+            "!z-[1] !bg-primary !text-primary-foreground !opacity-100 shadow-sm hover:!bg-primary hover:!text-primary-foreground focus:!bg-primary focus:!text-primary-foreground focus-visible:!ring-2 focus-visible:!ring-ring focus-visible:!ring-offset-2 focus-visible:!ring-offset-background",
+        }
+      : modifiersClassNames;
 
   const [locksLocal, setLocksLocal] = useState<{ dateLocks: string[]; weekdayLocks: number[] } | null>(null);
 
@@ -199,12 +266,16 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
           </span>
         </div>
         {loadErr ? <p className="text-sm text-destructive">{loadErr}</p> : null}
-        <div className="w-full max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+        <div
+          ref={monthNavHostRef}
+          className="w-full max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]"
+        >
         <DayPicker
           mode="multiple"
           month={month}
           onMonthChange={setMonth}
           locale={loc}
+          components={boatDayPickerIcons}
           selected={selectedMulti}
           onSelect={(dates) => {
             const next = (dates || []).map((d) => dayKey(d));
@@ -254,27 +325,31 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
           }}
           modifiersClassNames={{
             ...modifiersClassNames,
-            ownerLockDay: "!box-border !rounded-md !border-2 !border-transparent !bg-red-500/22 !text-foreground dark:!bg-red-950/55",
+            /** Evita fundo “selected” padrão do RDP a sobrepor travas (multiple). */
+            selected: "!shadow-none !ring-0",
+            /** Dia coberto só por trava de semana (não está em dateLocks): mesmo preenchimento que trava gravada, sem borda. */
+            ownerLockDay:
+              "!z-[1] !box-border !rounded-md !border-2 !border-transparent !bg-red-500/40 !text-foreground !font-medium dark:!bg-red-950/75",
+            /** Trava por data já gravada: só preenchimento, sem borda. */
             ownerLockDateSaved:
-              "!box-border !rounded-md !border-2 !border-transparent !bg-red-500/26 !text-foreground !font-medium dark:!bg-red-950/62",
+              "!z-[1] !box-border !rounded-md !border-2 !border-transparent !bg-red-500/40 !text-foreground !font-medium dark:!bg-red-950/75",
+            /** Selecionado ainda não gravado: só borda vermelha clara, sem preenchimento. */
             ownerLockDateDraft:
-              "!box-border !rounded-md !border-0 !bg-transparent !text-foreground !font-medium !shadow-none !ring-1 !ring-inset !ring-red-400/40 hover:!ring-red-400/55 dark:!ring-red-500/35 dark:hover:!ring-red-500/50",
+              "!z-[1] !box-border !rounded-md !border-2 !border-red-300 !bg-transparent !text-foreground !font-medium !shadow-none !ring-0 dark:!border-red-500/55",
           }}
-          className="min-w-[260px] rounded-xl border border-border p-2 sm:p-3"
+          className="min-w-[260px] rounded-xl border-0 bg-muted p-2 shadow-card sm:p-3 dark:bg-card"
           classNames={{
+            ...boatCalendarCaptionNavClassNames,
             months: "flex flex-col sm:flex-row gap-4",
             month: "space-y-3",
-            caption: "flex justify-center pt-1 relative items-center",
-            nav: "flex items-center gap-1",
-            nav_button: "h-7 w-7 inline-flex items-center justify-center rounded-md border border-border bg-background opacity-80 hover:opacity-100",
             table: "w-full border-collapse",
             head_row: "flex",
             head_cell: "text-muted-foreground w-9 font-normal text-[0.8rem]",
             row: "flex w-full mt-2",
             cell: "h-9 w-9 text-center text-sm p-0 relative",
             day: "h-9 w-9 rounded-md p-0 font-normal box-border border-2 border-transparent aria-selected:opacity-100 hover:bg-accent",
-            day_selected:
-              "!border-2 !border-transparent !bg-transparent !font-medium !shadow-none focus:!text-foreground",
+            /** Não forçar fundo transparente: senão esconde ownerLockDateSaved / rascunho ao estar em `selected`. */
+            day_selected: "!font-medium !shadow-none focus:!text-foreground aria-selected:opacity-100",
             day_today: "ring-1 ring-primary/50",
             day_outside: "text-muted-foreground opacity-50",
             day_disabled: "text-muted-foreground opacity-40",
@@ -340,30 +415,32 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
         </span>
       </div>
       {loadErr ? <p className="text-sm text-destructive">{loadErr}</p> : null}
-      <div className="w-full max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+      <div
+        ref={monthNavHostRef}
+        className="w-full max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]"
+      >
       <DayPicker
         mode="single"
         month={month}
         onMonthChange={setMonth}
         locale={loc}
+        components={boatDayPickerIcons}
         selected={singleSelected}
         onSelect={
           props.variant === "picker"
             ? (d) => {
-                if (d) props.onSelectDate(dayKey(d));
+                props.onSelectDate(d ? dayKey(d) : null);
               }
             : undefined
         }
         disabled={props.variant === "picker" ? disabledMatcher : false}
         modifiers={{ ...modifiers }}
-        modifiersClassNames={modifiersClassNames}
-        className="min-w-[260px] rounded-xl border border-border p-2 sm:p-3"
+        modifiersClassNames={modifiersClassNamesPicker}
+        className="min-w-[260px] rounded-xl border-0 bg-muted p-2 shadow-card sm:p-3 dark:bg-card"
         classNames={{
+          ...boatCalendarCaptionNavClassNames,
           months: "flex flex-col sm:flex-row gap-4",
           month: "space-y-3",
-          caption: "flex justify-center pt-1 relative items-center",
-          nav: "flex items-center gap-1",
-          nav_button: "h-7 w-7 inline-flex items-center justify-center rounded-md border border-border bg-background opacity-80 hover:opacity-100",
           table: "w-full border-collapse",
           head_row: "flex",
           head_cell: "text-muted-foreground w-9 font-normal text-[0.8rem]",

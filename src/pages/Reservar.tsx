@@ -423,8 +423,8 @@ const Reservar = () => {
         </div>
       </header>
 
-      <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-6 space-y-6 pb-32">
-        <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+      <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-6 space-y-6 pb-40">
+        <div className="surface-elevated rounded-xl p-4 space-y-3">
           <div className="flex items-center gap-3">
             <img
               src={barco.imagens[0]}
@@ -518,7 +518,7 @@ const Reservar = () => {
           <h3 className="text-base font-bold text-foreground">{t("reservar.routeStops")}</h3>
           <p className="text-xs text-muted-foreground">{t("reservar.routeStopsHint")}</p>
           {routeParsed?.kind === "multi" ? (
-            <div className="space-y-2 rounded-xl border border-border bg-card p-3">
+            <div className="surface-elevated space-y-2 rounded-xl p-3">
               <p className="text-xs font-medium text-foreground">{t("reservar.pickRouteVariant")}</p>
               <RadioGroup
                 value={String(selectedRouteIdx)}
@@ -542,7 +542,7 @@ const Reservar = () => {
               </RadioGroup>
             </div>
           ) : null}
-          <div className="space-y-2 rounded-xl border border-border bg-card p-3">
+          <div className="surface-elevated space-y-2 rounded-xl p-3">
             {checkboxStops.map((stop, si) => (
               <label key={`${stop}-${si}`} className="flex items-center gap-3 text-sm cursor-pointer">
                 <Checkbox
@@ -619,7 +619,7 @@ const Reservar = () => {
           </div>
         </section>
 
-        <section className="rounded-xl border border-dashed border-border bg-muted/30 p-4 space-y-2">
+        <section className="surface-elevated rounded-xl p-4 space-y-2">
           <h3 className="text-sm font-semibold text-foreground">{t("reservar.reviewTitle")}</h3>
           <ul className="text-xs text-muted-foreground space-y-1">
             <li>
@@ -727,7 +727,7 @@ const Reservar = () => {
           </p>
         </section>
 
-        <section className="bg-card rounded-xl border border-border p-4">
+        <section className="surface-elevated rounded-xl p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <UtensilsCrossed className="w-5 h-5 text-accent" />
@@ -746,7 +746,7 @@ const Reservar = () => {
         </section>
 
         {barco.jetSkiOffered && jetSkiReais > 0 ? (
-          <section className="bg-card rounded-xl border border-border p-4">
+          <section className="surface-elevated rounded-xl p-4">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <Waves className="w-5 h-5 text-primary shrink-0" />
@@ -770,7 +770,7 @@ const Reservar = () => {
             <CreditCard className="w-4 h-4 text-primary" /> {t("reservar.payment")}
           </h3>
           <RadioGroup value={metodoPagamento} onValueChange={setMetodoPagamento} className="space-y-2">
-            <label className="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3 cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+            <label className="flex cursor-pointer items-center gap-3 rounded-xl border-0 bg-muted px-4 py-3 shadow-card ring-offset-background has-[:checked]:bg-primary/15 has-[:checked]:ring-2 has-[:checked]:ring-primary dark:bg-card">
               <RadioGroupItem value="pix" id="pix" />
               <QrCode className="w-5 h-5 text-verified" />
               <div>
@@ -778,7 +778,7 @@ const Reservar = () => {
                 <p className="text-xs text-muted-foreground">{t("reservar.pixHint")}</p>
               </div>
             </label>
-            <label className="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3 cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+            <label className="flex cursor-pointer items-center gap-3 rounded-xl border-0 bg-muted px-4 py-3 shadow-card ring-offset-background has-[:checked]:bg-primary/15 has-[:checked]:ring-2 has-[:checked]:ring-primary dark:bg-card">
               <RadioGroupItem value="cartao" id="cartao" />
               <CreditCard className="w-5 h-5 text-primary" />
               <div>
@@ -790,9 +790,9 @@ const Reservar = () => {
         </section>
       </div>
 
-      <div className="sticky bottom-0 bg-card border-t border-border px-4 py-4">
+      <div className="sticky bottom-0 z-20 border-t border-border bg-muted px-4 py-4 shadow-[0_-10px_40px_-12px_rgba(0,0,0,0.18)] dark:bg-card dark:shadow-[0_-12px_40px_-8px_rgba(0,0,0,0.55)]">
         <div className="max-w-2xl mx-auto space-y-3">
-          <p className="text-[11px] text-muted-foreground leading-snug rounded-lg border border-border/70 bg-muted/30 px-3 py-2">
+          <p className="rounded-lg border border-border/60 bg-background px-3 py-2 text-[11px] leading-snug text-muted-foreground dark:border-border dark:bg-background/80">
             {t("reservar.rescheduleNoticeAfterAccept")}
           </p>
           <div className="flex items-center justify-between gap-3">

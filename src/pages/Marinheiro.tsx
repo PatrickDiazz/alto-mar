@@ -111,7 +111,7 @@ function OwnerRescheduleJustification({
 }) {
   if (!b.rescheduleTitle) return null;
   return (
-    <div className="space-y-2 break-words rounded-lg border border-border bg-muted/30 p-3 text-xs">
+    <div className="space-y-2 break-words rounded-lg border-0 bg-muted p-3 text-xs shadow-card dark:bg-card">
       <p className="font-semibold text-foreground">{t("marinheiro.rescheduleJustificationHeading")}</p>
       {b.rescheduleReason ? (
         <p className="text-muted-foreground">
@@ -133,6 +133,98 @@ function OwnerRescheduleJustification({
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** >0 futuro, 0 hoje, <0 passado; null sem data válida. */
+function marinheiroBookingDayDiff(yyyyMmDd: string | undefined): number | null {
+  if (!yyyyMmDd) return null;
+  const parts = String(yyyyMmDd)
+    .split("-")
+    .map((x) => parseInt(x, 10));
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
+  const [y, m, d] = parts;
+  const target = new Date(y, m - 1, d);
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((target.getTime() - start.getTime()) / 86400000);
+}
+
+function MarinheiroAcceptedBookingCard({
+  b,
+  t,
+  currencyFmt,
+  loading,
+  dayDiff,
+  onComplete,
+}: {
+  b: OwnerBookingRow;
+  t: (k: string, o?: Record<string, unknown>) => string;
+  currencyFmt: Intl.NumberFormat;
+  loading: boolean;
+  dayDiff: number | null;
+  onComplete: (id: string) => void;
+}) {
+  const overdue = dayDiff !== null && dayDiff < 0;
+  const canComplete = dayDiff !== null && dayDiff <= 0;
+  return (
+    <div
+      className={cn(
+        "surface-elevated space-y-3 rounded-xl p-3 sm:p-4",
+        overdue && "ring-2 ring-amber-500/45 dark:ring-amber-400/35"
+      )}
+    >
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <p className="truncate text-sm font-semibold text-foreground">{b.boat.nome}</p>
+          {overdue ? (
+            <Badge className="shrink-0 border-amber-600/60 bg-amber-500/15 text-amber-950 dark:text-amber-100">
+              {t("marinheiro.acceptedOverdueBadge")}
+            </Badge>
+          ) : null}
+        </div>
+        <p className="break-words text-xs text-muted-foreground">
+          {t("marinheiro.client")} {b.renter.nome}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {t("marinheiro.total")} {currencyFmt.format(b.totalCents / 100)}
+        </p>
+        {b.bookingDate ? (
+          <p className="text-xs font-medium text-foreground">
+            {t("marinheiro.bookingDateLabel")}: {b.bookingDate}
+          </p>
+        ) : null}
+        <p className="text-xs text-muted-foreground">
+          {t("marinheiro.embark")}{" "}
+          {[b.embarkLocation, b.embarkTime].filter(Boolean).join(" · ") ||
+            t("reservar.embarkToArrangeShort")}
+        </p>
+        {b.routeIslands && b.routeIslands.length > 0 ? (
+          <p className="break-words text-xs text-muted-foreground">
+            {t("marinheiro.bookingRoute")}: {b.routeIslands.join(", ")}
+          </p>
+        ) : null}
+      </div>
+      <OwnerRescheduleJustification b={b} t={t} />
+      {overdue ? (
+        <p className="text-pretty text-[11px] leading-relaxed text-amber-900/90 dark:text-amber-100/90">
+          {t("marinheiro.acceptedOverdueHint")}
+        </p>
+      ) : null}
+      {dayDiff !== null && dayDiff > 0 ? (
+        <p className="text-pretty text-[11px] leading-relaxed text-muted-foreground">
+          {t("marinheiro.completeAvailableOnDay")}
+        </p>
+      ) : null}
+      {dayDiff === null && !b.bookingDate ? (
+        <p className="text-pretty text-[11px] leading-relaxed text-muted-foreground">
+          {t("marinheiro.completeNoDateHint")}
+        </p>
+      ) : null}
+      <Button onClick={() => onComplete(b.id)} disabled={loading || !canComplete} className="w-full">
+        {t("marinheiro.completeBooking")}
+      </Button>
     </div>
   );
 }
@@ -283,6 +375,22 @@ const Marinheiro_Page = () => {
   const isLocatario = user?.role === "locatario";
   const pendentes = useMemo(() => bookings.filter((b) => b.status === "PENDING"), [bookings]);
   const aceitas = useMemo(() => bookings.filter((b) => b.status === "ACCEPTED"), [bookings]);
+  const aceitasAtraso = useMemo(
+    () =>
+      aceitas.filter((b) => {
+        const d = marinheiroBookingDayDiff(b.bookingDate);
+        return d !== null && d < 0;
+      }),
+    [aceitas]
+  );
+  const aceitasEmCurso = useMemo(
+    () =>
+      aceitas.filter((b) => {
+        const d = marinheiroBookingDayDiff(b.bookingDate);
+        return d === null || d >= 0;
+      }),
+    [aceitas]
+  );
   const concluidas = useMemo(() => bookings.filter((b) => b.status === "COMPLETED"), [bookings]);
   const coastalCityOptions = useMemo(() => [...CIDADES_LITORAL_RJ].sort((a, b) => a.localeCompare(b, "pt")), []);
 
@@ -724,7 +832,7 @@ const Marinheiro_Page = () => {
           ))}
         </datalist>
         {!isLocatario ? (
-          <div className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-card sm:p-6">
+          <div className="surface-elevated space-y-4 rounded-xl p-4 sm:p-6">
             <div>
               <h2 className="text-lg font-semibold text-foreground">{t("marinheiro.guestLandingTitle")}</h2>
               <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
@@ -737,7 +845,10 @@ const Marinheiro_Page = () => {
           </div>
         ) : (
           <>
-            <section id="marinheiro-reservas" className="overflow-hidden rounded-xl border border-primary/25 bg-card shadow-card">
+            <section
+              id="marinheiro-reservas"
+              className="overflow-hidden rounded-xl border-0 bg-primary/12 shadow-elevated dark:bg-card dark:shadow-card"
+            >
               <button
                 type="button"
                 className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-muted/45 active:bg-muted/60 sm:p-4 md:hidden"
@@ -753,13 +864,22 @@ const Marinheiro_Page = () => {
                   <p className="truncate text-xs text-muted-foreground">
                     {t("marinheiro.mobileReservasSummary", {
                       pending: pendentes.length,
-                      accepted: aceitas.length,
+                      overdue: aceitasAtraso.length,
+                      accepted: aceitasEmCurso.length,
                       completed: concluidas.length,
                     })}
                   </p>
                 </div>
                 {pendentes.length > 0 ? (
                   <Badge className="shrink-0 bg-destructive text-destructive-foreground">{pendentes.length}</Badge>
+                ) : null}
+                {aceitasAtraso.length > 0 ? (
+                  <Badge
+                    className="shrink-0 border border-amber-600/70 bg-amber-500/20 text-amber-950 dark:text-amber-50"
+                    variant="outline"
+                  >
+                    {aceitasAtraso.length}
+                  </Badge>
                 ) : null}
                 <ChevronDown
                   className={cn(
@@ -807,7 +927,7 @@ const Marinheiro_Page = () => {
                       return (
                         <div
                           key={b.id}
-                          className="overflow-hidden rounded-xl border border-border bg-card shadow-card"
+                          className="surface-elevated overflow-hidden rounded-xl"
                         >
                           <button
                             type="button"
@@ -909,46 +1029,54 @@ const Marinheiro_Page = () => {
                 )}
               </div>
 
+              {aceitasAtraso.length > 0 ? (
+                <div id="marinheiro-reservas-atraso" className="space-y-3 border-t border-border pt-4 scroll-mt-24">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-base font-semibold text-foreground">{t("marinheiro.acceptedOverdueTitle")}</h3>
+                    <Badge variant="outline" className="border-amber-600/60 text-amber-950 dark:text-amber-100">
+                      {aceitasAtraso.length}
+                    </Badge>
+                  </div>
+                  <p className="text-pretty text-xs leading-relaxed text-muted-foreground">
+                    {t("marinheiro.acceptedOverdueSectionHint")}
+                  </p>
+                  <div className="space-y-3">
+                    {aceitasAtraso.map((b) => (
+                      <MarinheiroAcceptedBookingCard
+                        key={b.id}
+                        b={b}
+                        t={t}
+                        currencyFmt={currencyFmt}
+                        loading={loading}
+                        dayDiff={marinheiroBookingDayDiff(b.bookingDate)}
+                        onComplete={concluirReserva}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               <div id="marinheiro-reservas-curso" className="space-y-3 border-t border-border pt-4 scroll-mt-24">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-base font-semibold text-foreground">{t("marinheiro.acceptedTitle")}</h3>
-                  <Badge variant="outline">{aceitas.length}</Badge>
+                  <Badge variant="outline">{aceitasEmCurso.length}</Badge>
                 </div>
                 {aceitas.length === 0 ? (
                   <p className="text-center text-muted-foreground py-6">{t("marinheiro.noAccepted")}</p>
+                ) : aceitasEmCurso.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-6">{t("marinheiro.noUpcomingAccepted")}</p>
                 ) : (
                   <div className="space-y-3">
-                    {aceitas.map((b) => (
-                      <div key={b.id} className="space-y-3 rounded-xl border border-border bg-card p-3 shadow-card sm:p-4">
-                        <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-foreground">{b.boat.nome}</p>
-                            <p className="break-words text-xs text-muted-foreground">
-                              {t("marinheiro.client")} {b.renter.nome}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {t("marinheiro.total")} {currencyFmt.format(b.totalCents / 100)}
-                            </p>
-                            {b.bookingDate ? (
-                              <p className="text-xs font-medium text-foreground">
-                                {t("marinheiro.bookingDateLabel")}: {b.bookingDate}
-                              </p>
-                            ) : null}
-                            <p className="text-xs text-muted-foreground">
-                              {t("marinheiro.embark")}{" "}
-                              {[b.embarkLocation, b.embarkTime].filter(Boolean).join(" · ") ||
-                                t("reservar.embarkToArrangeShort")}
-                            </p>
-                            {b.routeIslands && b.routeIslands.length > 0 ? (
-                              <p className="break-words text-xs text-muted-foreground">
-                                {t("marinheiro.bookingRoute")}: {b.routeIslands.join(", ")}
-                              </p>
-                            ) : null}
-                        </div>
-                        <OwnerRescheduleJustification b={b} t={t} />
-                        <Button onClick={() => concluirReserva(b.id)} disabled={loading} className="w-full">
-                          {t("marinheiro.completeBooking")}
-                        </Button>
-                      </div>
+                    {aceitasEmCurso.map((b) => (
+                      <MarinheiroAcceptedBookingCard
+                        key={b.id}
+                        b={b}
+                        t={t}
+                        currencyFmt={currencyFmt}
+                        loading={loading}
+                        dayDiff={marinheiroBookingDayDiff(b.bookingDate)}
+                        onComplete={concluirReserva}
+                      />
                     ))}
                   </div>
                 )}
@@ -964,7 +1092,7 @@ const Marinheiro_Page = () => {
                 ) : (
                   <div className="space-y-3">
                     {concluidas.map((b) => (
-                      <div key={b.id} className="space-y-3 rounded-xl border border-border bg-card p-3 shadow-card sm:p-4">
+                      <div key={b.id} className="surface-elevated space-y-3 rounded-xl p-3 sm:p-4">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-semibold text-foreground">{b.boat.nome}</p>
@@ -1040,13 +1168,13 @@ const Marinheiro_Page = () => {
               </div>
 
               {registering && (
-                <div className="space-y-3 rounded-xl border border-border bg-card p-3 shadow-card sm:p-4">
+                <div className="surface-elevated space-y-3 rounded-xl p-3 sm:p-4">
                   <h3 className="font-semibold text-foreground">{t("marinheiro.newBoat")}</h3>
                   <p className="text-xs text-muted-foreground">{t("marinheiro.stepsHint")}</p>
-                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+                  <div className="space-y-2 rounded-lg border-0 bg-primary/10 p-3 dark:bg-primary/15">
                     <p className="text-xs font-semibold text-foreground">{t("marinheiro.previewTitle")}</p>
                     <div className="grid grid-cols-1 items-center gap-3 sm:grid-cols-[92px_1fr]">
-                      <div className="mx-auto h-20 w-[92px] shrink-0 overflow-hidden rounded-md border border-border bg-secondary sm:mx-0">
+                      <div className="mx-auto h-20 w-[92px] shrink-0 overflow-hidden rounded-md border-0 bg-secondary shadow-sm sm:mx-0">
                         {newBoatForm.imagens?.[0] ? (
                           <img src={newBoatForm.imagens[0]} alt={newBoatForm.nome || t("marinheiro.previewAlt")} className="h-full w-full object-cover" />
                         ) : null}
@@ -1260,7 +1388,7 @@ const Marinheiro_Page = () => {
                           ))}
                         </div>
                       </div>
-                      <div className="space-y-3 rounded-lg border border-border p-3">
+                      <div className="space-y-3 rounded-lg border-0 bg-muted p-3 shadow-card dark:bg-card">
                         <div className="flex items-center gap-2">
                           <Waves className="w-5 h-5 text-primary shrink-0" />
                           <div className="flex flex-1 items-center justify-between gap-2">
@@ -1353,7 +1481,7 @@ const Marinheiro_Page = () => {
                           </div>
                         ) : null}
                       </div>
-                      <div className="space-y-2 rounded-lg border border-border p-3">
+                      <div className="space-y-2 rounded-lg border-0 bg-muted p-3 shadow-card dark:bg-card">
                         <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
                           <Checkbox checked={uploadRoutePhotos} onCheckedChange={(c) => setUploadRoutePhotos(c === true)} />
                           {t("marinheiro.routePhotosEnable")}
@@ -1458,7 +1586,7 @@ const Marinheiro_Page = () => {
                     const openMobile = mobileExpandedBoatId === boat.id;
                     const showMobileBoatBody = Boolean(editing || openMobile);
                     return (
-                      <div key={boat.id} className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
+                      <div key={boat.id} className="surface-elevated overflow-hidden rounded-xl">
                         {!editing ? (
                           <button
                             type="button"
@@ -1731,7 +1859,7 @@ const Marinheiro_Page = () => {
                                     ))}
                                   </div>
                                 </div>
-                                <div className="space-y-3 rounded-lg border border-border p-3">
+                                <div className="space-y-3 rounded-lg border-0 bg-muted p-3 shadow-card dark:bg-card">
                                   <div className="flex items-center gap-2">
                                     <Waves className="w-5 h-5 text-primary shrink-0" />
                                     <div className="flex flex-1 items-center justify-between gap-2">
@@ -1830,7 +1958,7 @@ const Marinheiro_Page = () => {
                                 </div>
                               </>
                             ) : null}
-                            <div className="space-y-2 rounded-xl border border-border bg-muted/20 p-3">
+                            <div className="surface-elevated space-y-2 rounded-xl p-3">
                               <Label className="text-sm font-semibold text-foreground">{t("calendar.title")}</Label>
                               <BoatCalendarPanel variant="owner" boatId={boat.id} />
                             </div>
@@ -1895,7 +2023,7 @@ const Marinheiro_Page = () => {
             </section>
 
             {boats.length > 0 ? (
-              <section className="min-w-0 space-y-3 rounded-xl border border-border bg-card p-3 sm:p-4">
+              <section className="surface-elevated min-w-0 space-y-3 rounded-xl p-3 sm:p-4">
                 <h2 className="text-base font-semibold text-foreground sm:text-lg">{t("calendar.title")}</h2>
                 <p className="text-xs text-muted-foreground">{t("calendar.panelHint")}</p>
                 <Select value={calendarBoatId ?? ""} onValueChange={(v) => setCalendarBoatId(v)}>
