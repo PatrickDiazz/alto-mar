@@ -1,15 +1,20 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { RenterBookingsPanel } from "@/components/RenterBookingsPanel";
-import { getStoredUser } from "@/lib/auth";
+import { authFetch, getStoredUser } from "@/lib/auth";
+import { readResponseErrorMessage } from "@/lib/responseError";
 
 const ContaReservas = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const stripeReturnQuery = searchParams.toString();
   const user = getStoredUser();
+  const [bookingsPanelKey, setBookingsPanelKey] = useState(0);
 
   useEffect(() => {
     if (!user) {
@@ -20,6 +25,47 @@ const ContaReservas = () => {
       navigate("/conta", { replace: true });
     }
   }, [navigate, user]);
+
+  useEffect(() => {
+    if (!user || user.role !== "banhista") return;
+    const stripe = searchParams.get("stripe");
+    const sessionId = searchParams.get("session_id");
+    if (stripe !== "success" || !sessionId) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const resp = await authFetch("/api/stripe/sync-checkout-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId }),
+        });
+        if (cancelled) return;
+        if (!resp.ok) {
+          const err = await readResponseErrorMessage(resp, t("reservasConta.syncStripeFail"));
+          toast.error(err);
+          return;
+        }
+        toast.success(t("reservasConta.syncStripeOk"));
+        setBookingsPanelKey((k) => k + 1);
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev);
+            next.delete("stripe");
+            next.delete("session_id");
+            return next;
+          },
+          { replace: true }
+        );
+      } catch {
+        if (!cancelled) toast.error(t("reservasConta.syncStripeFail"));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, stripeReturnQuery, setSearchParams, t]);
 
   if (!user || user.role !== "banhista") return null;
 
@@ -46,7 +92,7 @@ const ContaReservas = () => {
       </header>
 
       <div className="mx-auto max-w-2xl space-y-4 px-4 py-5">
-        <RenterBookingsPanel />
+        <RenterBookingsPanel key={bookingsPanelKey} />
       </div>
     </div>
   );

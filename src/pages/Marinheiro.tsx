@@ -84,6 +84,9 @@ type OwnerBookingRow = {
   id: string;
   status: string;
   bookingDate?: string;
+  stripeFlowStatus?: string | null;
+  paymentProvider?: string | null;
+  paymentStatus?: string | null;
   passengersAdults: number;
   passengersChildren: number;
   hasKids: boolean;
@@ -158,6 +161,8 @@ function MarinheiroAcceptedBookingCard({
   loading,
   dayDiff,
   onComplete,
+  paymentsProvider,
+  onStripePayout,
 }: {
   b: OwnerBookingRow;
   t: (k: string, o?: Record<string, unknown>) => string;
@@ -165,9 +170,23 @@ function MarinheiroAcceptedBookingCard({
   loading: boolean;
   dayDiff: number | null;
   onComplete: (id: string) => void;
+  paymentsProvider: "stripe" | "mercadopago";
+  onStripePayout?: (id: string) => void;
 }) {
   const overdue = dayDiff !== null && dayDiff < 0;
   const canComplete = dayDiff !== null && dayDiff <= 0;
+  const stripeMode = paymentsProvider === "stripe";
+  const paidStripe = b.paymentProvider === "STRIPE" && b.paymentStatus === "APPROVED";
+  const sf = b.stripeFlowStatus;
+  const canStripePayout =
+    stripeMode &&
+    paidStripe &&
+    canComplete &&
+    (sf === "PAID" || sf === "TRANSFER_FAILED") &&
+    Boolean(onStripePayout);
+  const showStripeAwaitPayment = stripeMode && !paidStripe;
+  const showStripeProcessing =
+    stripeMode && paidStripe && (sf === "TRANSFER_PENDING" || sf === "TRANSFER_PROCESSING");
   return (
     <div
       className={cn(
@@ -222,9 +241,30 @@ function MarinheiroAcceptedBookingCard({
           {t("marinheiro.completeNoDateHint")}
         </p>
       ) : null}
-      <Button onClick={() => onComplete(b.id)} disabled={loading || !canComplete} className="w-full">
-        {t("marinheiro.completeBooking")}
-      </Button>
+      {!stripeMode ? (
+        <Button onClick={() => onComplete(b.id)} disabled={loading || !canComplete} className="w-full">
+          {t("marinheiro.completeBooking")}
+        </Button>
+      ) : showStripeAwaitPayment ? (
+        <p className="text-pretty text-center text-xs text-muted-foreground">{t("marinheiro.stripeAwaitPayment")}</p>
+      ) : showStripeProcessing ? (
+        <Button type="button" disabled className="w-full" variant="secondary">
+          {t("marinheiro.stripeTransferProcessing")}
+        </Button>
+      ) : canStripePayout ? (
+        <Button
+          type="button"
+          onClick={() => onStripePayout?.(b.id)}
+          disabled={loading}
+          className="w-full"
+        >
+          {sf === "TRANSFER_FAILED" ? t("marinheiro.stripePayoutRetry") : t("marinheiro.stripePayoutButton")}
+        </Button>
+      ) : (
+        <Button onClick={() => onComplete(b.id)} disabled={loading || !canComplete} className="w-full">
+          {t("marinheiro.completeBooking")}
+        </Button>
+      )}
     </div>
   );
 }
@@ -371,6 +411,7 @@ const Marinheiro_Page = () => {
   const [mobileExpandedPendingId, setMobileExpandedPendingId] = useState<string | null>(null);
   const [mobileExpandedBoatId, setMobileExpandedBoatId] = useState<string | null>(null);
   const [mobileReservasExpanded, setMobileReservasExpanded] = useState(false);
+  const [paymentsProvider, setPaymentsProvider] = useState<"stripe" | "mercadopago">("mercadopago");
 
   const isLocatario = user?.role === "locatario";
   const pendentes = useMemo(() => bookings.filter((b) => b.status === "PENDING"), [bookings]);
@@ -487,6 +528,45 @@ const Marinheiro_Page = () => {
     } catch (e) {
       const m = (e instanceof Error ? e.message : t("marinheiro.toastCompleteFail")).trim();
       toast.error(m || t("marinheiro.toastCompleteFail"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const iniciarRepasseStripe = async (bookingId: string) => {
+    setLoading(true);
+    try {
+      const resp = await authFetch(`/api/owner/bookings/${bookingId}/stripe/start-payout`, {
+        method: "POST",
+      });
+      if (resp.status === 401) return;
+      if (!resp.ok) {
+        throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastStripePayoutFail")));
+      }
+      toast.success(t("marinheiro.toastStripePayoutOk"));
+      await carregarPendentes();
+    } catch (e) {
+      const m = (e instanceof Error ? e.message : t("marinheiro.toastStripePayoutFail")).trim();
+      toast.error(m || t("marinheiro.toastStripePayoutFail"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const abrirStripeConnect = async () => {
+    setLoading(true);
+    try {
+      const resp = await authFetch("/api/stripe/connect/account-link", { method: "POST" });
+      if (resp.status === 401) return;
+      if (!resp.ok) {
+        throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastStripeConnectFail")));
+      }
+      const data = (await resp.json()) as { url?: string };
+      if (!data.url) throw new Error(t("marinheiro.toastStripeConnectFail"));
+      window.location.assign(data.url);
+    } catch (e) {
+      const m = (e instanceof Error ? e.message : t("marinheiro.toastStripeConnectFail")).trim();
+      toast.error(m || t("marinheiro.toastStripeConnectFail"));
     } finally {
       setLoading(false);
     }
@@ -767,6 +847,24 @@ const Marinheiro_Page = () => {
     };
   }, [isLocatario]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetch(apiUrl("/api/public/app-config"));
+        if (!r.ok) return;
+        const d = (await r.json()) as { paymentsProvider?: string };
+        if (cancelled) return;
+        setPaymentsProvider(d.paymentsProvider === "stripe" ? "stripe" : "mercadopago");
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="min-h-screen min-w-0 overflow-x-hidden bg-background">
       <header className="sticky top-0 z-10 border-b border-border bg-background/80 px-3 py-2.5 backdrop-blur-md sm:px-4 sm:py-3">
@@ -778,6 +876,19 @@ const Marinheiro_Page = () => {
             </h1>
           </div>
           <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-2">
+            {isLocatario && paymentsProvider === "stripe" ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="max-w-[10rem] truncate px-2 sm:max-w-none sm:px-3"
+                onClick={() => void abrirStripeConnect()}
+                disabled={loading}
+                title={t("marinheiro.stripeConnectButton")}
+              >
+                {t("marinheiro.stripeConnectButton")}
+              </Button>
+            ) : null}
             <HeaderSettingsMenu />
             {isLocatario ? (
               <>
@@ -924,6 +1035,10 @@ const Marinheiro_Page = () => {
                   <div className="space-y-3">
                     {pendentes.map((b) => {
                       const openMobile = mobileExpandedPendingId === b.id;
+                      const stripeMode = paymentsProvider === "stripe";
+                      const stripePaidForAccept =
+                        b.paymentProvider === "STRIPE" && b.paymentStatus === "APPROVED";
+                      const acceptBlockedStripe = stripeMode && !stripePaidForAccept;
                       return (
                         <div
                           key={b.id}
@@ -1008,8 +1123,18 @@ const Marinheiro_Page = () => {
                               />
                             </div>
 
+                            {acceptBlockedStripe ? (
+                              <p className="text-pretty text-[11px] leading-relaxed text-muted-foreground">
+                                {t("marinheiro.stripeAcceptRequiresPayment")}
+                              </p>
+                            ) : null}
+
                             <div className="flex flex-col gap-2 sm:flex-row">
-                              <Button className="w-full sm:flex-1" onClick={() => decidir(b.id, "accept")} disabled={loading}>
+                              <Button
+                                className="w-full sm:flex-1"
+                                onClick={() => decidir(b.id, "accept")}
+                                disabled={loading || acceptBlockedStripe}
+                              >
                                 {t("marinheiro.accept")}
                               </Button>
                               <Button
@@ -1050,6 +1175,8 @@ const Marinheiro_Page = () => {
                         loading={loading}
                         dayDiff={marinheiroBookingDayDiff(b.bookingDate)}
                         onComplete={concluirReserva}
+                        paymentsProvider={paymentsProvider}
+                        onStripePayout={iniciarRepasseStripe}
                       />
                     ))}
                   </div>
@@ -1076,6 +1203,8 @@ const Marinheiro_Page = () => {
                         loading={loading}
                         dayDiff={marinheiroBookingDayDiff(b.bookingDate)}
                         onComplete={concluirReserva}
+                        paymentsProvider={paymentsProvider}
+                        onStripePayout={iniciarRepasseStripe}
                       />
                     ))}
                   </div>

@@ -18,7 +18,6 @@ dist-ssr
 # Secrets / ambiente local (nunca commitar)
 .env
 .env.*
-!.env.example
 server/.env
 
 # Editor directories and files

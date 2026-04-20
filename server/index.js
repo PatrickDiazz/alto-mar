@@ -11,13 +11,74 @@ import cors from "cors";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { MercadoPagoConfig, Preference } from "mercadopago";
-import { query } from "./db.js";
+import { query, pool } from "./db.js";
 import { requireAuth, requireRole, signToken } from "./auth.js";
+import { ensureStripeConnectSchema } from "./stripe/schema.js";
+import { getStripe } from "./stripe/client.js";
+import { ensureStripePixOnPaymentMethodConfigurations } from "./stripe/ensureStripePixPmc.js";
+import { isStripePixEnabled } from "./stripe/pixEnabled.js";
+import { installStripeWebhook } from "./stripe/webhook.js";
+import {
+  createStripeCheckoutSessionForBooking,
+  syncPaidCheckoutSessionFromReturn,
+} from "./stripe/checkout.js";
+import { createConnectAccountLinkForOwner } from "./stripe/connect.js";
+import { startStripeBookingPayout } from "./stripe/payout.js";
+import {
+  isPaymentsStripe,
+  refundStripePaymentInTx,
+  RenterNoticeCode,
+  estimateNonRefundableFeesCents,
+} from "./stripe/refunds.js";
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
 const DATABASE_URL = process.env.DATABASE_URL;
+
+function parseEnvBoolean(value) {
+  if (value == null) return undefined;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "1" || normalized === "true" || normalized === "yes") return true;
+  if (normalized === "0" || normalized === "false" || normalized === "no") return false;
+  return undefined;
+}
+
+function clientIp(req) {
+  const ff = req.headers["x-forwarded-for"];
+  const fromForwarded = Array.isArray(ff) ? ff[0] : ff;
+  if (typeof fromForwarded === "string" && fromForwarded.trim()) {
+    return fromForwarded.split(",")[0].trim();
+  }
+  return req.ip || "unknown";
+}
+
+function createIpRateLimiter({ windowMs, max, keyPrefix }) {
+  const hits = new Map();
+  return (req, res, next) => {
+    const now = Date.now();
+    const key = `${keyPrefix}:${clientIp(req)}`;
+    const entry = hits.get(key);
+    if (!entry || entry.resetAt <= now) {
+      hits.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+
+    if (entry.count >= max) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+      res.set("Retry-After", String(retryAfterSeconds));
+      return res.status(429).send("Muitas tentativas. Tente novamente em alguns minutos.");
+    }
+
+    entry.count += 1;
+    if (hits.size > 5000) {
+      for (const [k, v] of hits) {
+        if (v.resetAt <= now) hits.delete(k);
+      }
+    }
+    return next();
+  };
+}
 
 if (!MP_ACCESS_TOKEN) {
   // Opcional em dev; só necessário para criar preferências Mercado Pago.
@@ -429,6 +490,7 @@ const JSON_BODY_LIMIT =
   process.env.JSON_BODY_LIMIT && String(process.env.JSON_BODY_LIMIT).trim()
     ? String(process.env.JSON_BODY_LIMIT).trim()
     : "32mb";
+installStripeWebhook(app);
 app.use(express.json({ limit: JSON_BODY_LIMIT }));
 const extraCors = (process.env.EXTRA_CORS_ORIGINS || "")
   .split(",")
@@ -455,7 +517,18 @@ function corsAllowed(origin) {
   return false;
 }
 
-const corsStrict = process.env.CORS_STRICT === "1" || process.env.CORS_STRICT === "true";
+const corsStrictFromEnv = parseEnvBoolean(process.env.CORS_STRICT);
+const corsStrict = corsStrictFromEnv ?? process.env.NODE_ENV === "production";
+const authLoginLimiter = createIpRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  keyPrefix: "auth-login",
+});
+const authForgotLimiter = createIpRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  keyPrefix: "auth-forgot-password",
+});
 
 app.use(
   cors(
@@ -473,6 +546,16 @@ app.use(
 
 app.get("/", (_req, res) => {
   res.type("text/plain").status(200).send("API Alto Mar. Use o app em http://localhost:8080");
+});
+
+app.get("/api/public/app-config", (_req, res) => {
+  const raw = String(process.env.PAYMENTS_PROVIDER || "mercadopago").toLowerCase();
+  const paymentsProvider = raw === "stripe" ? "stripe" : "mercadopago";
+  const pk = process.env.STRIPE_PUBLISHABLE_KEY && String(process.env.STRIPE_PUBLISHABLE_KEY).trim();
+  return res.json({
+    paymentsProvider,
+    stripePublishableKey: pk || null,
+  });
 });
 
 app.get("/api/health", async (_req, res) => {
@@ -543,7 +626,7 @@ const loginSchema = z.object({
   password: z.string().min(1).max(200),
 });
 
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", authLoginLimiter, async (req, res) => {
   try {
     const body = loginSchema.parse(req.body);
     const result = await query(
@@ -577,7 +660,7 @@ const resetPasswordSchema = z.object({
 });
 
 /** Sempre responde igual (não revela se o email existe). */
-app.post("/api/auth/forgot-password", async (req, res) => {
+app.post("/api/auth/forgot-password", authForgotLimiter, async (req, res) => {
   try {
     const body = forgotPasswordSchema.parse(req.body);
     const result = await query(`select id from users where email = $1 limit 1`, [body.email]);
@@ -1817,10 +1900,15 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
          bk.reschedule_reason,
          bk.reschedule_title,
          bk.reschedule_note,
-         coalesce(bk.reschedule_attachments, '{}'::text[]) as reschedule_attachments
+         coalesce(bk.reschedule_attachments, '{}'::text[]) as reschedule_attachments,
+         bk.stripe_flow_status,
+         bk.renter_notice_code,
+         p.provider::text as payment_provider,
+         p.status::text as payment_status
        from bookings bk
        join boats b on b.id = bk.boat_id
        left join booking_ratings br on br.booking_id = bk.id
+       left join payments p on p.booking_id = bk.id
        where bk.renter_user_id = $1
        order by bk.created_at desc`,
       [req.user.sub]
@@ -1857,6 +1945,10 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
         rescheduleTitle: r.reschedule_title ?? null,
         rescheduleNote: r.reschedule_note ?? null,
         rescheduleAttachments: Array.isArray(r.reschedule_attachments) ? r.reschedule_attachments : [],
+        stripeFlowStatus: r.stripe_flow_status ?? null,
+        renterNoticeCode: r.renter_notice_code ?? null,
+        paymentProvider: r.payment_provider ?? null,
+        paymentStatus: r.payment_status ?? null,
         ratingBoat:
           r.boat_stars != null
             ? {
@@ -1870,6 +1962,77 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro ao carregar reservas.";
     return res.status(503).send(msg);
+  }
+});
+
+const stripeCheckoutBodySchema = z.object({
+  bookingId: z.string().uuid(),
+});
+
+const stripeSyncBodySchema = z.object({
+  sessionId: z.string().min(10).max(200),
+});
+
+app.post("/api/stripe/sync-checkout-session", requireAuth, requireRole("banhista"), async (req, res) => {
+  try {
+    const body = stripeSyncBodySchema.parse(req.body || {});
+    await syncPaidCheckoutSessionFromReturn({
+      sessionId: body.sessionId,
+      renterUserId: req.user.sub,
+    });
+    return res.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao sincronizar pagamento.";
+    if (e && typeof e === "object" && "code" in e) {
+      const c = String(e.code);
+      if (c === "STRIPE_DISABLED") return res.status(503).send(msg);
+      if (c === "FORBIDDEN") return res.status(403).send(msg);
+      if (c === "NOT_PAID" || c === "RENTER_MISMATCH" || c === "AMOUNT_MISMATCH") return res.status(400).send(msg);
+    }
+    return res.status(400).send(msg);
+  }
+});
+
+app.post("/api/stripe/checkout-session", requireAuth, requireRole("banhista"), async (req, res) => {
+  try {
+    const body = stripeCheckoutBodySchema.parse(req.body || {});
+    const { url } = await createStripeCheckoutSessionForBooking({
+      bookingId: body.bookingId,
+      renterUserId: req.user.sub,
+    });
+    if (!url) return res.status(500).send("Stripe não devolveu URL de checkout.");
+    return res.json({ url });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao criar sessão Stripe.";
+    if (e && typeof e === "object" && "code" in e) {
+      const c = String(e.code);
+      if (c === "STRIPE_DISABLED") return res.status(503).send(msg);
+      if (c === "FORBIDDEN" || c === "NOT_FOUND") return res.status(403).send(msg);
+      if (c === "INVALID_STATUS" || c === "OWNER_NOT_ONBOARDED" || c === "ALREADY_PAID" || c === "ALREADY_PAID_MP") {
+        return res.status(400).send(msg);
+      }
+    }
+    return res.status(400).send(msg);
+  }
+});
+
+app.post("/api/stripe/connect/account-link", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const u = await query(`select email, name from users where id = $1::uuid limit 1`, [req.user.sub]);
+    const row = u.rows[0];
+    const { url } = await createConnectAccountLinkForOwner({
+      userId: req.user.sub,
+      email: row?.email,
+      name: row?.name,
+    });
+    if (!url) return res.status(500).send("Stripe não devolveu URL de onboarding.");
+    return res.json({ url });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao criar link Stripe Connect.";
+    if (e && typeof e === "object" && "code" in e && String(e.code) === "STRIPE_DISABLED") {
+      return res.status(503).send(msg);
+    }
+    return res.status(400).send(msg);
   }
 });
 
@@ -2106,24 +2269,123 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
 });
 
 app.post("/api/renter/bookings/:id/cancel", requireAuth, requireRole("banhista"), async (req, res) => {
+  const bookingId = req.params.id;
+  const client = await pool.connect();
   try {
-    const bookingId = req.params.id;
-    const updated = await query(
+    const body = z
+      .object({
+        reason: z.string().max(1000).optional(),
+      })
+      .parse(req.body || {});
+
+    await client.query("BEGIN");
+
+    const current = await client.query(
+      `select bk.status::text as status,
+              bk.booking_date::text as booking_date,
+              to_char(coalesce(bk.embark_time, '09:00'::time), 'HH24:MI') as embark_time,
+              bk.total_cents,
+              bk.platform_fee_cents,
+              p.provider::text as payment_provider,
+              p.status::text as payment_status,
+              extract(epoch from ((bk.booking_date::timestamp + coalesce(bk.embark_time, '09:00'::time)) - now())) / 3600.0 as hours_until_service
+       from bookings bk
+       left join payments p on p.booking_id = bk.id
+       where bk.id = $1::uuid and bk.renter_user_id = $2::uuid
+       limit 1
+       for update of bk`,
+      [bookingId, req.user.sub]
+    );
+    const row = current.rows[0];
+    const status = row?.status;
+    if (!status || (status !== "PENDING" && status !== "ACCEPTED")) {
+      await client.query("ROLLBACK");
+      return res.status(404).send("Reserva não encontrada ou não pode ser cancelada.");
+    }
+
+    let cancelNote = null;
+    let renterNoticeCode = null;
+    if (status === "ACCEPTED") {
+      const note = String(body.reason || "").trim();
+      if (note.length < 10) {
+        await client.query("ROLLBACK");
+        return res
+          .status(400)
+          .send("Para cancelar uma reserva em curso, informe uma justificativa com pelo menos 10 caracteres.");
+      }
+      cancelNote = note;
+
+      const stripe = getStripe();
+      const stripePaid =
+        isPaymentsStripe() &&
+        stripe &&
+        row.payment_provider === "STRIPE" &&
+        row.payment_status === "APPROVED";
+      if (stripePaid) {
+        const totalCents = Math.max(0, Number(row.total_cents || 0));
+        const hoursUntil = Number(row.hours_until_service ?? -999999);
+        let refundAmountCents = 0;
+        let refundType = "RENTER_CANCEL_NO_REFUND_LT48H";
+        let policyLabel = "Política aplicada: sem reembolso (menos de 48h ou no-show).";
+        if (hoursUntil >= 24 * 7) {
+          const nonRefundable = estimateNonRefundableFeesCents({
+            totalCents,
+            platformFeeCents: row.platform_fee_cents,
+          });
+          refundAmountCents = Math.max(0, totalCents - nonRefundable);
+          refundType = "RENTER_CANCEL_FULL_FEE_DEDUCTED";
+          policyLabel =
+            "Política aplicada: reembolso com 7+ dias, descontadas taxas não reembolsáveis da plataforma e do gateway.";
+          renterNoticeCode = RenterNoticeCode.RENTER_CANCEL_FULL_FEE_DEDUCTED;
+        } else if (hoursUntil >= 24 * 2) {
+          refundAmountCents = Math.floor(totalCents * 0.5);
+          refundType = "RENTER_CANCEL_PARTIAL_50";
+          policyLabel = "Política aplicada: cancelamento entre 6 e 2 dias, reembolso de 50% do valor do serviço.";
+          renterNoticeCode = RenterNoticeCode.RENTER_CANCEL_PARTIAL_50;
+        } else {
+          renterNoticeCode = RenterNoticeCode.RENTER_CANCEL_NO_REFUND_LT48H;
+        }
+
+        if (refundAmountCents > 0) {
+          await refundStripePaymentInTx(client, stripe, {
+            bookingId,
+            refundType,
+            reason: `Cancelamento pelo banhista. ${policyLabel}`,
+            cancelledBy: "RENTER",
+            cancelledByUserId: req.user.sub,
+            refundAmountCents,
+          });
+        }
+
+        cancelNote = `${note}\n\n${policyLabel}`;
+      }
+    }
+
+    const updated = await client.query(
       `update bookings
-       set status = 'CANCELLED', decided_at = coalesce(decided_at, now())
+       set status = 'CANCELLED',
+           decided_at = coalesce(decided_at, now()),
+           decision_note = coalesce($3, decision_note),
+           renter_notice_code = coalesce($4, renter_notice_code)
        where id = $1::uuid and renter_user_id = $2::uuid
          and status in ('PENDING','ACCEPTED')
        returning id, status, decided_at`,
-      [bookingId, req.user.sub]
+      [bookingId, req.user.sub, cancelNote, renterNoticeCode]
     );
-    const row = updated.rows[0];
-    if (!row) {
+    const out = updated.rows[0];
+    if (!out) {
+      await client.query("ROLLBACK");
       return res.status(404).send("Reserva não encontrada ou não pode ser cancelada.");
     }
-    return res.json({ booking: row });
+
+    await client.query("COMMIT");
+    return res.json({ booking: out });
   } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
     const msg = e instanceof Error ? e.message : "Erro ao cancelar reserva.";
     return res.status(400).send(msg);
+  } finally {
+    client.release();
   }
 });
 
@@ -2176,11 +2438,15 @@ app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req
          bk.reschedule_reason,
          bk.reschedule_title,
          bk.reschedule_note,
-         coalesce(bk.reschedule_attachments, '{}'::text[]) as reschedule_attachments
+         coalesce(bk.reschedule_attachments, '{}'::text[]) as reschedule_attachments,
+         bk.stripe_flow_status,
+         p.provider::text as payment_provider,
+         p.status::text as payment_status
        from bookings bk
        join boats b on b.id = bk.boat_id
        join users u on u.id = bk.renter_user_id
        left join booking_ratings br on br.booking_id = bk.id
+       left join payments p on p.booking_id = bk.id
        ${where}
        order by bk.created_at desc`,
       params
@@ -2214,6 +2480,9 @@ app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req
         rescheduleTitle: r.reschedule_title ?? null,
         rescheduleNote: r.reschedule_note ?? null,
         rescheduleAttachments: Array.isArray(r.reschedule_attachments) ? r.reschedule_attachments : [],
+        stripeFlowStatus: r.stripe_flow_status ?? null,
+        paymentProvider: r.payment_provider ?? null,
+        paymentStatus: r.payment_status ?? null,
         ratingRenter:
           r.renter_stars != null
             ? {
@@ -2241,19 +2510,26 @@ app.post(
   requireAuth,
   requireRole("locatario"),
   async (req, res) => {
+    const bookingId = req.params.id;
+    const body = decideSchema.parse(req.body || {});
+    const client = await pool.connect();
     try {
-      const bookingId = req.params.id;
-      const body = decideSchema.parse(req.body || {});
-      const pending = await query(
+      await client.query("BEGIN");
+
+      const pending = await client.query(
         `select bk.boat_id, bk.booking_date::text as bd
          from bookings bk
-         where bk.id = $1 and bk.owner_user_id = $2 and bk.status = 'PENDING'`,
+         where bk.id = $1::uuid and bk.owner_user_id = $2::uuid and bk.status = 'PENDING'
+         for update`,
         [bookingId, req.user.sub]
       );
       const pr = pending.rows[0];
-      if (!pr) return res.status(404).send("Reserva não encontrada ou já decidida.");
+      if (!pr) {
+        await client.query("ROLLBACK");
+        return res.status(404).send("Reserva não encontrada ou já decidida.");
+      }
 
-      const conflict = await query(
+      const conflict = await client.query(
         `select id from bookings
          where boat_id = $1 and booking_date = $2::date
            and status in ('ACCEPTED','COMPLETED')
@@ -2262,22 +2538,77 @@ app.post(
         [pr.boat_id, pr.bd, bookingId]
       );
       if (conflict.rows[0]) {
+        await client.query("ROLLBACK");
         return res.status(400).send("Já existe reserva confirmada neste dia para este barco.");
       }
 
-      const updated = await query(
+      if (isPaymentsStripe()) {
+        const paySt = await client.query(
+          `select p.status::text as st from payments p where p.booking_id = $1::uuid for update`,
+          [bookingId]
+        );
+        if (paySt.rows[0]?.st !== "APPROVED") {
+          await client.query("ROLLBACK");
+          return res
+            .status(400)
+            .send(
+              "O banhista ainda não concluiu o pagamento (Stripe). Aguarde a confirmação do pagamento antes de aceitar a reserva."
+            );
+        }
+      }
+
+      const updated = await client.query(
         `update bookings
          set status = 'ACCEPTED', decided_at = now(), decision_note = $3
-         where id = $1 and owner_user_id = $2 and status = 'PENDING'
+         where id = $1::uuid and owner_user_id = $2::uuid and status = 'PENDING'
          returning id, status, decided_at`,
         [bookingId, req.user.sub, body.note ?? null]
       );
       const row = updated.rows[0];
-      if (!row) return res.status(404).send("Reserva não encontrada ou já decidida.");
+      if (!row) {
+        await client.query("ROLLBACK");
+        return res.status(404).send("Reserva não encontrada ou já decidida.");
+      }
+
+      const stripe = getStripe();
+      const sibs = await client.query(
+        `select id from bookings
+         where boat_id = $1 and booking_date = $2::date
+           and status = 'PENDING' and id <> $3::uuid
+         for update`,
+        [pr.boat_id, pr.bd, bookingId]
+      );
+      const reasonDup =
+        "Cancelamento automático: outra reserva para a mesma embarcação e data foi aceite; reembolso quando aplicável (Stripe).";
+      for (const s of sibs.rows) {
+        const sid = String(s.id);
+        if (isPaymentsStripe() && stripe) {
+          await refundStripePaymentInTx(client, stripe, {
+            bookingId: sid,
+            refundType: "SAME_DAY_OTHER_ACCEPTED",
+            reason: reasonDup,
+            cancelledBy: "PLATFORM",
+            cancelledByUserId: req.user.sub,
+          });
+        }
+        await client.query(
+          `update bookings
+           set status = 'CANCELLED',
+               decided_at = coalesce(decided_at, now()),
+               renter_notice_code = $2
+           where id = $1::uuid`,
+          [sid, RenterNoticeCode.SAME_DAY_OTHER_ACCEPTED]
+        );
+      }
+
+      await client.query("COMMIT");
       return res.json({ booking: row });
     } catch (e) {
+      await client.query("ROLLBACK").catch(() => {});
       const msg = e instanceof Error ? e.message : "Erro ao aceitar reserva.";
       return res.status(400).send(msg);
+    } finally {
+      client.release();
     }
   }
 );
@@ -2287,21 +2618,99 @@ app.post(
   requireAuth,
   requireRole("locatario"),
   async (req, res) => {
+    const bookingId = req.params.id;
+    const body = decideSchema.parse(req.body || {});
+    const client = await pool.connect();
     try {
-      const bookingId = req.params.id;
-      const body = decideSchema.parse(req.body || {});
-      const updated = await query(
+      await client.query("BEGIN");
+
+      const ex = await client.query(
+        `select 1 from bookings bk
+         where bk.id = $1::uuid and bk.owner_user_id = $2::uuid and bk.status = 'PENDING'
+         for update`,
+        [bookingId, req.user.sub]
+      );
+      if (!ex.rows[0]) {
+        await client.query("ROLLBACK");
+        return res.status(404).send("Reserva não encontrada ou já decidida.");
+      }
+
+      const stripe = getStripe();
+      let refunded = false;
+      if (isPaymentsStripe() && stripe) {
+        const r = await refundStripePaymentInTx(client, stripe, {
+          bookingId,
+          refundType: "OWNER_DECLINED",
+          reason: "Reserva recusada pelo armador; reembolso ao banhista.",
+          cancelledBy: "OWNER",
+          cancelledByUserId: req.user.sub,
+        });
+        refunded = Boolean(r.refunded);
+      }
+
+      const updated = await client.query(
         `update bookings
-         set status = 'DECLINED', decided_at = now(), decision_note = $3
-         where id = $1 and owner_user_id = $2 and status = 'PENDING'
+         set status = 'DECLINED',
+             decided_at = now(),
+             decision_note = $3,
+             renter_notice_code = case when $4::boolean then $5 else renter_notice_code end
+         where id = $1::uuid and owner_user_id = $2::uuid and status = 'PENDING'
          returning id, status, decided_at`,
-        [bookingId, req.user.sub, body.note ?? null]
+        [
+          bookingId,
+          req.user.sub,
+          body.note ?? null,
+          refunded,
+          RenterNoticeCode.OWNER_DECLINED_REFUND,
+        ]
       );
       const row = updated.rows[0];
-      if (!row) return res.status(404).send("Reserva não encontrada ou já decidida.");
+      if (!row) {
+        await client.query("ROLLBACK");
+        return res.status(404).send("Reserva não encontrada ou já decidida.");
+      }
+
+      await client.query("COMMIT");
       return res.json({ booking: row });
     } catch (e) {
+      await client.query("ROLLBACK").catch(() => {});
       const msg = e instanceof Error ? e.message : "Erro ao recusar reserva.";
+      return res.status(400).send(msg);
+    } finally {
+      client.release();
+    }
+  }
+);
+
+app.post(
+  "/api/owner/bookings/:id/stripe/start-payout",
+  requireAuth,
+  requireRole("locatario"),
+  async (req, res) => {
+    try {
+      if (String(process.env.PAYMENTS_PROVIDER || "").toLowerCase() !== "stripe") {
+        return res.status(400).send("PAYMENTS_PROVIDER não está em modo stripe.");
+      }
+      const bookingId = req.params.id;
+      const out = await startStripeBookingPayout({ bookingId, ownerUserId: req.user.sub });
+      return res.json({ ok: true, stripeTransferId: out.transferId, transferRowId: out.transferRowId });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Erro ao iniciar repasse Stripe.";
+      if (e && typeof e === "object" && "code" in e) {
+        const c = String(e.code);
+        if (c === "STRIPE_DISABLED") return res.status(503).send(msg);
+        if (c === "NOT_FOUND" || c === "FORBIDDEN") return res.status(403).send(msg);
+        if (
+          c === "INVALID_STATUS" ||
+          c === "NOT_PAID" ||
+          c === "DUPLICATE_TRANSFER" ||
+          c === "NO_CONNECT_ACCOUNT" ||
+          c === "NO_CHARGE" ||
+          c === "INVALID_NET"
+        ) {
+          return res.status(400).send(msg);
+        }
+      }
       return res.status(400).send(msg);
     }
   }
@@ -2315,13 +2724,29 @@ app.post(
     try {
       const bookingId = req.params.id;
       const cur = await query(
-        `select booking_date::text as bd
-         from bookings
-         where id = $1::uuid and owner_user_id = $2::uuid and status = 'ACCEPTED'`,
+        `select bk.booking_date::text as bd,
+                bk.stripe_flow_status,
+                p.provider::text as payment_provider,
+                p.status::text as payment_status
+         from bookings bk
+         left join payments p on p.booking_id = bk.id
+         where bk.id = $1::uuid and bk.owner_user_id = $2::uuid and bk.status = 'ACCEPTED'`,
         [bookingId, req.user.sub]
       );
       const found = cur.rows[0];
       if (!found) return res.status(404).send("Reserva não encontrada ou não está aceita.");
+      const sflow = found.stripe_flow_status;
+      const prov = found.payment_provider;
+      const pst = found.payment_status;
+      if (
+        prov === "STRIPE" &&
+        pst === "APPROVED" &&
+        (sflow === "PAID" || sflow === "TRANSFER_PENDING" || sflow === "TRANSFER_PROCESSING")
+      ) {
+        return res.status(400).send(
+          "Esta reserva foi paga com Stripe: use «Iniciar passeio / repasse» no dia do passeio. A conclusão automática ocorre quando o Stripe confirmar a transferência."
+        );
+      }
       assertOwnerCanCompleteBooking(found.bd);
       const updated = await query(
         `update bookings
@@ -2433,56 +2858,74 @@ app.post("/api/owner/bookings/:id/rate-renter", requireAuth, requireRole("locata
   }
 });
 
-app.post("/api/mercadopago/preference", async (req, res) => {
+const mercadoPagoPreferenceSchema = z.object({
+  metodoPagamento: z.enum(["pix", "cartao"]),
+  nome: z.string().min(2).max(120),
+  cpf: z.string().min(11).max(20),
+  telefone: z.string().min(8).max(30),
+  bookingId: z.string().uuid(),
+});
+
+app.post("/api/mercadopago/preference", requireAuth, requireRole("banhista"), async (req, res) => {
   try {
     if (!MP_ACCESS_TOKEN) {
       return res.status(500).send("MP_ACCESS_TOKEN não configurado no servidor.");
     }
-
-    const {
-      titulo,
-      valor,
-      metodoPagamento,
-      nome,
-      cpf,
-      telefone,
-      externalReference,
-      bookingId,
-    } = req.body || {};
-
-    if (!titulo || typeof titulo !== "string") return res.status(400).send("Campo 'titulo' inválido.");
-    if (!valor || typeof valor !== "number") return res.status(400).send("Campo 'valor' inválido.");
-    if (metodoPagamento !== "pix" && metodoPagamento !== "cartao") {
-      return res.status(400).send("Campo 'metodoPagamento' inválido.");
+    if (isPaymentsStripe()) {
+      return res.status(400).send("Mercado Pago desativado: PAYMENTS_PROVIDER está em modo stripe.");
     }
-    if (!nome || typeof nome !== "string") return res.status(400).send("Campo 'nome' inválido.");
-    if (!cpf || typeof cpf !== "string") return res.status(400).send("Campo 'cpf' inválido.");
-    if (!telefone || typeof telefone !== "string") return res.status(400).send("Campo 'telefone' inválido.");
+
+    const body = mercadoPagoPreferenceSchema.parse(req.body || {});
+    const booking = await query(
+      `select bk.id,
+              bk.status::text as status,
+              bk.total_cents,
+              b.name as boat_name,
+              p.status::text as payment_status
+       from bookings bk
+       join boats b on b.id = bk.boat_id
+       left join payments p on p.booking_id = bk.id
+       where bk.id = $1::uuid and bk.renter_user_id = $2::uuid
+       limit 1`,
+      [body.bookingId, req.user.sub]
+    );
+    const row = booking.rows[0];
+    if (!row) return res.status(404).send("Reserva não encontrada.");
+    if (row.status !== "PENDING") {
+      return res.status(400).send("A preferência só pode ser criada para reservas pendentes.");
+    }
+    if (row.payment_status === "APPROVED") {
+      return res.status(400).send("Esta reserva já foi paga.");
+    }
+    const unitPrice = Math.max(0, Number(row.total_cents || 0)) / 100;
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+      return res.status(400).send("Total da reserva inválido para pagamento.");
+    }
 
     const preference = await preferenceClient.create({
       body: {
-        external_reference: bookingId || externalReference || undefined,
+        external_reference: body.bookingId,
         items: [
           {
-            title: titulo,
+            title: `Reserva de embarcação: ${String(row.boat_name || "Alto Mar").slice(0, 110)}`,
             quantity: 1,
             currency_id: "BRL",
-            unit_price: Number(valor),
+            unit_price: unitPrice,
           },
         ],
         payer: {
-          name: nome,
+          name: body.nome,
           identification: {
             type: "CPF",
-            number: cpf,
+            number: body.cpf.replace(/\D+/g, ""),
           },
           phone: {
-            number: telefone,
+            number: body.telefone.replace(/\D+/g, ""),
           },
         },
         payment_methods: {
           excluded_payment_types:
-            metodoPagamento === "pix"
+            body.metodoPagamento === "pix"
               ? [{ id: "credit_card" }, { id: "debit_card" }, { id: "ticket" }]
               : [{ id: "bank_transfer" }, { id: "ticket" }],
         },
@@ -2502,7 +2945,7 @@ app.post("/api/mercadopago/preference", async (req, res) => {
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro ao criar preferência.";
-    return res.status(500).send(message);
+    return res.status(400).send(message);
   }
 });
 
@@ -2537,6 +2980,23 @@ Teste: http://127.0.0.1:3001/api/health
     await ensureBoatEmbarkSlotsAndBookingEmbarkColumns();
     await ensureBookingsRescheduleColumns();
     await ensureJetSkiBoatAndBookingColumns();
+    await ensureStripeConnectSchema();
+    if (
+      String(process.env.PAYMENTS_PROVIDER || "").toLowerCase() === "stripe" &&
+      isStripePixEnabled() &&
+      String(process.env.STRIPE_SKIP_PIX_PMC || "").trim() !== "1"
+    ) {
+      const stripe = getStripe();
+      if (stripe) {
+        try {
+          await ensureStripePixOnPaymentMethodConfigurations(stripe);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "unknown";
+          // eslint-disable-next-line no-console
+          console.warn("[stripe] ensure PIX (PMC) no arranque:", msg);
+        }
+      }
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
     // eslint-disable-next-line no-console

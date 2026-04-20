@@ -1,7 +1,7 @@
 {
   "name": "alto-mar-server",
   "private": true,
-  "version": "0.12.1",
+  "version": "0.13.0",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -11,6 +11,7 @@
     "dev:stable": "node index.js",
     "start": "node index.js",
     "seed": "node seed.js",
+    "stripe:enable-pix-pmc": "node stripe/run-enable-pix-pmc.mjs",
     "refresh-demo-boat-images": "node refresh-demo-boat-images.js",
     "reset-demo-boats": "node reset-demo-boats.js"
   },
@@ -22,6 +23,7 @@
     "jsonwebtoken": "^9.0.2",
     "mercadopago": "^2.6.0",
     "pg": "^8.16.3",
+    "stripe": "^18.5.0",
     "zod": "^3.25.76"
   }
 }

@@ -46,6 +46,8 @@ import { parseOwnerRouteIslands } from "@/lib/routeIslandsParse";
 const KIT_CHURRASCO_PRECO = 250;
 /** Primeira data permitida para reserva do banhista = hoje + N dias corridos */
 const BANHISTA_BOOKING_LEAD_DAYS = 2;
+/** PIX desativado temporariamente por decisão operacional. */
+const PIX_TEMP_UNAVAILABLE = true;
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
@@ -132,6 +134,19 @@ async function criarReserva(input: {
   return (await resp.json()) as { booking: { id: string; status: string; ownerUserId: string } };
 }
 
+async function criarCheckoutStripe(bookingId: string) {
+  const resp = await authFetch("/api/stripe/checkout-session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ bookingId }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(text || i18n.t("reservar.payFail"));
+  }
+  return (await resp.json()) as { url?: string; sessionId?: string };
+}
+
 const Reservar = () => {
   const { t, i18n: i18nReact } = useTranslation();
   const locale = bcp47FromAppLang(i18nReact.language);
@@ -163,7 +178,7 @@ const Reservar = () => {
   const [temCriancas, setTemCriancas] = useState(false);
   const [kitChurrasco, setKitChurrasco] = useState(false);
   const [motoAquatica, setMotoAquatica] = useState(false);
-  const [metodoPagamento, setMetodoPagamento] = useState("pix");
+  const [metodoPagamento, setMetodoPagamento] = useState<"pix" | "cartao">("cartao");
   const [localEmbarque, setLocalEmbarque] = useState("");
   const [horarioEmbarque, setHorarioEmbarque] = useState("");
   const [nomeCompleto, setNomeCompleto] = useState("");
@@ -176,6 +191,25 @@ const Reservar = () => {
   const [selectedRouteIdx, setSelectedRouteIdx] = useState(0);
   /** Data do passeio (YYYY-MM-DD) */
   const [dataPasseio, setDataPasseio] = useState<string | null>(null);
+  const [paymentsProvider, setPaymentsProvider] = useState<"stripe" | "mercadopago">("mercadopago");
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const resp = await fetch(apiUrl("/api/public/app-config"));
+        if (!resp.ok) return;
+        const cfg = (await resp.json()) as { paymentsProvider?: string };
+        if (cancelled) return;
+        setPaymentsProvider(cfg.paymentsProvider === "stripe" ? "stripe" : "mercadopago");
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const routeParsed = useMemo(
     () => (barco ? parseOwnerRouteIslands(barco.routeIslands) : null),
@@ -237,6 +271,12 @@ const Reservar = () => {
     const d = startOfDay(parseISO(`${dataPasseio}T12:00:00`));
     if (isBefore(d, min)) setDataPasseio(null);
   }, [barco?.id, dataPasseio]);
+
+  useEffect(() => {
+    if (PIX_TEMP_UNAVAILABLE && metodoPagamento === "pix") {
+      setMetodoPagamento("cartao");
+    }
+  }, [metodoPagamento]);
 
   if (!user) {
     return null;
@@ -354,6 +394,15 @@ const Reservar = () => {
         totalCents,
         routeIslands: paradasRoteiro,
       });
+
+      if (paymentsProvider === "stripe") {
+        const checkout = await criarCheckoutStripe(booking.booking.id);
+        if (!checkout.url) {
+          throw new Error(t("reservar.payLinkError"));
+        }
+        window.location.assign(checkout.url);
+        return;
+      }
 
       const externalReference = booking.booking.id;
       const pref = await criarPreferenciaMercadoPago({
@@ -769,13 +818,28 @@ const Reservar = () => {
           <h3 className="text-base font-bold text-foreground flex items-center gap-2">
             <CreditCard className="w-4 h-4 text-primary" /> {t("reservar.payment")}
           </h3>
-          <RadioGroup value={metodoPagamento} onValueChange={setMetodoPagamento} className="space-y-2">
-            <label className="flex cursor-pointer items-center gap-3 rounded-xl border-0 bg-muted px-4 py-3 shadow-card ring-offset-background has-[:checked]:bg-primary/15 has-[:checked]:ring-2 has-[:checked]:ring-primary dark:bg-card">
-              <RadioGroupItem value="pix" id="pix" />
+          <RadioGroup
+            value={metodoPagamento}
+            onValueChange={(v) => {
+              if (PIX_TEMP_UNAVAILABLE && v === "pix") return;
+              setMetodoPagamento(v as "pix" | "cartao");
+            }}
+            className="space-y-2"
+          >
+            <label
+              className={`flex items-center gap-3 rounded-xl border-0 bg-muted px-4 py-3 shadow-card ring-offset-background dark:bg-card ${
+                PIX_TEMP_UNAVAILABLE
+                  ? "cursor-not-allowed opacity-70"
+                  : "cursor-pointer has-[:checked]:bg-primary/15 has-[:checked]:ring-2 has-[:checked]:ring-primary"
+              }`}
+            >
+              <RadioGroupItem value="pix" id="pix" disabled={PIX_TEMP_UNAVAILABLE} />
               <QrCode className="w-5 h-5 text-verified" />
               <div>
                 <span className="text-sm font-semibold text-foreground">{t("reservar.pix")}</span>
-                <p className="text-xs text-muted-foreground">{t("reservar.pixHint")}</p>
+                <p className="text-xs text-muted-foreground">
+                  {PIX_TEMP_UNAVAILABLE ? t("reservar.pixUnavailable") : t("reservar.pixHint")}
+                </p>
               </div>
             </label>
             <label className="flex cursor-pointer items-center gap-3 rounded-xl border-0 bg-muted px-4 py-3 shadow-card ring-offset-background has-[:checked]:bg-primary/15 has-[:checked]:ring-2 has-[:checked]:ring-primary dark:bg-card">

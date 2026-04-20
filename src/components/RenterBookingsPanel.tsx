@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { authFetch, getStoredUser } from "@/lib/auth";
+import { apiUrl, authFetch, getStoredUser } from "@/lib/auth";
 import { readResponseErrorMessage } from "@/lib/responseError";
 import { bcp47FromAppLang } from "@/lib/localeFormat";
 import { BoatCalendarPanel } from "@/components/BoatCalendarPanel";
@@ -32,6 +32,9 @@ type RenterBooking = {
   status: string;
   createdAt: string;
   bookingDate?: string;
+  stripeFlowStatus?: string | null;
+  paymentProvider?: string | null;
+  paymentStatus?: string | null;
   passengersAdults: number;
   passengersChildren: number;
   hasKids: boolean;
@@ -56,10 +59,20 @@ type RenterBooking = {
   rescheduleTitle?: string | null;
   rescheduleNote?: string | null;
   rescheduleAttachments?: string[];
+  renterNoticeCode?: string | null;
 };
 
 const KIT_CHURRASCO_PRECO = 250;
 const BANHISTA_BOOKING_LEAD_DAYS = 2;
+
+/** Códigos `bookings.renter_notice_code` → chave i18n em `reservasConta.*` */
+const RENTER_NOTICE_I18N: Record<string, string> = {
+  SAME_DAY_OTHER_ACCEPTED: "reservasConta.noticeSameDayOtherAccepted",
+  OWNER_DECLINED_REFUND: "reservasConta.noticeOwnerDeclinedRefund",
+  RENTER_CANCEL_FULL_FEE_DEDUCTED: "reservasConta.noticeRenterCancelFullFeeDeducted",
+  RENTER_CANCEL_PARTIAL_50: "reservasConta.noticeRenterCancelPartial50",
+  RENTER_CANCEL_NO_REFUND_LT48H: "reservasConta.noticeRenterCancelNoRefundLt48h",
+};
 
 /** Intervalo para alinhar lista com o servidor (aceite/recusa do locador, etc.). */
 const RENTER_BOOKINGS_POLL_MS = 5_000;
@@ -93,9 +106,13 @@ export function RenterBookingsPanel() {
   );
   const [list, setList] = useState<RenterBooking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [paymentsProvider, setPaymentsProvider] = useState<"stripe" | "mercadopago">("mercadopago");
+  const [stripePayingId, setStripePayingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<RenterBooking> | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [cancelDraftBookingId, setCancelDraftBookingId] = useState<string | null>(null);
+  const [cancelDraftReason, setCancelDraftReason] = useState("");
 
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -118,6 +135,24 @@ export function RenterBookingsPanel() {
     },
     [t]
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await fetch(apiUrl("/api/public/app-config"));
+        if (!resp.ok) return;
+        const cfg = (await resp.json()) as { paymentsProvider?: string };
+        if (cancelled) return;
+        setPaymentsProvider(cfg.paymentsProvider === "stripe" ? "stripe" : "mercadopago");
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!user || user.role !== "banhista") return;
@@ -237,16 +272,23 @@ export function RenterBookingsPanel() {
     }
   };
 
-  const requestCancelBooking = (bookingId: string) => {
-    if (!window.confirm(t("reservasConta.cancelConfirm"))) return;
+  const submitCancelBooking = (booking: RenterBooking, reason?: string) => {
+    const note = String(reason || "").trim();
+
     void (async () => {
-      setCancellingId(bookingId);
+      setCancellingId(booking.id);
       try {
-        const resp = await authFetch(`/api/renter/bookings/${bookingId}/cancel`, { method: "POST" });
+        const resp = await authFetch(`/api/renter/bookings/${booking.id}/cancel`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: note || undefined }),
+        });
         if (resp.status === 401) return;
         if (!resp.ok) throw new Error(await readResponseErrorMessage(resp, t("reservasConta.cancelFail")));
         toast.success(t("reservasConta.cancelOk"));
-        if (editingId === bookingId) {
+        setCancelDraftBookingId(null);
+        setCancelDraftReason("");
+        if (editingId === booking.id) {
           setEditingId(null);
           setEditDraft(null);
         }
@@ -258,6 +300,42 @@ export function RenterBookingsPanel() {
         setCancellingId(null);
       }
     })();
+  };
+
+  const requestCancelBooking = (booking: RenterBooking) => {
+    const isInProgress = booking.status === "ACCEPTED";
+    if (!isInProgress) {
+      if (!window.confirm(t("reservasConta.cancelConfirm"))) return;
+      submitCancelBooking(booking);
+      return;
+    }
+
+    setEditingId(null);
+    setEditDraft(null);
+    setCancelDraftBookingId(booking.id);
+    setCancelDraftReason("");
+  };
+
+  const payStripeCheckout = async (bookingId: string) => {
+    setStripePayingId(bookingId);
+    try {
+      const resp = await authFetch("/api/stripe/checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId }),
+      });
+      if (!resp.ok) {
+        throw new Error(await readResponseErrorMessage(resp, t("reservasConta.payStripeFail")));
+      }
+      const data = (await resp.json()) as { url?: string };
+      if (!data.url) throw new Error(t("reservasConta.payStripeFail"));
+      window.location.assign(data.url);
+    } catch (e) {
+      const m = (e instanceof Error ? e.message : t("reservasConta.payStripeFail")).trim();
+      toast.error(m || t("reservasConta.payStripeFail"));
+    } finally {
+      setStripePayingId(null);
+    }
   };
 
   if (!user || user.role !== "banhista") return null;
@@ -273,25 +351,40 @@ export function RenterBookingsPanel() {
               {pending.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">{t("reservasConta.emptyPending")}</p>
               ) : (
-                pending.map((b) => (
-                  <BookingCard
-                    key={b.id}
-                    b={b}
-                    currencyFmt={currencyFmt}
-                    t={t}
-                    onEdit={() => startEdit(b)}
-                    editing={editingId === b.id}
-                    editDraft={editDraft}
-                    setEditDraft={setEditDraft}
-                    onSave={saveEdit}
-                    onCancelEdit={() => {
-                      setEditingId(null);
-                      setEditDraft(null);
-                    }}
-                    onCancelBooking={() => requestCancelBooking(b.id)}
-                    cancellingId={cancellingId}
-                  />
-                ))
+                pending.map((b) => {
+                  const stripeUnpaid = !(b.paymentProvider === "STRIPE" && b.paymentStatus === "APPROVED");
+                  const stripeCheckoutDue = paymentsProvider === "stripe" && stripeUnpaid;
+                  return (
+                    <BookingCard
+                      key={b.id}
+                      b={b}
+                      currencyFmt={currencyFmt}
+                      t={t}
+                      onEdit={() => startEdit(b)}
+                      editing={editingId === b.id}
+                      editDraft={editDraft}
+                      setEditDraft={setEditDraft}
+                      onSave={saveEdit}
+                      onCancelEdit={() => {
+                        setEditingId(null);
+                        setEditDraft(null);
+                      }}
+                      onCancelBooking={() => requestCancelBooking(b)}
+                      cancellingId={cancellingId}
+                      cancelDraftOpen={cancelDraftBookingId === b.id}
+                      cancelDraftReason={cancelDraftReason}
+                      onCancelDraftReasonChange={setCancelDraftReason}
+                      onCancelDraftConfirm={() => submitCancelBooking(b, cancelDraftReason)}
+                      onCancelDraftClose={() => {
+                        setCancelDraftBookingId(null);
+                        setCancelDraftReason("");
+                      }}
+                      stripeCheckoutDue={stripeCheckoutDue}
+                      onStripeCheckout={() => void payStripeCheckout(b.id)}
+                      stripePaying={stripePayingId === b.id}
+                    />
+                  );
+                })
               )}
             </section>
 
@@ -308,25 +401,40 @@ export function RenterBookingsPanel() {
               {inProgress.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">{t("reservasConta.emptyProgress")}</p>
               ) : (
-                inProgress.map((b) => (
-                  <BookingCard
-                    key={b.id}
-                    b={b}
-                    currencyFmt={currencyFmt}
-                    t={t}
-                    onEdit={() => startEdit(b)}
-                    editing={editingId === b.id}
-                    editDraft={editDraft}
-                    setEditDraft={setEditDraft}
-                    onSave={saveEdit}
-                    onCancelEdit={() => {
-                      setEditingId(null);
-                      setEditDraft(null);
-                    }}
-                    onCancelBooking={() => requestCancelBooking(b.id)}
-                    cancellingId={cancellingId}
-                  />
-                ))
+                inProgress.map((b) => {
+                  const stripeUnpaid = !(b.paymentProvider === "STRIPE" && b.paymentStatus === "APPROVED");
+                  const stripeCheckoutDue = paymentsProvider === "stripe" && b.status === "ACCEPTED" && stripeUnpaid;
+                  return (
+                    <BookingCard
+                      key={b.id}
+                      b={b}
+                      currencyFmt={currencyFmt}
+                      t={t}
+                      onEdit={() => startEdit(b)}
+                      editing={editingId === b.id}
+                      editDraft={editDraft}
+                      setEditDraft={setEditDraft}
+                      onSave={saveEdit}
+                      onCancelEdit={() => {
+                        setEditingId(null);
+                        setEditDraft(null);
+                      }}
+                      onCancelBooking={() => requestCancelBooking(b)}
+                      cancellingId={cancellingId}
+                      cancelDraftOpen={cancelDraftBookingId === b.id}
+                      cancelDraftReason={cancelDraftReason}
+                      onCancelDraftReasonChange={setCancelDraftReason}
+                      onCancelDraftConfirm={() => submitCancelBooking(b, cancelDraftReason)}
+                      onCancelDraftClose={() => {
+                        setCancelDraftBookingId(null);
+                        setCancelDraftReason("");
+                      }}
+                      stripeCheckoutDue={stripeCheckoutDue}
+                      onStripeCheckout={() => void payStripeCheckout(b.id)}
+                      stripePaying={stripePayingId === b.id}
+                    />
+                  );
+                })
               )}
             </section>
 
@@ -450,6 +558,14 @@ function BookingCard({
   onRated,
   onCancelBooking,
   cancellingId,
+  cancelDraftOpen,
+  cancelDraftReason,
+  onCancelDraftReasonChange,
+  onCancelDraftConfirm,
+  onCancelDraftClose,
+  stripeCheckoutDue,
+  onStripeCheckout,
+  stripePaying,
 }: {
   b: RenterBooking;
   currencyFmt: Intl.NumberFormat;
@@ -464,6 +580,14 @@ function BookingCard({
   onRated?: () => void;
   onCancelBooking?: () => void;
   cancellingId?: string | null;
+  cancelDraftOpen?: boolean;
+  cancelDraftReason?: string;
+  onCancelDraftReasonChange?: (v: string) => void;
+  onCancelDraftConfirm?: () => void;
+  onCancelDraftClose?: () => void;
+  stripeCheckoutDue?: boolean;
+  onStripeCheckout?: () => void;
+  stripePaying?: boolean;
 }) {
   const { i18n } = useTranslation();
   const dateFnsLocale = i18n.language.startsWith("pt") ? ptBR : i18n.language.startsWith("es") ? es : enUS;
@@ -616,6 +740,26 @@ function BookingCard({
             >
               <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
               <span>{t("reservasConta.arriveEarlyNotice")}</span>
+            </div>
+          ) : null}
+
+          {b.renterNoticeCode &&
+          RENTER_NOTICE_I18N[b.renterNoticeCode] &&
+          (b.status === "CANCELLED" || b.status === "DECLINED") ? (
+            <div
+              className="rounded-md border border-border/70 bg-muted/40 px-3 py-2 text-xs text-foreground leading-relaxed"
+              role="status"
+            >
+              {t(RENTER_NOTICE_I18N[b.renterNoticeCode])}
+            </div>
+          ) : null}
+
+          {stripeCheckoutDue && onStripeCheckout ? (
+            <div className="space-y-1.5 pt-1">
+              <p className="text-[11px] text-muted-foreground">{t("reservasConta.payStripeHint")}</p>
+              <Button type="button" size="sm" disabled={Boolean(stripePaying)} onClick={onStripeCheckout}>
+                {stripePaying ? t("reservasConta.payStripeSubmitting") : t("reservasConta.payStripe")}
+              </Button>
             </div>
           ) : null}
 
@@ -917,7 +1061,7 @@ function BookingCard({
           </div>
           <p className="text-[11px] text-muted-foreground">{t("reservasConta.editHint")}</p>
         </div>
-      ) : canCancelBooking || (canEdit && onEdit) ? (
+      ) : canCancelBooking || (canEdit && onEdit) || Boolean(cancelDraftOpen) ? (
         <div className="flex flex-wrap gap-2 pt-1">
           {canCancelBooking ? (
             <Button
@@ -934,6 +1078,38 @@ function BookingCard({
             <Button size="sm" variant="secondary" onClick={onEdit} disabled={Boolean(cancellingId)}>
               {t("reservasConta.edit")}
             </Button>
+          ) : null}
+          {cancelDraftOpen ? (
+            <div className="w-full space-y-2 rounded-lg border border-border bg-muted/35 p-3">
+              <Label htmlFor={`cancel-reason-${b.id}`}>{t("reservasConta.cancelReasonLabel")}</Label>
+              <Textarea
+                id={`cancel-reason-${b.id}`}
+                value={cancelDraftReason || ""}
+                maxLength={1000}
+                rows={4}
+                placeholder={t("reservasConta.cancelReasonPh")}
+                onChange={(e) => onCancelDraftReasonChange?.(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">{t("reservasConta.cancelPolicyHint")}</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  className="text-destructive-foreground bg-destructive hover:bg-destructive/90"
+                  disabled={Boolean(cancellingId) || String(cancelDraftReason || "").trim().length < 10}
+                  onClick={onCancelDraftConfirm}
+                >
+                  {cancellingId === b.id ? t("reservasConta.cancelSubmitting") : t("reservasConta.cancelConfirmAction")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={Boolean(cancellingId)}
+                  onClick={onCancelDraftClose}
+                >
+                  {t("common.cancel")}
+                </Button>
+              </div>
+            </div>
           ) : null}
         </div>
       ) : null}

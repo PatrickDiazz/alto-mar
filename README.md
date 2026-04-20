@@ -21,6 +21,12 @@ npm run dev:all
 | Arquivo | Conteúdo |
 |---------|-----------|
 | [docs/DEPLOY.md](docs/DEPLOY.md) | **Deploy na nuvem** (Railway API + Postgres, Vercel front) — app no ar sem seu PC |
+| [docs/ONBOARDING.md](docs/ONBOARDING.md) | Onboarding de engenharia (primeira semana, setup e fluxos críticos) |
+| [docs/ENGINEERING-RUNBOOK.md](docs/ENGINEERING-RUNBOOK.md) | Runbook operacional (incidentes e troubleshooting) |
+| [docs/BACKEND-API-CONTRACT.md](docs/BACKEND-API-CONTRACT.md) | Contrato resumido da API backend (endpoints e validações) |
+| [docs/BUSINESS-RULES.md](docs/BUSINESS-RULES.md) | Regras de negócio canônicas (reserva, aceite, cancelamento, reembolso) |
+| [docs/SECURITY-SECRETS.md](docs/SECURITY-SECRETS.md) | Segurança e gestão de segredos |
+| [docs/TEST-PLAYBOOK.md](docs/TEST-PLAYBOOK.md) | Checklist de testes de regressão (engenharia/QA) |
 | [TESTE-OUTRA-PESSOA.md](TESTE-OUTRA-PESSOA.md) | Teste rápido com túnel (`npm run tunnel`) |
 
 ## Variáveis (produção)
@@ -30,4 +36,4 @@ npm run dev:all
 
 ### CORS
 
-- Por defeito a API aceita qualquer `Origin` (útil em dev e previews). Em **produção**, define **`CORS_STRICT=1`** (ou `true`) no serviço da API e garante **`FRONTEND_URL`** +, se precisares, **`EXTRA_CORS_ORIGINS`** (domínios extra separados por vírgula). Vê `server/.env.example` e [docs/DEPLOY.md](docs/DEPLOY.md).
+- Em **produção**, a API usa CORS estrito por padrão. Garante **`FRONTEND_URL`** +, se precisares, **`EXTRA_CORS_ORIGINS`** (domínios extra separados por vírgula). Se precisares desativar (não recomendado), define **`CORS_STRICT=0`**. Vê `server/.env.example` e [docs/DEPLOY.md](docs/DEPLOY.md).
