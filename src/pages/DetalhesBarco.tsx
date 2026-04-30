@@ -15,6 +15,7 @@ import {
   Check,
   X,
   Waves,
+  UtensilsCrossed,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
@@ -346,14 +347,26 @@ const DetalhesBarco = () => {
             <>
               <hr className="border-border" />
               <div className="surface-elevated rounded-xl p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  <Waves className="w-5 h-5 text-primary shrink-0" />
-                  {t("detalhes.jetSkiTitle")}
+                <h3 className="text-sm font-semibold text-primary bg-primary/10 inline-flex items-center rounded-md px-2 py-1">
+                  Opcionais
                 </h3>
+                <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <Waves className="w-5 h-5 text-primary shrink-0" />
+                  Moto aquática
+                </h4>
                 <p className="text-xs text-muted-foreground">{t("detalhes.jetSkiIntro")}</p>
                 <p className="text-sm font-medium text-foreground">
                   + {currencyFmt.format(barco.jetSkiPriceCents / 100)}
                 </p>
+                <hr className="border-border/70" />
+                <div className="space-y-1">
+                  <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <UtensilsCrossed className="w-4 h-4 text-accent shrink-0" />
+                    {t("reservar.bbqTitle")}
+                  </h4>
+                  <p className="text-xs text-muted-foreground">{t("reservar.bbqDesc")}</p>
+                  <p className="text-sm font-medium text-foreground">+ {currencyFmt.format(250)}</p>
+                </div>
                 {(barco.jetSkiImageUrls?.length ?? 0) > 0 ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {(barco.jetSkiImageUrls ?? []).map((url, i) => (

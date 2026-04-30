@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   total_cents integer NOT NULL CHECK (total_cents >= 0),
   route_islands text[] NOT NULL DEFAULT '{}'::text[],
   booking_date date NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date,
+  booking_group_id uuid NULL,
   reschedule_reason text NULL,
   reschedule_title text NULL,
   reschedule_note text NULL,
@@ -121,8 +122,23 @@ CREATE TABLE IF NOT EXISTS bookings (
   decision_note text NULL
 );
 
+CREATE TABLE IF NOT EXISTS booking_days (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  booking_id uuid NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  day_date date NOT NULL,
+  bbq_kit boolean NOT NULL DEFAULT false,
+  jet_ski_selected boolean NOT NULL DEFAULT false,
+  route_islands text[] NOT NULL DEFAULT '{}'::text[],
+  total_cents integer NOT NULL DEFAULT 0 CHECK (total_cents >= 0),
+  status text NOT NULL DEFAULT 'ACTIVE' CHECK (status in ('ACTIVE','CANCELLED')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  cancelled_at timestamptz NULL,
+  UNIQUE (booking_id, day_date)
+);
+
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS route_islands text[] NOT NULL DEFAULT '{}'::text[];
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_date date;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_group_id uuid;
 
 CREATE TABLE IF NOT EXISTS boat_date_locks (
   boat_id uuid NOT NULL REFERENCES boats(id) ON DELETE CASCADE,
@@ -181,6 +197,9 @@ CREATE INDEX IF NOT EXISTS idx_boat_embark_slots_boat ON boat_embark_slots(boat_
 CREATE INDEX IF NOT EXISTS idx_bookings_owner_status ON bookings(owner_user_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bookings_renter ON bookings(renter_user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bookings_boat_date ON bookings(boat_id, booking_date);
+CREATE INDEX IF NOT EXISTS idx_bookings_group ON bookings(booking_group_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_booking_days_booking ON booking_days(booking_id, day_date);
+CREATE INDEX IF NOT EXISTS idx_booking_days_date ON booking_days(day_date, status);
 CREATE INDEX IF NOT EXISTS idx_boat_images_boat_sort ON boat_images(boat_id, sort);
 CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_boat_favorites_user ON user_boat_favorites(user_id, created_at DESC);

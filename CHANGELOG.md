@@ -10,6 +10,49 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Stripe / PIX (backend)**: suporte a PIX no Checkout quando `STRIPE_PIX_ENABLED=1` (`payment_method_types`, opções de expiração do QR); pedido de capability **`pix_payments`** em contas Connect (novas e existentes); activação via **Payment Method Configurations** (`server/stripe/ensureStripePixPmc.js`, chamada no arranque da API e no onboarding Connect); script manual **`npm run stripe:enable-pix-pmc`** (`server/stripe/run-enable-pix-pmc.mjs`); flag **`STRIPE_SKIP_PIX_PMC`** para não tocar nas PMCs ao arrancar.
+- **Stripe / reembolsos**: módulo **`server/stripe/refunds.js`** (`refundStripePaymentInTx`, códigos `RenterNoticeCode`, estimativa de taxas não reembolsáveis com `STRIPE_CARD_FEE_PERCENT` e `STRIPE_CARD_FEE_FIXED_CENTS`); coluna **`bookings.renter_notice_code`**; valor **`REFUNDED`** no enum **`payment_status`**.
+- **Regras de negócio (API)**: pagamento pode existir em **`PENDING`** ou **`ACCEPTED`**; ao **aceitar**, exige pagamento **APPROVED** com Stripe; cancelamento automático e reembolso das outras reservas **PENDING** no mesmo barco/dia; **recusa** do locador com reembolso total quando aplicável; cancelamento pelo banhista em **ACCEPTED** com justificativa (mín. 10 caracteres) e política por janelas (7+ dias, 6–2 dias, menos de 48 h / no-show).
+- **Documentação para equipa**: `docs/ONBOARDING.md`, `docs/ENGINEERING-RUNBOOK.md`, `docs/BACKEND-API-CONTRACT.md`, `docs/BUSINESS-RULES.md`, `docs/SECURITY-SECRETS.md`, `docs/TEST-PLAYBOOK.md`; **README** com índice alargado; **`docs/STRIPE-INTEGRATION-DESIGN.md`** actualizado (fluxo de pagamento, reembolsos, variáveis de ambiente, checklist de testes).
+
+### Alterado
+
+- **Reservar**: após criar reserva com **`paymentsProvider=stripe`**, redireccionamento imediato para o **Stripe Checkout**; PIX na UI marcado como **temporariamente indisponível** (forçar método cartão enquanto activo).
+- **RenterBookingsPanel**: botão **Pagar com Stripe** também em **PENDING**; avisos formais via **`renterNoticeCode`**; cancelamento de **ACCEPTED** com **formulário inline** (textarea + botões), alinhado ao padrão de justificativa de remarcação.
+- **Marinheiro**: **Aceitar** desactivado até pagamento **APPROVED** quando Stripe está activo; cópias **`stripeAcceptRequiresPayment`** / **`stripeAwaitPayment`**.
+- **i18n** (pt / en / es): mensagens de aviso ao locatário, política de cancelamento, PIX indisponível, chaves do formulário de cancelamento.
+- **`server/stripe/checkout.js`**: `customer_email` na sessão; versão de **idempotency** do Checkout incrementada para evitar erro Stripe ao mudar o corpo do pedido; sessão permitida para **PENDING** e **ACCEPTED**.
+
+### Corrigido
+
+- **PostgreSQL**: `POST /api/renter/bookings/:id/cancel` com **`FOR UPDATE OF bk`** em vez de `FOR UPDATE` genérico sobre `LEFT JOIN`, evitando *«FOR UPDATE cannot be applied to the nullable side of an outer join»*.
+
+---
+
+## [0.13.1] — 2026-04-30
+
+### Adicionado
+
+- **Reserva multi-dia (banhista)**: seleção de vários dias no calendário com **highlight** dos dias escolhidos; ao clicar num dia já marcado, desmarca imediatamente (toggle em 1 clique).
+- **Opcionais por dia**: bloco **“Dias selecionados”** (exibido a partir de 2+ dias), com configuração por dia para **Kit Churrasco** e **Moto aquática**, incluindo subtotal diário.
+- **Persistência por dia na API**: tabela **`booking_days`** (arranque e schemas SQL) para armazenar datas e opcionais de cada dia da reserva.
+
+### Alterado
+
+- **Pagamento multi-dia em reserva única**: múltiplos dias passam a gerar **uma única reserva** com **pagamento único** (total consolidado), mantendo os detalhes por dia em `booking_days`.
+- **Calendário público do barco** (`GET /api/boats/:id/calendar`): passa a considerar também os dias ativos de `booking_days` além de `bookings.booking_date`.
+- **Validação de conflito de data** (`assertBookingSlotAvailable`): bloqueia datas já ocupadas em reservas aceitas/concluídas tanto no dia principal da reserva como em dias ativos de `booking_days`.
+- **UX da página Reservar**: cartões de opcionais (Kit/Moto) reposicionados mais acima; seção “Dias selecionados” refinada visualmente para separar melhor **dia do passeio** e **opcionais**.
+- **Detalhes do barco**: seção de opcionais destacada com título **“Opcionais”**, incluindo Kit Churrasco e Moto aquática sem sufixo “(opcional)” nos títulos.
+
+### Versões
+
+- Cliente e servidor **0.13.1**.
+
+---
+
 ## [0.12.1] — 2026-04-10
 
 ### Adicionado

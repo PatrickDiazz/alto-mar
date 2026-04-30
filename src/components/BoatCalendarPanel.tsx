@@ -81,6 +81,7 @@ type BaseProps = {
 type PickerProps = BaseProps & {
   variant: "picker";
   selectedDate: string | null;
+  highlightedDates?: string[];
   onSelectDate: (iso: string) => void;
   excludeBookingId?: string;
   /** Primeira data seleccionável = hoje + N dias corridos (ex.: 2 = não hoje nem amanhã). */
@@ -164,10 +165,24 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
 
   const pickerSelectedKey =
     props.variant === "picker" && props.selectedDate ? props.selectedDate : null;
+  const pickerHighlighted = useMemo(
+    () =>
+      props.variant === "picker"
+        ? new Set((props.highlightedDates ?? []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))
+        : new Set<string>(),
+    [props.variant, props.variant === "picker" ? (props.highlightedDates ?? []).join("|") : ""]
+  );
 
   const modifiers = useMemo(() => {
     if (!data) return {};
     return {
+      pickerHighlightedDay:
+        props.variant === "picker"
+          ? (d: Date) => {
+              const key = dayKey(d);
+              return pickerHighlighted.has(key);
+            }
+          : undefined,
       ownerLockDay: (d: Date) => {
         const key = dayKey(d);
         return data.dateLocks.includes(key) || data.weekdayLocks.includes(d.getDay());
@@ -185,7 +200,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
         return data.bookings.some((b) => b.date === key && b.status === "PENDING");
       },
     };
-  }, [data, pickerSelectedKey]);
+  }, [data, pickerSelectedKey, props.variant, pickerHighlighted]);
 
   /** Travas = vermelho preenchido (picker/readonly; sem borda). */
   const modifiersClassNames = {
@@ -200,6 +215,8 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
     props.variant === "picker"
       ? {
           ...modifiersClassNames,
+          pickerHighlightedDay:
+            "!z-[1] !bg-primary/20 !text-foreground !opacity-100 hover:!bg-primary/25 focus:!bg-primary/25",
           selected:
             "!z-[1] !bg-primary !text-primary-foreground !opacity-100 shadow-sm hover:!bg-primary hover:!text-primary-foreground focus:!bg-primary focus:!text-primary-foreground focus-visible:!ring-2 focus-visible:!ring-ring focus-visible:!ring-offset-2 focus-visible:!ring-offset-background",
         }

@@ -29,6 +29,7 @@ import {
 
 type RenterBooking = {
   id: string;
+  bookingGroupId?: string | null;
   status: string;
   createdAt: string;
   bookingDate?: string;
@@ -303,6 +304,28 @@ export function RenterBookingsPanel() {
   };
 
   const requestCancelBooking = (booking: RenterBooking) => {
+    if (booking.bookingGroupId) {
+      const doCancelAll = window.confirm(
+        "Esta reserva faz parte de um passeio com vários dias. Clique em OK para cancelar o passeio todo, ou Cancelar para seguir com cancelamento apenas deste dia."
+      );
+      if (doCancelAll) {
+        const sameGroup = list.filter(
+          (x) =>
+            x.bookingGroupId === booking.bookingGroupId &&
+            (x.status === "PENDING" || x.status === "ACCEPTED")
+        );
+        if (sameGroup.length <= 1) {
+          submitCancelBooking(booking);
+          return;
+        }
+        if (!window.confirm(`Confirma cancelar todos os ${sameGroup.length} dias deste passeio?`)) return;
+        for (const item of sameGroup) {
+          submitCancelBooking(item);
+        }
+        return;
+      }
+    }
+
     const isInProgress = booking.status === "ACCEPTED";
     if (!isInProgress) {
       if (!window.confirm(t("reservasConta.cancelConfirm"))) return;

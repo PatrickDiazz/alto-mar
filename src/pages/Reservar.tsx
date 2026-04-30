@@ -19,6 +19,7 @@ import {
   Waves,
   Minus,
   Plus,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -121,6 +122,12 @@ async function criarReserva(input: {
   embarkTime: string | null;
   totalCents: number;
   routeIslands: string[];
+  tripDays?: Array<{
+    bookingDate: string;
+    bbqKit: boolean;
+    jetSki: boolean;
+    routeIslands: string[];
+  }>;
 }) {
   const resp = await authFetch("/api/bookings", {
     method: "POST",
@@ -192,6 +199,8 @@ const Reservar = () => {
   /** Data do passeio (YYYY-MM-DD) */
   const [dataPasseio, setDataPasseio] = useState<string | null>(null);
   const [paymentsProvider, setPaymentsProvider] = useState<"stripe" | "mercadopago">("mercadopago");
+  const [diasPasseio, setDiasPasseio] = useState<string[]>([]);
+  const [opcionaisPorDia, setOpcionaisPorDia] = useState<Record<string, { bbqKit: boolean; jetSki: boolean }>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -323,8 +332,16 @@ const Reservar = () => {
   const precoBase = parseInt(barco.preco.replace(/[^0-9]/g, ""), 10);
   const jetSkiReais =
     barco.jetSkiOffered && barco.jetSkiPriceCents ? barco.jetSkiPriceCents / 100 : 0;
-  const total =
-    precoBase + (kitChurrasco ? KIT_CHURRASCO_PRECO : 0) + (motoAquatica && jetSkiReais > 0 ? jetSkiReais : 0);
+  const total = (diasPasseio.length > 0 ? diasPasseio : [dataPasseio].filter(Boolean)).reduce((acc, dia) => {
+    if (!dia) return acc;
+    const dayOpts = opcionaisPorDia[dia] ?? { bbqKit: kitChurrasco, jetSki: motoAquatica };
+    return (
+      acc +
+      precoBase +
+      (dayOpts.bbqKit ? KIT_CHURRASCO_PRECO : 0) +
+      (dayOpts.jetSki && jetSkiReais > 0 ? jetSkiReais : 0)
+    );
+  }, 0);
 
   const handleConfirmar = async () => {
     const u = getStoredUser();
@@ -363,15 +380,17 @@ const Reservar = () => {
       toast.error(t("reservar.toastRoute"));
       return;
     }
-    if (!dataPasseio) {
+    if (diasPasseio.length === 0) {
       toast.error(t("reservar.toastDate"));
       return;
     }
     const minBook = addDays(startOfDay(new Date()), BANHISTA_BOOKING_LEAD_DAYS);
-    const chosen = startOfDay(parseISO(`${dataPasseio}T12:00:00`));
-    if (isBefore(chosen, minBook)) {
-      toast.error(t("reservar.toastDateMinLead"));
-      return;
+    for (const dia of diasPasseio) {
+      const chosen = startOfDay(parseISO(`${dia}T12:00:00`));
+      if (isBefore(chosen, minBook)) {
+        toast.error(t("reservar.toastDateMinLead"));
+        return;
+      }
     }
     if (pessoas + criancas > barco.capacidade) {
       toast.error(t("reservar.toastCapacity", { n: barco.capacidade }));
@@ -381,9 +400,15 @@ const Reservar = () => {
     setPagando(true);
     try {
       const totalCents = total * 100;
+      const tripDays = diasPasseio.map((dia) => ({
+        bookingDate: dia,
+        bbqKit: opcionaisPorDia[dia]?.bbqKit ?? kitChurrasco,
+        jetSki: opcionaisPorDia[dia]?.jetSki ?? motoAquatica,
+        routeIslands: paradasRoteiro,
+      }));
       const booking = await criarReserva({
         boatId: barco.id,
-        bookingDate: dataPasseio,
+        bookingDate: diasPasseio[0],
         passengersAdults: pessoas,
         passengersChildren: criancas,
         hasKids: temCriancas,
@@ -393,6 +418,7 @@ const Reservar = () => {
         embarkTime: horariosOpcionais ? horarioEmbarque : null,
         totalCents,
         routeIslands: paradasRoteiro,
+        tripDays,
       });
 
       if (paymentsProvider === "stripe") {
@@ -618,10 +644,155 @@ const Reservar = () => {
             variant="picker"
             boatId={barco.id}
             selectedDate={dataPasseio}
-            onSelectDate={setDataPasseio}
+            highlightedDates={diasPasseio}
+            onSelectDate={(iso) => {
+              if (!iso) {
+                if (dataPasseio) {
+                  setDiasPasseio((prev) => prev.filter((d) => d !== dataPasseio));
+                  setOpcionaisPorDia((prev) => {
+                    const next = { ...prev };
+                    delete next[dataPasseio];
+                    return next;
+                  });
+                }
+                setDataPasseio(null);
+                return;
+              }
+              const alreadySelected = diasPasseio.includes(iso);
+              if (alreadySelected) {
+                setDiasPasseio((prev) => prev.filter((d) => d !== iso));
+                setOpcionaisPorDia((prev) => {
+                  const next = { ...prev };
+                  delete next[iso];
+                  return next;
+                });
+                setDataPasseio(null);
+                return;
+              }
+              setDiasPasseio((prev) => [...prev, iso].sort((a, b) => a.localeCompare(b)));
+              setOpcionaisPorDia((prev) => ({
+                ...prev,
+                [iso]: prev[iso] ?? { bbqKit: kitChurrasco, jetSki: motoAquatica },
+              }));
+              setDataPasseio(iso);
+            }}
             bookingLeadDays={BANHISTA_BOOKING_LEAD_DAYS}
           />
+          {diasPasseio.length > 1 ? (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-foreground">Dias selecionados</p>
+              {diasPasseio.map((dia) => (
+                <div key={dia} className="surface-elevated rounded-xl border border-border/60 p-3 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                        Dia do passeio
+                      </span>
+                      <p className="text-sm font-medium text-foreground">
+                        {format(new Date(`${dia}T12:00:00`), "PPP", { locale: dateFnsLocale })}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-destructive hover:opacity-80"
+                      onClick={() => {
+                        setDiasPasseio((prev) => prev.filter((d) => d !== dia));
+                        setOpcionaisPorDia((prev) => {
+                          const next = { ...prev };
+                          delete next[dia];
+                          return next;
+                        });
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="rounded-lg bg-muted/60 p-2.5 space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Opcionais deste dia
+                    </p>
+                    <div className="flex items-center justify-between text-sm">
+                      <span>{t("reservar.bbqTitle")}</span>
+                      <Switch
+                        checked={Boolean(opcionaisPorDia[dia]?.bbqKit)}
+                        onCheckedChange={(v) =>
+                          setOpcionaisPorDia((prev) => ({
+                            ...prev,
+                            [dia]: { bbqKit: v, jetSki: prev[dia]?.jetSki ?? false },
+                          }))
+                        }
+                      />
+                    </div>
+                    {barco.jetSkiOffered && jetSkiReais > 0 ? (
+                      <div className="flex items-center justify-between text-sm">
+                        <span>{t("reservar.jetSkiTitle")}</span>
+                        <Switch
+                          checked={Boolean(opcionaisPorDia[dia]?.jetSki)}
+                          onCheckedChange={(v) =>
+                            setOpcionaisPorDia((prev) => ({
+                              ...prev,
+                              [dia]: { bbqKit: prev[dia]?.bbqKit ?? false, jetSki: v },
+                            }))
+                          }
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Subtotal do dia</span>
+                    <span className="font-medium text-foreground">
+                      {currencyFmt.format(
+                        precoBase +
+                          (opcionaisPorDia[dia]?.bbqKit ? KIT_CHURRASCO_PRECO : 0) +
+                          (opcionaisPorDia[dia]?.jetSki && jetSkiReais > 0 ? jetSkiReais : 0)
+                      )}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </section>
+
+        {diasPasseio.length <= 1 ? (
+          <section className="surface-elevated rounded-xl p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <UtensilsCrossed className="w-5 h-5 text-accent" />
+                <div>
+                  <span className="text-sm font-bold text-foreground">{t("reservar.bbqTitle")}</span>
+                  <p className="text-xs text-muted-foreground">{t("reservar.bbqDesc")}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-accent">
+                  + {currencyFmt.format(KIT_CHURRASCO_PRECO)}
+                </span>
+                <Switch checked={kitChurrasco} onCheckedChange={setKitChurrasco} />
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {diasPasseio.length <= 1 && barco.jetSkiOffered && jetSkiReais > 0 ? (
+          <section className="surface-elevated rounded-xl p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Waves className="w-5 h-5 text-primary shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-sm font-bold text-foreground">{t("reservar.jetSkiTitle")}</span>
+                  <p className="text-xs text-muted-foreground">{t("reservar.jetSkiDesc")}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="text-sm font-semibold text-primary tabular-nums">
+                  + {currencyFmt.format(jetSkiReais)}
+                </span>
+                <Switch checked={motoAquatica} onCheckedChange={setMotoAquatica} />
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         <section className="space-y-4">
           <div className="space-y-2">
@@ -673,8 +844,10 @@ const Reservar = () => {
           <ul className="text-xs text-muted-foreground space-y-1">
             <li>
               <strong className="text-foreground">{t("reservar.reviewDate")}</strong>{" "}
-              {dataPasseio
-                ? format(new Date(`${dataPasseio}T12:00:00`), "PPP", { locale: dateFnsLocale })
+              {diasPasseio.length
+                ? diasPasseio
+                    .map((d) => format(new Date(`${d}T12:00:00`), "PPP", { locale: dateFnsLocale }))
+                    .join(" · ")
                 : "—"}
             </li>
             <li>
@@ -775,44 +948,6 @@ const Reservar = () => {
             {t("reservar.maxCap", { n: barco.capacidade })}
           </p>
         </section>
-
-        <section className="surface-elevated rounded-xl p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <UtensilsCrossed className="w-5 h-5 text-accent" />
-              <div>
-                <span className="text-sm font-bold text-foreground">{t("reservar.bbqTitle")}</span>
-                <p className="text-xs text-muted-foreground">{t("reservar.bbqDesc")}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-semibold text-accent">
-                + {currencyFmt.format(KIT_CHURRASCO_PRECO)}
-              </span>
-              <Switch checked={kitChurrasco} onCheckedChange={setKitChurrasco} />
-            </div>
-          </div>
-        </section>
-
-        {barco.jetSkiOffered && jetSkiReais > 0 ? (
-          <section className="surface-elevated rounded-xl p-4">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <Waves className="w-5 h-5 text-primary shrink-0" />
-                <div className="min-w-0">
-                  <span className="text-sm font-bold text-foreground">{t("reservar.jetSkiTitle")}</span>
-                  <p className="text-xs text-muted-foreground">{t("reservar.jetSkiDesc")}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <span className="text-sm font-semibold text-primary tabular-nums">
-                  + {currencyFmt.format(jetSkiReais)}
-                </span>
-                <Switch checked={motoAquatica} onCheckedChange={setMotoAquatica} />
-              </div>
-            </div>
-          </section>
-        ) : null}
 
         <section className="space-y-3">
           <h3 className="text-base font-bold text-foreground flex items-center gap-2">
