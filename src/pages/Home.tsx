@@ -23,7 +23,7 @@ const Home = () => {
 
   const goMarinheiro = () => {
     if (!getStoredUser()) {
-      navigate("/login", { state: { from: "/marinheiro" } });
+      navigate("/seja-locador");
       return;
     }
     navigate("/marinheiro");

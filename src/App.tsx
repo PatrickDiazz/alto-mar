@@ -24,6 +24,7 @@ const ContaReservas = lazy(() => import("./pages/ContaReservas"));
 const ContaFavoritos = lazy(() => import("./pages/ContaFavoritos"));
 const ContaDados = lazy(() => import("./pages/ContaDados"));
 const AjudaTeste = lazy(() => import("./pages/AjudaTeste"));
+const SejaLocador = lazy(() => import("./pages/SejaLocador"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -100,6 +101,7 @@ const App = () => (
                   }
                 />
                 <Route path="/explorar" element={<Explorar />} />
+                <Route path="/seja-locador" element={<SejaLocador />} />
                 <Route path="/barco/:id" element={<DetalhesBarco />} />
                 <Route
                   path="/reservar/:id"

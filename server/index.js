@@ -883,6 +883,28 @@ app.get("/api/boats", async (req, res) => {
       whereSql = `where ${parts.join(" and ")}`;
     }
 
+    /** Paginação opcional: só quando `limit` ou `offset` vierem no query — senão devolve tudo (compat.) */
+    let usePagination = false;
+    let pageLimit = 14;
+    let pageOffset = 0;
+    const ql = req.query.limit;
+    const qo = req.query.offset;
+    if (ql !== undefined || qo !== undefined) {
+      usePagination = true;
+      if (ql !== undefined) {
+        const n = Number.parseInt(String(ql), 10);
+        if (Number.isFinite(n)) pageLimit = Math.min(80, Math.max(1, n));
+      }
+      if (qo !== undefined) {
+        const n = Number.parseInt(String(qo), 10);
+        if (Number.isFinite(n)) pageOffset = Math.max(0, n);
+      }
+    }
+
+    const paginationSql = usePagination
+      ? ` limit $${params.length + 1} offset $${params.length + 2}`
+      : "";
+
     const boats = await query(
       `select
          b.id,
@@ -903,8 +925,8 @@ app.get("/api/boats", async (req, res) => {
          b.jet_ski_document_url
        from boats b
        ${whereSql}
-       order by b.created_at desc`,
-      params
+       order by b.created_at desc${paginationSql}`,
+      usePagination ? [...params, pageLimit, pageOffset] : params
     );
 
     const boatIds = boats.rows.map((b) => b.id);
@@ -997,6 +1019,16 @@ app.get("/api/boats", async (req, res) => {
       jetSkiImageUrls: Array.isArray(b.jet_ski_image_urls) ? b.jet_ski_image_urls : [],
       jetSkiDocumentUrl: b.jet_ski_document_url ?? null,
     }));
+
+    if (usePagination) {
+      const hasMore = boats.rows.length === pageLimit;
+      return res.json({
+        boats: payload,
+        limit: pageLimit,
+        offset: pageOffset,
+        hasMore,
+      });
+    }
 
     return res.json({ boats: payload });
   } catch (e) {
@@ -1141,6 +1173,52 @@ app.get("/api/boats/:id/calendar", async (req, res) => {
     // eslint-disable-next-line no-console
     console.error("[GET /api/boats/:id/calendar]", boatId, msg);
     return res.status(503).send(msg);
+  }
+});
+
+/** Lista embarcações com esse dia livre (sem travas nem marcação ACCEPTED/PENDING/COMPLETED). Exclui só DECLINED/CANCELLED. */
+app.get("/api/public/boats-available-on", async (req, res) => {
+  const date = typeof req.query.date === "string" ? req.query.date.trim() : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).send("Informe date=YYYY-MM-DD.");
+  }
+  try {
+    const rows = await query(
+      `
+      select b.id, b.name, b.location_text, coalesce(b.rating, 0) as rating, b.price_cents
+      from boats b
+      where not exists (
+        select 1 from boat_date_locks l where l.boat_id = b.id and l.locked_date = $1::date
+      )
+      and not exists (
+        select 1 from boat_weekday_locks w
+        where w.boat_id = b.id and w.weekday = extract(dow from $1::date)::smallint
+      )
+      and not exists (
+        select 1 from bookings bk
+        left join booking_days bd on bd.booking_id = bk.id and bd.day_date = $1::date and bd.status = 'ACTIVE'
+        where bk.boat_id = b.id
+          and bk.status not in ('DECLINED', 'CANCELLED')
+          and (bk.booking_date = $1::date or bd.id is not null)
+      )
+      order by b.rating desc nulls last, b.created_at desc
+      limit 60
+      `,
+      [date]
+    );
+    const list = rows.rows.map((row) => ({
+      id: row.id,
+      nome: row.name,
+      distancia: row.location_text ?? "",
+      nota: formatBoatNota(row.rating),
+      preco: formatBoatPreco(row.price_cents),
+    }));
+    return res.json({ boats: list, date });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // eslint-disable-next-line no-console
+    console.error("[GET /api/public/boats-available-on]", msg);
+    return res.status(503).json({ ok: false });
   }
 });
 

@@ -1,7 +1,7 @@
 {
   "name": "vite_react_shadcn_ts",
   "private": true,
-  "version": "0.13.1",
+  "version": "0.13.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -18,7 +18,9 @@
     "db:setup": "npm run db:up && npm run db:wait && npm run db:seed",
     "release:patch": "node scripts/release-patch.mjs",
     "fix:logos": "node scripts/remove-black-png-background.mjs",
+    "fix:seja-locador-alpha": "node scripts/process-seja-locador-transparent.mjs",
     "tunnel": "node scripts/public-tunnel.mjs",
+    "clean:vite": "node scripts/clean-vite-cache.mjs",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",

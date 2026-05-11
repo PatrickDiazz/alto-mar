@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
-import { useBarcos } from "@/hooks/useBarcos";
+import { useBoat } from "@/hooks/useBoat";
 import { BoatRoutes } from "@/components/BoatRoutes";
 import { BoatCalendarPanel } from "@/components/BoatCalendarPanel";
 import { getStoredUser, authFetch } from "@/lib/auth";
@@ -42,13 +42,12 @@ const DetalhesBarco = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const {
-    boats: barcos,
-    isLoading: barcosLoading,
+    data: barco,
+    isPending: barcosLoading,
     isError: barcosError,
     refetch: refetchBarcos,
-    isRefetching: barcosRefetching,
-  } = useBarcos();
-  const barco = barcos.find((b) => b.id === id);
+    isFetching: barcosRefetching,
+  } = useBoat(id);
   const [imgIndex, setImgIndex] = useState(0);
   const [isFavorited, setIsFavorited] = useState(false);
   const carouselTouchRef = useRef<{ x: number; y: number } | null>(null);

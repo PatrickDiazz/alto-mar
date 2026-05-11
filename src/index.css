@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -39,8 +40,8 @@
 
     --radius: 0.75rem;
 
-    --font-heading: 'Plus Jakarta Sans', system-ui, sans-serif;
-    --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-heading: 'Satoshi', system-ui, sans-serif;
+    --font-body: 'Inter', system-ui, sans-serif;
 
     --shadow-card: 0 2px 12px -2px hsl(210 20% 50% / 0.12);
     --shadow-elevated: 0 8px 30px -8px hsl(210 20% 50% / 0.18);
@@ -128,6 +129,15 @@
     width: 0;
     height: 0;
   }
+
+  /**
+   * Ilustrações tipo “flat” em raster: reduz o desfocar dos contornos ao redimensionar.
+   * (Não usar em fotos — fica com serração forte.)
+   */
+  .illustration-crisp {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
 }
 
 /* Rolar a página no Explorar (mobile): sem barra vertical visível */
@@ -148,4 +158,138 @@ html.explorar-mobile-scroll-hide::-webkit-scrollbar {
 
 .dark .leaflet-container {
   filter: brightness(0.88) contrast(1.05) saturate(0.95);
+}
+
+/* Explorar: ênfase sútil ao cruzar o meio vertical do ecrã */
+@keyframes explore-section-heading-emphasis {
+  0%,
+  100% {
+    box-shadow: 0 1px 2px hsl(210 20% 50% / 0.05);
+    filter: brightness(1) saturate(1);
+  }
+  45% {
+    box-shadow:
+      0 0 0 1px hsl(var(--primary) / 0.12),
+      0 0 18px -6px hsl(var(--primary) / 0.2),
+      0 8px 28px -14px hsl(var(--primary) / 0.1);
+    filter: brightness(1.02) saturate(1.04);
+  }
+  72% {
+    box-shadow:
+      0 0 0 1px hsl(var(--primary) / 0.08),
+      0 4px 20px -10px hsl(var(--primary) / 0.12),
+      0 1px 6px hsl(210 20% 50% / 0.06);
+    filter: brightness(1.01) saturate(1.02);
+  }
+}
+
+.dark .explore-section-heading-emphasis-layer {
+  --explore-heading-shine: hsl(var(--primary) / 0.22);
+}
+
+@keyframes explore-section-heading-shine-sweep {
+  0% {
+    transform: translateX(-115%) skewX(-14deg);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.45;
+  }
+  82% {
+    opacity: 0.45;
+  }
+  100% {
+    transform: translateX(115%) skewX(-14deg);
+    opacity: 0;
+  }
+}
+
+.explore-section-heading-emphasis-layer {
+  --explore-heading-shine: hsl(var(--primary) / 0.18);
+}
+
+.explore-section-heading-emphasis-layer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 44%,
+    var(--explore-heading-shine) 50%,
+    transparent 56%,
+    transparent 100%
+  );
+  width: 52%;
+  left: 0;
+  right: 0;
+  margin: auto;
+  opacity: 0;
+  animation: explore-section-heading-shine-sweep 1.05s ease-out both;
+}
+
+.explore-section-heading-emphasis-animate {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  animation: explore-section-heading-emphasis 1.05s ease-out both;
+}
+
+/* Explorar — diálogo de datas: calendário centrado, sem margem extra do tema RDP */
+.rdp-dialog-compact.rdp {
+  margin: 0;
+  /* Mobile: células maiores (toque); sm+ ligeiro incremento */
+  --rdp-cell-size: 2.1875rem;
+  --rdp-caption-font-size: 0.95rem;
+}
+
+@media (min-width: 640px) {
+  .rdp-dialog-compact.rdp {
+    --rdp-cell-size: 2.25rem;
+  }
+}
+
+.rdp-dialog-compact.rdp .rdp-month {
+  margin: 0;
+}
+
+.rdp-dialog-compact.rdp .rdp-table {
+  margin-inline: auto;
+  width: max-content;
+  max-width: 100%;
+}
+
+.rdp-dialog-compact.rdp .rdp-head_cell {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  color: hsl(var(--muted-foreground));
+}
+
+@media (min-width: 640px) {
+  .rdp-dialog-compact.rdp .rdp-head_cell {
+    font-size: 0.78rem;
+  }
+}
+
+.rdp-dialog-compact.rdp .rdp-day {
+  border-radius: 0.5rem;
+  border-width: 0;
+  font-size: 0.8125rem;
+}
+
+@media (min-width: 640px) {
+  .rdp-dialog-compact.rdp .rdp-day {
+    font-size: 0.875rem;
+  }
+}
+
+/* Dois meses lado a lado no diálogo: ligeiramente mais compacto em ecrã estreito */
+@media (max-width: 639px) {
+  .rdp-dialog-two-months.rdp {
+    --rdp-cell-size: 1.6875rem;
+  }
 }

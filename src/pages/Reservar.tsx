@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { format, addDays, startOfDay, parseISO, isBefore } from "date-fns";
 import { ptBR, enUS, es } from "date-fns/locale";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
@@ -35,12 +36,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
-import { useBarcos } from "@/hooks/useBarcos";
+import { useBoat } from "@/hooks/useBoat";
 import { toast } from "sonner";
 import i18n from "@/i18n";
 import { bcp47FromAppLang } from "@/lib/localeFormat";
 import { apiUrl, authFetch, getStoredUser } from "@/lib/auth";
 import { BoatCalendarPanel } from "@/components/BoatCalendarPanel";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { fetchBoatsAvailableOn } from "@/lib/boatsAvailableOnApi";
 import { vesselTypeLabel } from "@/lib/boatVesselTypes";
 import { parseOwnerRouteIslands } from "@/lib/routeIslandsParse";
 
@@ -171,13 +180,12 @@ const Reservar = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const {
-    boats: barcos,
-    isLoading: barcosLoading,
+    data: barco,
+    isPending: barcosLoading,
     isError: barcosError,
     refetch: refetchBarcos,
-    isRefetching: barcosRefetching,
-  } = useBarcos();
-  const barco = barcos.find((b) => b.id === id);
+    isFetching: barcosRefetching,
+  } = useBoat(id);
   const user = getStoredUser();
 
   const [pessoas, setPessoas] = useState(1);
@@ -201,6 +209,12 @@ const Reservar = () => {
   const [paymentsProvider, setPaymentsProvider] = useState<"stripe" | "mercadopago">("mercadopago");
   const [diasPasseio, setDiasPasseio] = useState<string[]>([]);
   const [opcionaisPorDia, setOpcionaisPorDia] = useState<Record<string, { bbqKit: boolean; jetSki: boolean }>>({});
+  const [alternateDayIso, setAlternateDayIso] = useState<string | null>(null);
+  const alternateBoatsQuery = useQuery({
+    queryKey: ["boats-available-unavailable-click", alternateDayIso] as const,
+    queryFn: () => fetchBoatsAvailableOn(alternateDayIso!),
+    enabled: Boolean(alternateDayIso),
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -645,6 +659,7 @@ const Reservar = () => {
             boatId={barco.id}
             selectedDate={dataPasseio}
             highlightedDates={diasPasseio}
+            onUnavailableDayClick={(iso) => setAlternateDayIso(iso)}
             onSelectDate={(iso) => {
               if (!iso) {
                 if (dataPasseio) {
@@ -678,6 +693,65 @@ const Reservar = () => {
             }}
             bookingLeadDays={BANHISTA_BOOKING_LEAD_DAYS}
           />
+          <Dialog
+            open={Boolean(alternateDayIso)}
+            onOpenChange={(open) => {
+              if (!open) setAlternateDayIso(null);
+            }}
+          >
+            <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>{t("reservar.alternateBoatsTitle")}</DialogTitle>
+                <DialogDescription>
+                  {alternateDayIso
+                    ? t("reservar.alternateBoatsDescription", {
+                        date: format(parseISO(`${alternateDayIso}T12:00:00`), "PPP", { locale: dateFnsLocale }),
+                      })
+                    : null}
+                </DialogDescription>
+              </DialogHeader>
+              {alternateBoatsQuery.isPending ? (
+                <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+              ) : alternateBoatsQuery.isError ? (
+                <p className="text-sm text-destructive">{t("reservar.alternateBoatsLoadError")}</p>
+              ) : (
+                <ul className="space-y-2">
+                  {(alternateBoatsQuery.data ?? [])
+                    .filter((b) => b.id !== barco.id)
+                    .map((b) => (
+                      <li
+                        key={b.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 p-3 dark:bg-card/50"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground truncate">{b.nome}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {[b.distancia, b.nota, b.preco].filter(Boolean).join(" · ")}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          <Button type="button" variant="outline" size="sm" asChild>
+                            <Link to={`/barco/${b.id}`} onClick={() => setAlternateDayIso(null)}>
+                              {t("reservar.alternateBoatDetails")}
+                            </Link>
+                          </Button>
+                          <Button type="button" size="sm" asChild>
+                            <Link to={`/reservar/${b.id}`} onClick={() => setAlternateDayIso(null)}>
+                              {t("reservar.alternateReserve")}
+                            </Link>
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                </ul>
+              )}
+              {!alternateBoatsQuery.isPending &&
+              !alternateBoatsQuery.isError &&
+              (alternateBoatsQuery.data ?? []).filter((bb) => bb.id !== barco.id).length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t("reservar.alternateBoatsEmpty")}</p>
+              ) : null}
+            </DialogContent>
+          </Dialog>
           {diasPasseio.length > 1 ? (
             <div className="space-y-2">
               <p className="text-xs font-medium text-foreground">Dias selecionados</p>

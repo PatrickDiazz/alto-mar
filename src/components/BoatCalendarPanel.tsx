@@ -10,6 +10,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { authFetch } from "@/lib/auth";
 import { readResponseErrorMessage } from "@/lib/responseError";
+import { useMatchMediaMdUp } from "@/hooks/useMatchMediaMdUp";
 
 /**
  * Caption: mês centrado na linha; nav em overlay com setas nas pontas (alinhado ao eixo vertical do texto).
@@ -82,10 +83,12 @@ type PickerProps = BaseProps & {
   variant: "picker";
   selectedDate: string | null;
   highlightedDates?: string[];
-  onSelectDate: (iso: string) => void;
+  onSelectDate: (iso: string | null) => void;
   excludeBookingId?: string;
   /** Primeira data seleccionável = hoje + N dias corridos (ex.: 2 = não hoje nem amanhã). */
   bookingLeadDays?: number;
+  /** Dia bloqueado (não apenas antecipação): sugerir outras embarcações. */
+  onUnavailableDayClick?: (iso: string) => void;
 };
 
 type ReadonlyProps = BaseProps & {
@@ -102,6 +105,7 @@ export type BoatCalendarPanelProps = PickerProps | ReadonlyProps | OwnerProps;
 export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
   const { boatId, className } = props;
   const { i18n, t } = useTranslation();
+  const mdUp = useMatchMediaMdUp();
   const loc = localeForLang(i18n.language);
   const [month, setMonth] = useState(() => new Date());
   const monthNavHostRef = useRef<HTMLDivElement>(null);
@@ -134,6 +138,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
 
   const excludeId = props.variant === "picker" ? props.excludeBookingId : undefined;
   const pickerLeadDays = props.variant === "picker" ? (props.bookingLeadDays ?? 0) : 0;
+  const onUnavailableCb = props.variant === "picker" ? props.onUnavailableDayClick : undefined;
 
   const isDayBlockedForPicker = useCallback(
     (date: Date): boolean => {
@@ -289,6 +294,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
         >
         <DayPicker
           mode="multiple"
+          numberOfMonths={mdUp ? 2 : 1}
           month={month}
           onMonthChange={setMonth}
           locale={loc}
@@ -438,6 +444,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
       >
       <DayPicker
         mode="single"
+        numberOfMonths={mdUp ? 2 : 1}
         month={month}
         onMonthChange={setMonth}
         locale={loc}
@@ -447,6 +454,18 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
           props.variant === "picker"
             ? (d) => {
                 props.onSelectDate(d ? dayKey(d) : null);
+              }
+            : undefined
+        }
+        onDayClick={
+          onUnavailableCb && props.variant === "picker"
+            ? (day, modifiers) => {
+                if (!modifiers.disabled || !data) return;
+                const d0 = startOfDay(day);
+                const minSelectable = addDays(startOfDay(new Date()), pickerLeadDays);
+                if (isBefore(d0, minSelectable)) return;
+                if (!isDayBlockedForPicker(day)) return;
+                onUnavailableCb(dayKey(day));
               }
             : undefined
         }

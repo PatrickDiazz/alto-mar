@@ -14,8 +14,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        heading: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
-        body: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        heading: ['Satoshi', 'system-ui', 'sans-serif'],
+        body: ['Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -75,6 +76,13 @@ export default {
         card: "var(--shadow-card)",
         elevated: "var(--shadow-elevated)",
       },
+      /** SejaLocador: revelação ao scroll (mobile) — curva longa e suave. */
+      transitionDuration: {
+        reveal: "880ms",
+      },
+      transitionTimingFunction: {
+        reveal: "cubic-bezier(0.22, 1, 0.32, 1)",
+      },
       keyframes: {
         "accordion-down": {
           from: { height: "0" },
@@ -98,6 +106,14 @@ export default {
           "0%": { opacity: "1", transform: "translateY(0) scale(1)" },
           "100%": { opacity: "0", transform: "translateY(8px) scale(0.88)" },
         },
+        /**
+         * SejaLocador: iate em translate3d (GPU) — evita subpixels de `left` que “borram” o PNG.
+         * `left:0` no elemento; só o transform anima.
+         */
+        "seja-locador-boat-once": {
+          "0%": { transform: "translate3d(23vw, 0, 0)" },
+          "100%": { transform: "translate3d(118vw, 0, 0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -105,6 +121,9 @@ export default {
         "fade-in": "fade-in 0.4s ease-out forwards",
         "explore-pill-in": "explore-pill-in 0.36s cubic-bezier(0.4, 0, 0.2, 1) both",
         "explore-pill-out": "explore-pill-out 0.28s cubic-bezier(0.4, 0, 0.2, 1) both",
+        /** 110s bem lenta; linear = velocidade constante; 2.5s antes de começar a mover. */
+        "seja-locador-boat-once":
+          "seja-locador-boat-once 110s linear 2.5s both",
       },
     },
   },

@@ -31,6 +31,32 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
+## [0.13.2] — 2026-05-10
+
+### Adicionado
+
+- **Seja locador** (`SejaLocador`, rota dedicada): hero, cartão com CTAs, rodapé com link para Explorar, redes e faixa decorativa; animação do iate em **`translate3d`**; revelação ao scroll no **mobile** (`IntersectionObserver`); ícone **X (Twitter)** oficial (preenchido) nas redes decorativas.
+- **Explorar**: listagem com **scroll infinito** via **`useBarcosInfinite`**, com disponibilidade por data (**`boatsAvailableOnApi`**) e ajustes de UX (filtros, header, scroll).
+- Hooks **`useBoat`**, **`useMatchMediaMdUp`**; script **`npm run clean:vite`** (`scripts/clean-vite-cache.mjs`); script **`npm run fix:seja-locador-alpha`** (`scripts/process-seja-locador-transparent.mjs`) para tratamento de alpha nos PNG da página.
+- Ilustrações **`seja-locador-captain`** / **`seja-locador-yacht`** em **`src/assets/`**.
+- Tokens Tailwind **`duration-reveal`** e **`ease-reveal`** (transições de revelação mais suaves).
+
+### Alterado
+
+- **SejaLocador**: rodapé com **logo** Alto Mar (**`logo-altomar-light`** / **`logo-altomar-dark`** conforme o tema) em substituição do título em texto puro.
+- **SejaLocador**: **sem ilustrações** no fluxo do hero em **mobile**; iate fixo e marinheiro no rodapé apenas a partir de **`lg`**.
+- **Reservar**, **DetalhesBarco**, **Home**, **`BoatCalendarPanel`**, **`ExploreFiltersCard`**, **`App`**, **`index.css`**, **i18n** (pt / en / es), **`tailwind.config.ts`**, **`index.html`** e **`server/index.js`**: alinhados a esta entrega (calendário, cópias, rotas e API).
+
+### Removido
+
+- **`src/hooks/useBarcos.ts`** (substituído por **`useBarcosInfinite`** + **`useBoat`**).
+
+### Versões
+
+- Cliente e servidor **0.13.2**; Android **`versionName` 0.13.2**, **`versionCode` 10**.
+
+---
+
 ## [0.13.1] — 2026-04-30
 
 ### Adicionado
