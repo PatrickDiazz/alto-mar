@@ -229,15 +229,19 @@ export default function SejaLocador() {
           />
           <div className="grid gap-8 sm:gap-10 md:grid-cols-2 md:items-start">
             <div ref={revealFooterA.ref} className={cn("min-w-0", scrollRevealClasses(revealFooterA.revealed))}>
-              <img
-                src={footerLogo}
-                alt="Alto Mar"
-                width={320}
-                height={96}
-                className="h-9 w-auto max-w-[min(100%,280px)] object-contain object-left sm:h-10"
-                decoding="async"
-                draggable={false}
-              />
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                <img
+                  src={footerLogo}
+                  alt=""
+                  width={320}
+                  height={96}
+                  className="h-9 w-auto max-w-[min(100%,200px)] shrink-0 object-contain object-left sm:h-10 sm:max-w-[min(100%,240px)]"
+                  decoding="async"
+                  draggable={false}
+                  aria-hidden
+                />
+                <p className="font-heading text-lg font-semibold tracking-tight text-foreground">Alto Mar</p>
+              </div>
               <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">{t("sejaLocador.footerTagline")}</p>
             </div>
             <div
