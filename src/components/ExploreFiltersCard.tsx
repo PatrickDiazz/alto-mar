@@ -10,7 +10,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { MapPin, Ship, Ruler, Users, Tag, Package, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { MapPin, Ship, Ruler, Users, Tag, Package, Gift, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -37,6 +37,8 @@ import {
   type SeatsFilterKey,
   type PriceFilterKey,
 } from "@/lib/exploreFilters";
+import { TRIP_OPTIONAL_FILTER_KEYS, type TripOptionalFilterKey } from "@/lib/trip-optionals";
+import { FilterChipScrollMat } from "@/components/FilterChipScrollMat";
 import useEmblaCarousel from "embla-carousel-react";
 
 function subscribeDateDialogSmUp(onChange: () => void) {
@@ -81,7 +83,57 @@ const FILTER_ICONS: Record<(typeof EXPLORE_MAIN_FILTER_KEYS)[number], LucideIcon
   seats: Users,
   price: Tag,
   included: Package,
+  optionals: Gift,
 };
+
+function TripOptionalsFilterScroll({
+  tripOptionalSelected,
+  onToggleTripOptional,
+  density,
+  t,
+}: {
+  tripOptionalSelected: TripOptionalFilterKey[];
+  onToggleTripOptional: (key: TripOptionalFilterKey) => void;
+  density: 0 | 1 | 2;
+  t: TFunction;
+}) {
+  const labels: Record<TripOptionalFilterKey, string> = {
+    bbq: t("optionals.bbqShort"),
+    jetSki: t("optionals.jetSkiShort"),
+    floatingMat: t("optionals.floatingMatShort"),
+    custom: t("optionals.customFilterShort"),
+  };
+
+  return (
+    <FilterChipScrollMat layoutKey={tripOptionalSelected.join("\0")}>
+      <div className="flex flex-wrap content-start gap-1.5">
+      {TRIP_OPTIONAL_FILTER_KEYS.map((key) => {
+        const checked = tripOptionalSelected.includes(key);
+        return (
+          <label
+            key={key}
+            className={cn(
+              "inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-border/55 bg-muted/25 transition-colors hover:bg-muted/45 dark:bg-muted/15 dark:hover:bg-muted/35",
+              density === 2 ? "px-2 py-0.5" : "px-2 py-0.5 sm:px-2.5 sm:py-1",
+              checked && "border-primary/45 bg-primary/10 ring-1 ring-primary/15 dark:bg-primary/15"
+            )}
+          >
+            <Checkbox checked={checked} onCheckedChange={() => onToggleTripOptional(key)} className="shrink-0" />
+            <span
+              className={cn(
+                "whitespace-nowrap select-none text-foreground",
+                density === 2 ? "text-[11px] leading-tight" : "text-xs sm:text-sm"
+              )}
+            >
+              {labels[key]}
+            </span>
+          </label>
+        );
+      })}
+      </div>
+    </FilterChipScrollMat>
+  );
+}
 
 function IncludedAmenitiesScroll({
   amenityNames,
@@ -94,36 +146,9 @@ function IncludedAmenitiesScroll({
   onToggleAmenity: (name: string) => void;
   density: 0 | 1 | 2;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [showScrollCue, setShowScrollCue] = useState(false);
-
-  const recomputeScrollCue = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const { scrollTop, scrollHeight, clientHeight } = el;
-    const epsilon = 4;
-    setShowScrollCue(scrollHeight > clientHeight + epsilon && scrollTop < scrollHeight - clientHeight - epsilon);
-  }, []);
-
-  useLayoutEffect(() => {
-    recomputeScrollCue();
-  }, [amenityNames, recomputeScrollCue]);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => recomputeScrollCue());
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [amenityNames, recomputeScrollCue]);
-
   return (
-    <div className="relative rounded-md">
-      <div
-        ref={scrollRef}
-        onScroll={recomputeScrollCue}
-        className="flex max-h-36 flex-wrap content-start gap-1.5 overflow-y-auto rounded-md border border-border/50 bg-transparent p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
+    <FilterChipScrollMat layoutKey={`${amenityNames.length}:${amenitySelected.join("\0")}`}>
+      <div className="flex flex-wrap content-start gap-1.5">
         {amenityNames.map((name) => {
           const checked = amenitySelected.includes(name);
           return (
@@ -148,13 +173,7 @@ function IncludedAmenitiesScroll({
           );
         })}
       </div>
-      {showScrollCue ? (
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-8 rounded-b-md bg-gradient-to-t from-muted/90 via-muted/35 to-transparent dark:from-card/90 dark:via-card/35"
-          aria-hidden
-        />
-      ) : null}
-    </div>
+    </FilterChipScrollMat>
   );
 }
 
@@ -172,6 +191,8 @@ type FilterExpandFieldsProps = {
   amenitySelected: string[];
   onToggleAmenity: (name: string) => void;
   amenityNames: string[];
+  tripOptionalSelected: TripOptionalFilterKey[];
+  onToggleTripOptional: (key: TripOptionalFilterKey) => void;
   tiposDisponiveis: string[];
   labelTipo: (tipo: string) => string;
   t: TFunction;
@@ -192,6 +213,8 @@ function renderFilterExpandContent(p: FilterExpandFieldsProps): ReactNode {
     amenitySelected,
     onToggleAmenity,
     amenityNames,
+    tripOptionalSelected,
+    onToggleTripOptional,
     tiposDisponiveis,
     labelTipo,
     t,
@@ -282,6 +305,15 @@ function renderFilterExpandContent(p: FilterExpandFieldsProps): ReactNode {
           )}
         </div>
       )}
+
+      {mainFilter === "optionals" && (
+        <TripOptionalsFilterScroll
+          tripOptionalSelected={tripOptionalSelected}
+          onToggleTripOptional={onToggleTripOptional}
+          density={density}
+          t={t}
+        />
+      )}
     </div>
   );
 }
@@ -302,6 +334,8 @@ type ExploreFiltersCardProps = {
   amenitySelected: string[];
   onToggleAmenity: (name: string) => void;
   amenityNames: string[];
+  tripOptionalSelected: TripOptionalFilterKey[];
+  onToggleTripOptional: (key: TripOptionalFilterKey) => void;
   tiposDisponiveis: string[];
   labelTipo: (tipo: string) => string;
   compact?: boolean;
@@ -328,6 +362,8 @@ export function ExploreFiltersCard({
   amenitySelected,
   onToggleAmenity,
   amenityNames,
+  tripOptionalSelected,
+  onToggleTripOptional,
   tiposDisponiveis,
   labelTipo,
   compact = false,
@@ -742,6 +778,8 @@ export function ExploreFiltersCard({
               amenitySelected,
               onToggleAmenity,
               amenityNames,
+              tripOptionalSelected,
+              onToggleTripOptional,
               tiposDisponiveis,
               labelTipo,
               t,

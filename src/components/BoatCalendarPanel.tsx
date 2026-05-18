@@ -27,6 +27,13 @@ const boatCalendarCaptionNavClassNames = {
   nav_button_next: "static translate-y-0",
 } as const;
 
+/** Dois meses lado a lado (md+): divisor vertical; empilhados no mobile: divisor horizontal. */
+const boatCalendarMultiMonthClassNames = {
+  months:
+    "flex flex-col sm:flex-row divide-y sm:divide-y-0 sm:divide-x divide-border/70",
+  month: "space-y-3 py-4 sm:py-0 sm:px-5 min-w-0 flex-1 first:sm:pl-0 last:sm:pr-0",
+} as const;
+
 const boatDayPickerIcons = {
   IconLeft: ({ className, ...props }: ComponentProps<typeof ChevronLeft>) => (
     <ChevronLeft className={cn("h-4 w-4", className)} {...props} />
@@ -363,8 +370,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
           className="min-w-[260px] rounded-xl border-0 bg-muted p-2 shadow-card sm:p-3 dark:bg-card"
           classNames={{
             ...boatCalendarCaptionNavClassNames,
-            months: "flex flex-col sm:flex-row gap-4",
-            month: "space-y-3",
+            ...boatCalendarMultiMonthClassNames,
             table: "w-full border-collapse",
             head_row: "flex",
             head_cell: "text-muted-foreground w-9 font-normal text-[0.8rem]",
@@ -475,8 +481,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
         className="min-w-[260px] rounded-xl border-0 bg-muted p-2 shadow-card sm:p-3 dark:bg-card"
         classNames={{
           ...boatCalendarCaptionNavClassNames,
-          months: "flex flex-col sm:flex-row gap-4",
-          month: "space-y-3",
+          ...boatCalendarMultiMonthClassNames,
           table: "w-full border-collapse",
           head_row: "flex",
           head_cell: "text-muted-foreground w-9 font-normal text-[0.8rem]",

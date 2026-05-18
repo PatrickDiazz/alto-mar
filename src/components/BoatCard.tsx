@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { BadgeCheck, Heart, Star } from "lucide-react";
 import type { Boat } from "@/lib/types";
+import { BoatCardOptionalsRow } from "@/components/optionals/BoatCardOptionalsRow";
+import { cn } from "@/lib/utils";
 
 interface BoatCardProps {
   barco: Boat;
@@ -57,19 +59,38 @@ function BoatCardInner({ barco, isFavorited = false, onToggleFavorite }: BoatCar
       className="cursor-pointer group animate-fade-in [content-visibility:auto] [contain-intrinsic-size:200px_260px]"
       onClick={goDetail}
     >
-      <div className="aspect-square overflow-hidden rounded-lg relative">
+      <div className="aspect-square overflow-hidden rounded-lg relative bg-muted">
         {n > 0 ? (
-          <img
-            src={barco.imagens[Math.min(currentImage, n - 1)]}
-            alt={barco.nome}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            width={512}
-            height={512}
-            sizes="(max-width: 640px) 50vw, 28vw"
-            loading="lazy"
-            decoding="async"
-            fetchPriority="low"
-          />
+          <div className="absolute inset-0 overflow-hidden">
+            <div
+              className={cn(
+                "h-full w-full",
+                "motion-safe:transition-transform motion-safe:duration-500 motion-safe:ease-out motion-safe:group-hover:scale-105",
+                "motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+              )}
+            >
+              {barco.imagens.map((src, i) => (
+                <img
+                  key={`${barco.id}-${i}`}
+                  src={src}
+                  alt={i === currentImage ? barco.nome : ""}
+                  aria-hidden={i !== currentImage}
+                  className={cn(
+                    "absolute inset-0 h-full w-full object-cover",
+                    "motion-safe:transition-opacity motion-safe:duration-700 motion-safe:ease-in-out",
+                    "motion-reduce:transition-none",
+                    i === currentImage ? "opacity-100 z-[1]" : "opacity-0 z-0"
+                  )}
+                  width={512}
+                  height={512}
+                  sizes="(max-width: 640px) 50vw, 28vw"
+                  loading={i === 0 ? "lazy" : "eager"}
+                  decoding="async"
+                  fetchPriority={i === 0 ? "low" : "auto"}
+                />
+              ))}
+            </div>
+          </div>
         ) : (
           <div className="w-full h-full bg-muted flex items-center justify-center text-[10px] text-muted-foreground px-2 text-center">
             {barco.nome}
@@ -82,7 +103,7 @@ function BoatCardInner({ barco, isFavorited = false, onToggleFavorite }: BoatCar
               e.stopPropagation();
               onToggleFavorite(barco.id);
             }}
-            className="absolute top-2 right-2 rounded-full bg-background/85 p-2 text-foreground hover:bg-background transition"
+            className="absolute top-2 right-2 z-10 rounded-full bg-background/85 p-2 text-foreground hover:bg-background transition"
             aria-label={isFavorited ? t("boatCard.favRemove") : t("boatCard.favAdd")}
           >
             <Heart
@@ -91,11 +112,12 @@ function BoatCardInner({ barco, isFavorited = false, onToggleFavorite }: BoatCar
           </button>
         )}
       </div>
-      <div className="mt-2 space-y-0.5">
+      <div className="mt-2 min-w-0 space-y-0.5">
         <div className="flex items-center justify-between gap-1">
           <h3 className="text-sm font-semibold text-foreground truncate">{barco.nome}</h3>
           {barco.verificado && <BadgeCheck className="w-4 h-4 text-verified shrink-0" />}
         </div>
+        <BoatCardOptionalsRow barco={barco} />
         <p className="text-xs text-muted-foreground">{barco.distancia}</p>
         <div className="flex items-center justify-between gap-2 pt-0.5">
           <p className="text-sm font-semibold text-foreground">{barco.preco}</p>

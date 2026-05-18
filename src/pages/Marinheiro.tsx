@@ -15,6 +15,16 @@ import { authFetch, clearSession, getStoredUser, apiUrl } from "@/lib/auth";
 import { Checkbox } from "@/components/ui/checkbox";
 import { readResponseErrorMessage } from "@/lib/responseError";
 import { BoatCalendarPanel } from "@/components/BoatCalendarPanel";
+import { OwnerCustomOptionalsEditor } from "@/components/optionals/OwnerCustomOptionalsEditor";
+import { OwnerBbqKitItemsEditor } from "@/components/optionals/OwnerBbqKitItemsEditor";
+import type { CustomOptional } from "@/lib/types";
+import {
+  defaultOwnerBbqKitItems,
+  isKitChurrascoAmenityName,
+  normalizeBbqKitItems,
+  ownerBbqKitItemsValid,
+  type BbqKitItemConfig,
+} from "@/lib/trip-optionals";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
@@ -52,6 +62,14 @@ function translateRescheduleReason(
   return reason;
 }
 
+function kitChurrascoAmenityChecked(
+  catalog: Array<{ id: string; name: string }>,
+  map: Record<string, boolean>
+): boolean {
+  const row = catalog.find((a) => isKitChurrascoAmenityName(a.name));
+  return row ? Boolean(map[row.id]) : false;
+}
+
 type OwnerBoat = {
   id: string;
   nome: string;
@@ -78,6 +96,9 @@ type OwnerBoat = {
   jetSkiPriceCents?: number;
   jetSkiImageUrls?: string[];
   jetSkiDocumentUrl?: string | null;
+  customOptionals?: CustomOptional[];
+  bbqOffered?: boolean;
+  bbqKitItems?: BbqKitItemConfig[];
 };
 
 type OwnerBookingRow = {
@@ -403,6 +424,8 @@ const Marinheiro_Page = () => {
   const [catalogAmenities, setCatalogAmenities] = useState<Array<{ id: string; name: string }>>([]);
   const [amenityIncNew, setAmenityIncNew] = useState<Record<string, boolean>>({});
   const [amenityIncEdit, setAmenityIncEdit] = useState<Record<string, boolean>>({});
+  const [bbqKitItemsNew, setBbqKitItemsNew] = useState<BbqKitItemConfig[]>([]);
+  const [bbqKitItemsEdit, setBbqKitItemsEdit] = useState<BbqKitItemConfig[]>([]);
   const [uploadRoutePhotos, setUploadRoutePhotos] = useState(false);
   const [routePhotoRights, setRoutePhotoRights] = useState(false);
   const [routeIslandImagesNew, setRouteIslandImagesNew] = useState<Record<string, string[]>>({});
@@ -622,6 +645,9 @@ const Marinheiro_Page = () => {
       m[a.id] = found ? found.incluido : false;
     });
     setAmenityIncEdit(m);
+    setBbqKitItemsEdit(
+      boat.bbqKitItems?.length ? [...boat.bbqKitItems] : defaultOwnerBbqKitItems()
+    );
   };
 
   const confirmarExclusaoEmbarcacao = async () => {
@@ -671,6 +697,11 @@ const Marinheiro_Page = () => {
         return;
       }
     }
+    const kitChecked = !editMoto && kitChurrascoAmenityChecked(catalogAmenities, amenityIncEdit);
+    if (kitChecked && !ownerBbqKitItemsValid(bbqKitItemsEdit)) {
+      toast.error(t("marinheiro.bbqKitToastRequired"));
+      return;
+    }
     setLoading(true);
     try {
       const resp = await authFetch(`/api/owner/boats/${editingBoatId}`, {
@@ -697,6 +728,11 @@ const Marinheiro_Page = () => {
           jetSkiPriceCents: editMoto ? 0 : Number(boatForm.jetSkiPriceCents ?? 0),
           jetSkiImageUrls: editMoto ? [] : boatForm.jetSkiImageUrls ?? [],
           jetSkiDocumentUrl: editMoto ? null : boatForm.jetSkiDocumentUrl?.trim() ? boatForm.jetSkiDocumentUrl.trim() : null,
+          customOptionals: (boatForm.customOptionals ?? []).filter(
+            (o: CustomOptional) => o.title.trim().length >= 2 && (o.imageUrls?.length ?? 0) >= 1
+          ),
+          bbqOffered: kitChecked,
+          bbqKitItems: kitChecked ? normalizeBbqKitItems(bbqKitItemsEdit) : [],
         }),
       });
       if (resp.status === 401) return;
@@ -736,9 +772,14 @@ const Marinheiro_Page = () => {
       toast.error(t("marinheiro.newBoatBlocked"));
       return;
     }
+    const regMoto = isMotoAquaticaVessel(newBoatForm.tipo);
+    const kitCheckedNew = !regMoto && kitChurrascoAmenityChecked(catalogAmenities, amenityIncNew);
+    if (kitCheckedNew && !ownerBbqKitItemsValid(bbqKitItemsNew)) {
+      toast.error(t("marinheiro.bbqKitToastRequired"));
+      return;
+    }
     setLoading(true);
     try {
-      const regMoto = isMotoAquaticaVessel(newBoatForm.tipo);
       const payload = {
         ...newBoatForm,
         tipo: normalizeVesselTipo(newBoatForm.tipo),
@@ -752,6 +793,8 @@ const Marinheiro_Page = () => {
         jetSkiPriceCents: regMoto ? 0 : Number(newBoatForm.jetSkiPriceCents ?? 0),
         jetSkiImageUrls: regMoto ? [] : newBoatForm.jetSkiImageUrls ?? [],
         jetSkiDocumentUrl: regMoto ? null : newBoatForm.jetSkiDocumentUrl?.trim() ? newBoatForm.jetSkiDocumentUrl.trim() : null,
+        bbqOffered: kitCheckedNew,
+        bbqKitItems: kitCheckedNew ? normalizeBbqKitItems(bbqKitItemsNew) : [],
       };
       const resp = await authFetch("/api/owner/boats", {
         method: "POST",
@@ -1508,14 +1551,21 @@ const Marinheiro_Page = () => {
                             <label key={a.id} className="flex items-center gap-2 text-sm cursor-pointer">
                               <Checkbox
                                 checked={Boolean(amenityIncNew[a.id])}
-                                onCheckedChange={(c) =>
-                                  setAmenityIncNew((prev) => ({ ...prev, [a.id]: c === true }))
-                                }
+                                onCheckedChange={(c) => {
+                                  const on = c === true;
+                                  setAmenityIncNew((prev) => ({ ...prev, [a.id]: on }));
+                                  if (isKitChurrascoAmenityName(a.name) && on && bbqKitItemsNew.length === 0) {
+                                    setBbqKitItemsNew(defaultOwnerBbqKitItems());
+                                  }
+                                }}
                               />
                               <span>{a.name}</span>
                             </label>
                           ))}
                         </div>
+                        {kitChurrascoAmenityChecked(catalogAmenities, amenityIncNew) ? (
+                          <OwnerBbqKitItemsEditor items={bbqKitItemsNew} onChange={setBbqKitItemsNew} />
+                        ) : null}
                       </div>
                       <div className="space-y-3 rounded-lg border-0 bg-muted p-3 shadow-card dark:bg-card">
                         <div className="flex items-center gap-2">
@@ -1979,14 +2029,28 @@ const Marinheiro_Page = () => {
                                       <label key={a.id} className="flex items-center gap-2 text-sm cursor-pointer">
                                         <Checkbox
                                           checked={Boolean(amenityIncEdit[a.id])}
-                                          onCheckedChange={(c) =>
-                                            setAmenityIncEdit((prev) => ({ ...prev, [a.id]: c === true }))
-                                          }
+                                          onCheckedChange={(c) => {
+                                            const on = c === true;
+                                            setAmenityIncEdit((prev) => ({ ...prev, [a.id]: on }));
+                                            if (
+                                              isKitChurrascoAmenityName(a.name) &&
+                                              on &&
+                                              bbqKitItemsEdit.length === 0
+                                            ) {
+                                              setBbqKitItemsEdit(defaultOwnerBbqKitItems());
+                                            }
+                                          }}
                                         />
                                         <span>{a.name}</span>
                                       </label>
                                     ))}
                                   </div>
+                                  {kitChurrascoAmenityChecked(catalogAmenities, amenityIncEdit) ? (
+                                    <OwnerBbqKitItemsEditor
+                                      items={bbqKitItemsEdit}
+                                      onChange={setBbqKitItemsEdit}
+                                    />
+                                  ) : null}
                                 </div>
                                 <div className="space-y-3 rounded-lg border-0 bg-muted p-3 shadow-card dark:bg-card">
                                   <div className="flex items-center gap-2">
@@ -2086,6 +2150,14 @@ const Marinheiro_Page = () => {
                                   ) : null}
                                 </div>
                               </>
+                            ) : null}
+                            {boatForm ? (
+                              <OwnerCustomOptionalsEditor
+                                value={boatForm.customOptionals ?? []}
+                                onChange={(customOptionals) =>
+                                  setBoatForm((prev) => (prev ? { ...prev, customOptionals } : prev))
+                                }
+                              />
                             ) : null}
                             <div className="surface-elevated space-y-2 rounded-xl p-3">
                               <Label className="text-sm font-semibold text-foreground">{t("calendar.title")}</Label>

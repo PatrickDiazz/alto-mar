@@ -175,6 +175,7 @@
       "seats": "Seats",
       "price": "Price",
       "included": "Included",
+      "optionals": "Extras",
       "date": "Day"
     },
     "selectIncluded": "Included item",
@@ -258,7 +259,63 @@
     "photoCarousel": "Boat photos, swipe to change",
     "jetSkiTitle": "Jet ski (optional)",
     "jetSkiIntro": "Offered by the owner. Can be added to the trip total when booking.",
-    "jetSkiDocLink": "View jet ski documentation"
+    "jetSkiDocLink": "View jet ski documentation",
+    "reviewsShow": "View {{count}} reviews",
+    "reviewsShowEmpty": "View reviews",
+    "reviewsHide": "Hide reviews",
+    "reviewsLoading": "Loading reviews…",
+    "reviewsLoadError": "Could not load reviews.",
+    "reviewsEmpty": "No guest reviews for this boat yet.",
+    "reviewsDemoHint": "Sample reviews for preview."
+  },
+  "optionals": {
+    "sectionTitle": "Trip add-ons",
+    "sectionHint": "Enhance your day with extras — add them at checkout and they are included in the total.",
+    "optionalBadge": "Optional",
+    "customBadge": "Owner extra",
+    "bbqShort": "BBQ kit",
+    "jetSkiShort": "Jet ski",
+    "customFilterShort": "Owner extras",
+    "floatingMatShort": "Floating mat",
+    "demoSup": "Stand up paddle (SUP)",
+    "bbqFullKit": "Full kit",
+    "bbqNonAlcoholicOnly": "Non-alcoholic drinks only",
+    "bbqVariantLabel": "BBQ kit type",
+    "bbqKit": {
+      "expand": "View kit contents",
+      "collapse": "Hide kit contents",
+      "itemsTitle": "What's included",
+      "columnItem": "Item",
+      "columnQty": "Qty.",
+      "footnote": "Quantities for up to 10 guests. When booking you can choose the full kit or non-alcoholic drinks only.",
+      "units": {
+        "un": "units",
+        "kg": "kg",
+        "L": "L"
+      },
+      "items": {
+        "meat": "Picanha and sirloin",
+        "sausage": "Calabresa sausage",
+        "garlicBread": "Garlic bread",
+        "charcoal": "Extra charcoal",
+        "seasoning": "Seasonings and coarse salt",
+        "ice": "Cooler ice"
+      },
+      "qty": {
+        "meat": "1.2 kg",
+        "sausage": "800 g",
+        "garlicBread": "10 pcs",
+        "charcoal": "1 bag (4 kg)",
+        "seasoning": "1 kit",
+        "ice": "2 kg"
+      }
+    },
+    "paymentPreviewTitle": "Selected add-ons",
+    "ownerCustomTitle": "Custom add-ons",
+    "ownerCustomHint": "Create extras with photo and price — shown on the boat page and booking.",
+    "ownerCustomName": "Add-on name",
+    "ownerCustomDesc": "Description (optional)",
+    "ownerCustomAdd": "Add custom add-on"
   },
   "reservar": {
     "title": "Book",
@@ -486,6 +543,15 @@
     "adults": "adults",
     "kids": "children",
     "bbq": "BBQ kit",
+    "bbqKitTableTitle": "BBQ kit contents",
+    "bbqKitTableHint": "Describe what guests receive with this add-on. Quantity can be in units, kg, or liters.",
+    "bbqKitColItem": "Item",
+    "bbqKitColAmount": "Qty.",
+    "bbqKitColUnit": "Unit",
+    "bbqKitItemPh": "e.g. Picanha",
+    "bbqKitAddRow": "Add item",
+    "bbqKitRemoveRow": "Remove item",
+    "bbqKitToastRequired": "With BBQ kit enabled, add at least one item with a quantity.",
     "jetSkiHeading": "Jet ski (optional)",
     "jetSkiHint": "If enabled, set the extra price, upload at least one photo and the jet ski documentation. Guests can add it to the booking total.",
     "jetSkiPrice": "Extra price (R$)",

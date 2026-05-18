@@ -1,7 +1,18 @@
+import type { BbqKitItemConfig } from "@/lib/trip-optionals";
+
 export type Amenidade = {
   nome: string;
   incluido: boolean;
   id?: string;
+};
+
+/** Opcional personalizado cadastrado pelo locador na embarcação */
+export type CustomOptional = {
+  id: string;
+  title: string;
+  description?: string;
+  priceCents: number;
+  imageUrls: string[];
 };
 
 export type Boat = {
@@ -23,10 +34,16 @@ export type Boat = {
   routeIslands?: string[];
   /** URLs de imagens por nome da parada (praias do roteiro) */
   routeIslandImages?: Record<string, string[]>;
+  /** Locador oferece kit churrasco na reserva (padrão: sim) */
+  bbqOffered?: boolean;
+  /** Composição do kit definida pelo locador (item + quantidade + unidade). */
+  bbqKitItems?: BbqKitItemConfig[];
   /** Locador oferece moto aquática opcional na reserva */
   jetSkiOffered?: boolean;
   jetSkiPriceCents?: number;
   jetSkiImageUrls?: string[];
   jetSkiDocumentUrl?: string | null;
+  /** Opcionais extras definidos pelo locador (título, preço, fotos) */
+  customOptionals?: CustomOptional[];
 };
 

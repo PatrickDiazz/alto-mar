@@ -175,6 +175,7 @@
       "seats": "Vagas",
       "price": "Preço",
       "included": "Inclusos",
+      "optionals": "Opcionais",
       "date": "Dia"
     },
     "selectIncluded": "Item incluso no passeio",
@@ -258,7 +259,63 @@
     "photoCarousel": "Fotos da embarcação, deslize para mudar",
     "jetSkiTitle": "Moto aquática (opcional)",
     "jetSkiIntro": "Oferecida pelo locador. Pode ser adicionada ao valor do passeio na reserva.",
-    "jetSkiDocLink": "Ver documentação da moto aquática"
+    "jetSkiDocLink": "Ver documentação da moto aquática",
+    "reviewsShow": "Ver {{count}} avaliações",
+    "reviewsShowEmpty": "Ver avaliações",
+    "reviewsHide": "Ocultar avaliações",
+    "reviewsLoading": "Carregando avaliações…",
+    "reviewsLoadError": "Não foi possível carregar as avaliações.",
+    "reviewsEmpty": "Ainda não há avaliações de consumidores para esta embarcação.",
+    "reviewsDemoHint": "Avaliações de exemplo para visualização."
+  },
+  "optionals": {
+    "sectionTitle": "Opcionais do passeio",
+    "sectionHint": "Enriqueça o dia com extras — adicione na reserva e o valor entra no total.",
+    "optionalBadge": "Opcional",
+    "customBadge": "Extra do locador",
+    "bbqShort": "Kit churrasco",
+    "jetSkiShort": "Moto aquática",
+    "customFilterShort": "Extras do locador",
+    "floatingMatShort": "Tapete flutuante",
+    "demoSup": "Stand up paddle (SUP)",
+    "bbqFullKit": "Kit completo",
+    "bbqNonAlcoholicOnly": "Somente bebidas não alcoólicas",
+    "bbqVariantLabel": "Tipo do kit churrasco",
+    "bbqKit": {
+      "expand": "Ver composição do kit",
+      "collapse": "Ocultar composição",
+      "itemsTitle": "Itens inclusos",
+      "columnItem": "Item",
+      "columnQty": "Qtd.",
+      "footnote": "Quantidades para até 10 pessoas. Na reserva você pode escolher kit completo ou somente bebidas não alcoólicas.",
+      "units": {
+        "un": "un",
+        "kg": "kg",
+        "L": "L"
+      },
+      "items": {
+        "meat": "Picanha e contrafilé",
+        "sausage": "Linguiça calabresa",
+        "garlicBread": "Pão de alho",
+        "charcoal": "Carvão extra",
+        "seasoning": "Temperos e sal grosso",
+        "ice": "Gelo para cooler"
+      },
+      "qty": {
+        "meat": "1,2 kg",
+        "sausage": "800 g",
+        "garlicBread": "10 un.",
+        "charcoal": "1 saco (4 kg)",
+        "seasoning": "1 kit",
+        "ice": "2 kg"
+      }
+    },
+    "paymentPreviewTitle": "Opcionais selecionados",
+    "ownerCustomTitle": "Opcionais personalizados",
+    "ownerCustomHint": "Crie extras com foto e preço — aparecem na página do barco e na reserva.",
+    "ownerCustomName": "Nome do opcional",
+    "ownerCustomDesc": "Descrição (opcional)",
+    "ownerCustomAdd": "Adicionar opcional personalizado"
   },
   "reservar": {
     "title": "Reservar",
@@ -486,6 +543,15 @@
     "adults": "adultos",
     "kids": "crianças",
     "bbq": "Kit churrasco",
+    "bbqKitTableTitle": "Composição do kit churrasco",
+    "bbqKitTableHint": "Descreva o que o banhista recebe no opcional. A quantidade pode ser em unidades, kg ou litros.",
+    "bbqKitColItem": "Item",
+    "bbqKitColAmount": "Qtd.",
+    "bbqKitColUnit": "Unidade",
+    "bbqKitItemPh": "Ex: Picanha",
+    "bbqKitAddRow": "Adicionar item",
+    "bbqKitRemoveRow": "Remover item",
+    "bbqKitToastRequired": "Com o kit churrasco marcado, preencha pelo menos um item com quantidade.",
     "jetSkiHeading": "Moto aquática (opcional)",
     "jetSkiHint": "Se ativar, informe o preço extra, envie pelo menos uma foto e a documentação da moto aquática. O banhista poderá incluir no total da reserva.",
     "jetSkiPrice": "Preço adicional (R$)",

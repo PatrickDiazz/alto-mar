@@ -114,6 +114,23 @@ export default {
           "0%": { transform: "translate3d(23vw, 0, 0)" },
           "100%": { transform: "translate3d(118vw, 0, 0)" },
         },
+        /** BoatCard: opcionais em letreiro (faixa duplicada → -50%). */
+        "boat-card-optionals-marquee": {
+          "0%": { transform: "translateX(0)" },
+          "100%": { transform: "translateX(-50%)" },
+        },
+        "bbq-kit-collapsible-down": {
+          from: { height: "0", opacity: "0" },
+          to: { height: "var(--radix-collapsible-content-height)", opacity: "1" },
+        },
+        "bbq-kit-collapsible-up": {
+          from: { height: "var(--radix-collapsible-content-height)", opacity: "1" },
+          to: { height: "0", opacity: "0" },
+        },
+        "bbq-kit-row-in": {
+          from: { opacity: "0", transform: "translateY(6px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -124,6 +141,13 @@ export default {
         /** 110s bem lenta; linear = velocidade constante; 2.5s antes de começar a mover. */
         "seja-locador-boat-once":
           "seja-locador-boat-once 110s linear 2.5s both",
+        "boat-card-optionals-marquee":
+          "boat-card-optionals-marquee 16s linear infinite",
+        "bbq-kit-collapsible-down":
+          "bbq-kit-collapsible-down 0.38s cubic-bezier(0.22, 1, 0.32, 1) forwards",
+        "bbq-kit-collapsible-up":
+          "bbq-kit-collapsible-up 0.28s cubic-bezier(0.4, 0, 0.2, 1) forwards",
+        "bbq-kit-row-in": "bbq-kit-row-in 0.32s cubic-bezier(0.22, 1, 0.32, 1) both",
       },
     },
   },

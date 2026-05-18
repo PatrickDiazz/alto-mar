@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+﻿import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, addDays, startOfDay, parseISO, isBefore } from "date-fns";
 import { ptBR, enUS, es } from "date-fns/locale";
@@ -52,11 +52,22 @@ import {
 import { fetchBoatsAvailableOn } from "@/lib/boatsAvailableOnApi";
 import { vesselTypeLabel } from "@/lib/boatVesselTypes";
 import { parseOwnerRouteIslands } from "@/lib/routeIslandsParse";
-
-const KIT_CHURRASCO_PRECO = 250;
+import {
+  KIT_CHURRASCO_PRICE_REAIS,
+  boatOffersBbq,
+  boatHasAnyOptionals,
+  customOptionalsTotalCents,
+  jetSkiPriceReais,
+  type BbqVariant,
+} from "@/lib/trip-optionals";
+import { ReservarOptionalsPicker } from "@/components/optionals/ReservarOptionalsPicker";
+import {
+  BookingOptionalsPreview,
+  buildBookingOptionalPreviewItems,
+} from "@/components/optionals/BookingOptionalsPreview";
 /** Primeira data permitida para reserva do banhista = hoje + N dias corridos */
 const BANHISTA_BOOKING_LEAD_DAYS = 2;
-/** PIX desativado temporariamente por decisão operacional. */
+/** PIX desativado temporariamente por decisÃ£o operacional. */
 const PIX_TEMP_UNAVAILABLE = true;
 
 function onlyDigits(value: string) {
@@ -126,7 +137,9 @@ async function criarReserva(input: {
   passengersChildren: number;
   hasKids: boolean;
   bbqKit: boolean;
+  bbqNonAlcoholic?: boolean;
   jetSki: boolean;
+  customOptionalIds?: string[];
   embarkLocation: string | null;
   embarkTime: string | null;
   totalCents: number;
@@ -192,7 +205,9 @@ const Reservar = () => {
   const [criancas, setCriancas] = useState(0);
   const [temCriancas, setTemCriancas] = useState(false);
   const [kitChurrasco, setKitChurrasco] = useState(false);
+  const [bbqVariant, setBbqVariant] = useState<BbqVariant>("full");
   const [motoAquatica, setMotoAquatica] = useState(false);
+  const [customOptionalIds, setCustomOptionalIds] = useState<string[]>([]);
   const [metodoPagamento, setMetodoPagamento] = useState<"pix" | "cartao">("cartao");
   const [localEmbarque, setLocalEmbarque] = useState("");
   const [horarioEmbarque, setHorarioEmbarque] = useState("");
@@ -202,7 +217,7 @@ const Reservar = () => {
   const [pagando, setPagando] = useState(false);
   /** Paradas do roteiro selecionadas para o passeio */
   const [paradasRoteiro, setParadasRoteiro] = useState<string[]>([]);
-  /** Índice do roteiro alternativo (quando o locador cadastrou vários) */
+  /** Ãndice do roteiro alternativo (quando o locador cadastrou vÃ¡rios) */
   const [selectedRouteIdx, setSelectedRouteIdx] = useState(0);
   /** Data do passeio (YYYY-MM-DD) */
   const [dataPasseio, setDataPasseio] = useState<string | null>(null);
@@ -344,18 +359,29 @@ const Reservar = () => {
     barco.horariosEmbarque && barco.horariosEmbarque.length > 0 ? barco.horariosEmbarque : null;
 
   const precoBase = parseInt(barco.preco.replace(/[^0-9]/g, ""), 10);
-  const jetSkiReais =
-    barco.jetSkiOffered && barco.jetSkiPriceCents ? barco.jetSkiPriceCents / 100 : 0;
+  const jetSkiReais = jetSkiPriceReais(barco);
+  const customExtrasReais = customOptionalsTotalCents(customOptionalIds, barco.customOptionals) / 100;
   const total = (diasPasseio.length > 0 ? diasPasseio : [dataPasseio].filter(Boolean)).reduce((acc, dia) => {
     if (!dia) return acc;
     const dayOpts = opcionaisPorDia[dia] ?? { bbqKit: kitChurrasco, jetSki: motoAquatica };
     return (
       acc +
       precoBase +
-      (dayOpts.bbqKit ? KIT_CHURRASCO_PRECO : 0) +
-      (dayOpts.jetSki && jetSkiReais > 0 ? jetSkiReais : 0)
+      (dayOpts.bbqKit && boatOffersBbq(barco) ? KIT_CHURRASCO_PRICE_REAIS : 0) +
+      (dayOpts.jetSki && jetSkiReais > 0 ? jetSkiReais : 0) +
+      customExtrasReais
     );
   }, 0);
+
+  const optionalPreviewItems = buildBookingOptionalPreviewItems({
+    barco,
+    currencyFmt,
+    kitChurrasco: diasPasseio.length <= 1 ? kitChurrasco : diasPasseio.some((d) => opcionaisPorDia[d]?.bbqKit),
+    bbqVariant,
+    motoAquatica: diasPasseio.length <= 1 ? motoAquatica : diasPasseio.some((d) => opcionaisPorDia[d]?.jetSki),
+    customSelectedIds: customOptionalIds,
+    t,
+  });
 
   const handleConfirmar = async () => {
     const u = getStoredUser();
@@ -416,7 +442,7 @@ const Reservar = () => {
       const totalCents = total * 100;
       const tripDays = diasPasseio.map((dia) => ({
         bookingDate: dia,
-        bbqKit: opcionaisPorDia[dia]?.bbqKit ?? kitChurrasco,
+        bbqKit: boatOffersBbq(barco) ? (opcionaisPorDia[dia]?.bbqKit ?? kitChurrasco) : false,
         jetSki: opcionaisPorDia[dia]?.jetSki ?? motoAquatica,
         routeIslands: paradasRoteiro,
       }));
@@ -426,8 +452,10 @@ const Reservar = () => {
         passengersAdults: pessoas,
         passengersChildren: criancas,
         hasKids: temCriancas,
-        bbqKit: kitChurrasco,
+        bbqKit: boatOffersBbq(barco) ? kitChurrasco : false,
+        bbqNonAlcoholic: boatOffersBbq(barco) && kitChurrasco && bbqVariant === "non_alcoholic",
         jetSki: motoAquatica,
+        customOptionalIds,
         embarkLocation: locaisOpcionais ? localEmbarque : null,
         embarkTime: horariosOpcionais ? horarioEmbarque : null,
         totalCents,
@@ -726,7 +754,7 @@ const Reservar = () => {
                         <div className="min-w-0">
                           <p className="font-medium text-foreground truncate">{b.nome}</p>
                           <p className="text-xs text-muted-foreground">
-                            {[b.distancia, b.nota, b.preco].filter(Boolean).join(" · ")}
+                            {[b.distancia, b.nota, b.preco].filter(Boolean).join(" Â· ")}
                           </p>
                         </div>
                         <div className="flex shrink-0 gap-2">
@@ -781,10 +809,12 @@ const Reservar = () => {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
+                  {boatHasAnyOptionals(barco) ? (
                   <div className="rounded-lg bg-muted/60 p-2.5 space-y-2">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                       Opcionais deste dia
                     </p>
+                    {boatOffersBbq(barco) ? (
                     <div className="flex items-center justify-between text-sm">
                       <span>{t("reservar.bbqTitle")}</span>
                       <Switch
@@ -797,6 +827,7 @@ const Reservar = () => {
                         }
                       />
                     </div>
+                    ) : null}
                     {barco.jetSkiOffered && jetSkiReais > 0 ? (
                       <div className="flex items-center justify-between text-sm">
                         <span>{t("reservar.jetSkiTitle")}</span>
@@ -812,12 +843,13 @@ const Reservar = () => {
                       </div>
                     ) : null}
                   </div>
+                  ) : null}
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>Subtotal do dia</span>
                     <span className="font-medium text-foreground">
                       {currencyFmt.format(
                         precoBase +
-                          (opcionaisPorDia[dia]?.bbqKit ? KIT_CHURRASCO_PRECO : 0) +
+                          (opcionaisPorDia[dia]?.bbqKit && boatOffersBbq(barco) ? KIT_CHURRASCO_PRICE_REAIS : 0) +
                           (opcionaisPorDia[dia]?.jetSki && jetSkiReais > 0 ? jetSkiReais : 0)
                       )}
                     </span>
@@ -828,45 +860,21 @@ const Reservar = () => {
           ) : null}
         </section>
 
-        {diasPasseio.length <= 1 ? (
-          <section className="surface-elevated rounded-xl p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <UtensilsCrossed className="w-5 h-5 text-accent" />
-                <div>
-                  <span className="text-sm font-bold text-foreground">{t("reservar.bbqTitle")}</span>
-                  <p className="text-xs text-muted-foreground">{t("reservar.bbqDesc")}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold text-accent">
-                  + {currencyFmt.format(KIT_CHURRASCO_PRECO)}
-                </span>
-                <Switch checked={kitChurrasco} onCheckedChange={setKitChurrasco} />
-              </div>
-            </div>
-          </section>
+        {diasPasseio.length <= 1 && boatHasAnyOptionals(barco) ? (
+          <ReservarOptionalsPicker
+            barco={barco}
+            currencyFmt={currencyFmt}
+            kitChurrasco={kitChurrasco}
+            onKitChurrascoChange={setKitChurrasco}
+            bbqVariant={bbqVariant}
+            onBbqVariantChange={setBbqVariant}
+            motoAquatica={motoAquatica}
+            onMotoAquaticaChange={setMotoAquatica}
+            customSelectedIds={customOptionalIds}
+            onCustomSelectedIdsChange={setCustomOptionalIds}
+          />
         ) : null}
 
-        {diasPasseio.length <= 1 && barco.jetSkiOffered && jetSkiReais > 0 ? (
-          <section className="surface-elevated rounded-xl p-4">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <Waves className="w-5 h-5 text-primary shrink-0" />
-                <div className="min-w-0">
-                  <span className="text-sm font-bold text-foreground">{t("reservar.jetSkiTitle")}</span>
-                  <p className="text-xs text-muted-foreground">{t("reservar.jetSkiDesc")}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <span className="text-sm font-semibold text-primary tabular-nums">
-                  + {currencyFmt.format(jetSkiReais)}
-                </span>
-                <Switch checked={motoAquatica} onCheckedChange={setMotoAquatica} />
-              </div>
-            </div>
-          </section>
-        ) : null}
 
         <section className="space-y-4">
           <div className="space-y-2">
@@ -913,6 +921,8 @@ const Reservar = () => {
           </div>
         </section>
 
+        <BookingOptionalsPreview items={optionalPreviewItems} />
+
         <section className="surface-elevated rounded-xl p-4 space-y-2">
           <h3 className="text-sm font-semibold text-foreground">{t("reservar.reviewTitle")}</h3>
           <ul className="text-xs text-muted-foreground space-y-1">
@@ -921,29 +931,35 @@ const Reservar = () => {
               {diasPasseio.length
                 ? diasPasseio
                     .map((d) => format(new Date(`${d}T12:00:00`), "PPP", { locale: dateFnsLocale }))
-                    .join(" · ")
-                : "—"}
+                    .join(" Â· ")
+                : "â€”"}
             </li>
             <li>
               <strong className="text-foreground">{t("reservar.reviewRoute")}</strong>{" "}
-              {paradasRoteiro.length ? paradasRoteiro.join(", ") : "—"}
+              {paradasRoteiro.length ? paradasRoteiro.join(", ") : "â€”"}
             </li>
             <li>
               <strong className="text-foreground">{t("reservar.embark")}</strong>{" "}
-              {locaisOpcionais ? localEmbarque || "—" : t("reservar.embarkLocationPendingShort")}
+              {locaisOpcionais ? localEmbarque || "â€”" : t("reservar.embarkLocationPendingShort")}
             </li>
             <li>
               <strong className="text-foreground">{t("reservar.reviewEmbarkTime")}</strong>{" "}
-              {horariosOpcionais ? horarioEmbarque || "—" : t("reservar.embarkTimePendingShort")}
+              {horariosOpcionais ? horarioEmbarque || "â€”" : t("reservar.embarkTimePendingShort")}
             </li>
             <li>
               <strong className="text-foreground">{t("reservar.passengers")}</strong>{" "}
               {pessoas} + {criancas}
             </li>
+            {boatOffersBbq(barco) ? (
             <li>
               <strong className="text-foreground">{t("reservar.bbqTitle")}</strong>{" "}
-              {kitChurrasco ? t("common.yes") : t("common.no")}
+              {kitChurrasco
+                ? bbqVariant === "non_alcoholic"
+                  ? t("optionals.bbqNonAlcoholicOnly")
+                  : t("optionals.bbqFullKit")
+                : t("common.no")}
             </li>
+            ) : null}
             {barco.jetSkiOffered && jetSkiReais > 0 ? (
               <li>
                 <strong className="text-foreground">{t("reservar.jetSkiTitle")}</strong>{" "}

@@ -1,8 +1,9 @@
 import type { Boat } from "@/lib/types";
 import { normalizeVesselTipo } from "@/lib/boatVesselTypes";
+import { boatMatchesTripOptionalFilters, type TripOptionalFilterKey } from "@/lib/trip-optionals";
 
 /** Chaves estáveis — textos vêm do i18n */
-export const EXPLORE_MAIN_FILTER_KEYS = ["type", "size", "seats", "price", "included"] as const;
+export const EXPLORE_MAIN_FILTER_KEYS = ["type", "size", "seats", "price", "included", "optionals"] as const;
 export type ExploreMainFilter = "all" | (typeof EXPLORE_MAIN_FILTER_KEYS)[number];
 export type SizeFilterKey = "all" | "upTo25" | "26to30" | "31plus";
 export type SeatsFilterKey = "all" | "upTo6" | "7to10" | "11to16" | "17plus";
@@ -18,9 +19,11 @@ export function matchesExploreFilters(
     precoFiltro: PriceFilterKey;
     /** Itens inclusos que o barco deve ter (todos); vazio = sem filtro por inclusos */
     amenitySelected: string[];
+    /** Opcionais de passeio que o barco deve oferecer (todos); vazio = sem filtro */
+    tripOptionalSelected: TripOptionalFilterKey[];
   }
 ): boolean {
-  const { q, tipoFiltro, tamFiltro, vagasFiltro, precoFiltro, amenitySelected } = opts;
+  const { q, tipoFiltro, tamFiltro, vagasFiltro, precoFiltro, amenitySelected, tripOptionalSelected } = opts;
   if (q.trim()) {
     const qLower = q.trim().toLowerCase();
     const locais = (barco.locaisEmbarque || []).join(" ");
@@ -64,6 +67,8 @@ export function matchesExploreFilters(
     );
     if (!ok) return false;
   }
+
+  if (!boatMatchesTripOptionalFilters(barco, tripOptionalSelected)) return false;
 
   return true;
 }

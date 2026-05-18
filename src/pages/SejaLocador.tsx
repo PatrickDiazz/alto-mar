@@ -125,33 +125,33 @@ export default function SejaLocador() {
         <HeaderSettingsMenu />
       </div>
 
-      {/* Iate: só em telas grandes (fixo ao meio). Mobile: sem ilustrações. */}
-      <div
-        className="pointer-events-none fixed inset-x-0 top-1/2 z-[1] hidden h-[clamp(11rem,min(38vmin,21rem),24rem)] -translate-y-1/2 overflow-hidden [isolation:isolate] lg:block lg:h-[clamp(13rem,min(30vmin,24rem),28rem)]"
-        aria-hidden
-      >
-        <div className="absolute inset-x-0 bottom-0 h-[88%] overflow-hidden">
-          <div
-            className={cn(
-              "absolute bottom-0 left-0 h-full w-[min(88vw,720px)] will-change-transform sm:w-[min(84vw,800px)] lg:w-[min(78vw,880px)]",
-              "motion-safe:animate-seja-locador-boat-once motion-reduce:!translate-x-[23vw] motion-reduce:animate-none"
-            )}
-          >
-            <img
-              src={yacht}
-              alt=""
-              width={1024}
-              height={1024}
-              className="h-full w-full bg-transparent object-contain object-bottom [backface-visibility:hidden]"
-              decoding="async"
-              draggable={false}
-            />
+      <main className="relative z-10 mx-auto w-full max-w-6xl flex-1 px-4 pb-12 pt-[max(4.75rem,env(safe-area-inset-top,0px)+3.25rem)] sm:pb-16 sm:pt-24 lg:pb-20 lg:pt-24">
+        {/* Iate: ancorado na hero (rola com a página; não fica preso ao viewport). */}
+        <div
+          className="pointer-events-none absolute inset-x-0 top-[min(14rem,38vh)] z-0 hidden h-[clamp(11rem,min(38vmin,21rem),24rem)] overflow-hidden [isolation:isolate] lg:block lg:top-[min(12rem,34vh)] lg:h-[clamp(13rem,min(30vmin,24rem),28rem)]"
+          aria-hidden
+        >
+          <div className="absolute inset-x-0 bottom-0 h-[88%] overflow-hidden">
+            <div
+              className={cn(
+                "absolute bottom-0 left-0 h-full w-[min(88vw,720px)] will-change-transform sm:w-[min(84vw,800px)] lg:w-[min(78vw,880px)]",
+                "motion-safe:animate-seja-locador-boat-once motion-reduce:!translate-x-[23vw] motion-reduce:animate-none"
+              )}
+            >
+              <img
+                src={yacht}
+                alt=""
+                width={1024}
+                height={1024}
+                className="h-full w-full bg-transparent object-contain object-bottom [backface-visibility:hidden]"
+                decoding="async"
+                draggable={false}
+              />
+            </div>
           </div>
         </div>
-      </div>
 
-      <main className="relative z-10 mx-auto w-full max-w-6xl flex-1 px-4 pb-12 pt-[max(4.75rem,env(safe-area-inset-top,0px)+3.25rem)] sm:pb-16 sm:pt-24 lg:pb-20 lg:pt-24">
-        <div className="grid w-full grid-cols-1 gap-12 lg:grid-cols-2 lg:items-start lg:gap-14 xl:gap-16">
+        <div className="relative z-10 grid w-full grid-cols-1 gap-12 lg:grid-cols-2 lg:items-start lg:gap-14 xl:gap-16">
           <div className="flex min-w-0 flex-col">
             <Button variant="ghost" size="sm" className="-ml-2 mb-5 w-fit gap-2 text-muted-foreground" asChild>
               <Link to="/explorar">

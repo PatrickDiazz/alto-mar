@@ -2,6 +2,7 @@
  * Geração e persistência da frota fictícia do locador demo (imagens = boatDemoImages).
  */
 import { imagesForBoatType } from "./boatDemoImages.js";
+import { demoBoatOptionalsProfile } from "./boatOptionalsProfile.js";
 
 /**
  * @param {number} count — mínimo recomendado: 30
@@ -102,7 +103,8 @@ async function upsertAmenity(query, name) {
  * @param {typeof import("./db.js").query} query
  */
 export async function persistBoatsForOwner(query, ownerId, boats) {
-  for (const b of boats) {
+  for (let i = 0; i < boats.length; i++) {
+    const b = boats[i];
     const inserted = await query(
       `insert into boats
         (owner_user_id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified)
@@ -122,12 +124,32 @@ export async function persistBoatsForOwner(query, ownerId, boats) {
       ]
     );
     const boatId = inserted.rows[0].id;
+    const opt = demoBoatOptionalsProfile(i, b.type);
+    await query(
+      `update boats
+       set bbq_offered = $2,
+           jet_ski_offered = $3,
+           jet_ski_price_cents = $4,
+           jet_ski_image_urls = $5,
+           jet_ski_document_url = $6,
+           custom_optionals = $7::jsonb
+       where id = $1`,
+      [
+        boatId,
+        opt.bbqOffered,
+        opt.jetSkiOffered,
+        opt.jetSkiPriceCents,
+        opt.jetSkiImageUrls,
+        opt.jetSkiDocumentUrl,
+        JSON.stringify(opt.customOptionals),
+      ]
+    );
 
-    for (let i = 0; i < b.images.length; i++) {
+    for (let j = 0; j < b.images.length; j++) {
       await query(`insert into boat_images (boat_id, url, sort) values ($1, $2, $3)`, [
         boatId,
-        b.images[i],
-        i,
+        b.images[j],
+        j,
       ]);
     }
 

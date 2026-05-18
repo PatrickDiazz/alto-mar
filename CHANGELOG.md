@@ -31,6 +31,29 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
+## [0.13.3] — 2026-05-16
+
+### Adicionado
+
+- **Opcionais do passeio**: secção unificada em **Detalhes**, **Reservar** e cartões (`BoatOptionalsSection`, `TripOptionalCard`, `BbqKitOptionalCard`) para kit churrasco, moto aquática e extras do locador.
+- **Kit churrasco**: expansão **Ver composição do kit** com tabela animada; gatilho com destaque em flash na borda inferior; variantes na reserva (kit completo / só bebidas não alcoólicas).
+- **Explorar**: filtro por opcionais (churrasco, moto, tapete flutuante, extras); faixa de opcionais no **BoatCard** em letreiro horizontal; componente **`FilterChipScrollMat`** (scroll com gradiente no rodapé).
+- **Detalhes do barco**: carrossel de fotos com **slide** horizontal; bloco de **avaliações de consumidores** expansível (`GET /api/boats/:id/reviews`, demo quando vazio).
+- **Marinheiro (locador)**: ao marcar **Kit churrasco**, tabela para definir itens, quantidades e unidade (**un** / **kg** / **L**), persistida em **`boats.bbq_kit_items`**.
+- **API / demo**: `server/boatOptionalsProfile.js`, coluna `bbq_kit_items`, opcionais variados na frota demo; asset **`kit_churrasco.jpg`**; i18n pt / en / es para opcionais e avaliações.
+
+### Alterado
+
+- **Seja locador**: iate decorativo ancorado ao hero (deixa de seguir o viewport no scroll).
+- **BoatCard**: transição suave entre fotos do carrossel.
+- Composição do kit exibida ao banhista passa a usar a lista cadastrada pelo locador quando existir.
+
+### Versões
+
+- Cliente e servidor **0.13.3**; Android **`versionName` 0.13.3**, **`versionCode` 11**.
+
+---
+
 ## [0.13.2] — 2026-05-10
 
 ### Adicionado

@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+﻿import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
   BadgeCheck,
-  Star,
   ChevronLeft,
   ChevronRight,
   Ship,
@@ -14,9 +13,9 @@ import {
   Heart,
   Check,
   X,
-  Waves,
-  UtensilsCrossed,
 } from "lucide-react";
+import { BoatOptionalsSection } from "@/components/optionals/BoatOptionalsSection";
+import { boatHasAnyOptionals } from "@/lib/trip-optionals";
 import { Button } from "@/components/ui/button";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { useBoat } from "@/hooks/useBoat";
@@ -28,6 +27,18 @@ import { toast } from "sonner";
 import i18n from "@/i18n";
 import { bcp47FromAppLang } from "@/lib/localeFormat";
 import { vesselTypeLabel } from "@/lib/boatVesselTypes";
+import { cn } from "@/lib/utils";
+import { BoatConsumerReviews } from "@/components/BoatConsumerReviews";
+
+type CarouselSlideDir = "next" | "prev";
+
+type PendingCarouselSlide = {
+  from: number;
+  to: number;
+  dir: CarouselSlideDir;
+};
+
+const CAROUSEL_SLIDE_MS = 380;
 
 const DetalhesBarco = () => {
   const { t, i18n: i18nReact } = useTranslation();
@@ -49,8 +60,12 @@ const DetalhesBarco = () => {
     isFetching: barcosRefetching,
   } = useBoat(id);
   const [imgIndex, setImgIndex] = useState(0);
+  const [pendingSlide, setPendingSlide] = useState<PendingCarouselSlide | null>(null);
+  const [slideActive, setSlideActive] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const carouselTouchRef = useRef<{ x: number; y: number } | null>(null);
+  const carouselSlidingRef = useRef(false);
+  const carouselSlideFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const user = getStoredUser();
 
@@ -85,6 +100,13 @@ const DetalhesBarco = () => {
 
   useEffect(() => {
     setImgIndex(0);
+    setPendingSlide(null);
+    setSlideActive(false);
+    carouselSlidingRef.current = false;
+    if (carouselSlideFallbackRef.current) {
+      clearTimeout(carouselSlideFallbackRef.current);
+      carouselSlideFallbackRef.current = null;
+    }
   }, [id]);
 
   const toggleFavorite = useCallback(async () => {
@@ -152,15 +174,54 @@ const DetalhesBarco = () => {
 
   const nImagens = barco.imagens?.length ?? 0;
   const safeImgIndex = nImagens > 0 ? imgIndex % nImagens : 0;
+  const displayIndex = pendingSlide?.to ?? safeImgIndex;
 
-  const prevImg = () => {
-    if (nImagens <= 0) return;
-    setImgIndex((p) => (p - 1 + nImagens) % nImagens);
+  const finishSlide = (slide: PendingCarouselSlide) => {
+    if (carouselSlideFallbackRef.current) {
+      clearTimeout(carouselSlideFallbackRef.current);
+      carouselSlideFallbackRef.current = null;
+    }
+    setImgIndex(slide.to);
+    setPendingSlide(null);
+    setSlideActive(false);
+    carouselSlidingRef.current = false;
   };
-  const nextImg = () => {
-    if (nImagens <= 0) return;
-    setImgIndex((p) => (p + 1) % nImagens);
+
+  const navigateImage = (dir: CarouselSlideDir) => {
+    if (nImagens <= 0 || carouselSlidingRef.current) return;
+    const from = pendingSlide?.from ?? safeImgIndex;
+    const to =
+      dir === "next" ? (from + 1) % nImagens : (from - 1 + nImagens) % nImagens;
+    if (to === from) return;
+
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      setImgIndex(to);
+      return;
+    }
+
+    const slide: PendingCarouselSlide = { from, to, dir };
+    carouselSlidingRef.current = true;
+    setPendingSlide(slide);
+    setSlideActive(false);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setSlideActive(true));
+    });
+    carouselSlideFallbackRef.current = setTimeout(
+      () => finishSlide(slide),
+      CAROUSEL_SLIDE_MS + 80
+    );
   };
+
+  const handleSlideTransitionEnd = (e: React.TransitionEvent<HTMLImageElement>) => {
+    if (e.propertyName !== "transform" || !pendingSlide) return;
+    finishSlide(pendingSlide);
+  };
+
+  const prevImg = () => navigateImage("prev");
+  const nextImg = () => navigateImage("next");
 
   const SWIPE_MIN_PX = 48;
 
@@ -235,17 +296,65 @@ const DetalhesBarco = () => {
           aria-label={t("detalhes.photoCarousel")}
         >
           {nImagens > 0 ? (
-            <img
-              src={barco.imagens[safeImgIndex]}
-              alt={barco.nome}
-              className="w-full h-full object-cover"
-              width={512}
-              height={512}
-              sizes="(max-width: 1024px) 100vw, min(32rem, 100vw)"
-              loading={safeImgIndex === 0 ? "eager" : "lazy"}
-              decoding="async"
-              fetchPriority={safeImgIndex === 0 ? "high" : "low"}
-            />
+            <div className="relative h-full w-full">
+              {pendingSlide ? (
+                <>
+                  <img
+                    src={barco.imagens[pendingSlide.from]}
+                    alt=""
+                    aria-hidden
+                    className={cn(
+                      "absolute inset-0 z-[1] h-full w-full object-cover",
+                      "motion-safe:transition-transform motion-safe:ease-in-out motion-reduce:transition-none",
+                      slideActive
+                        ? cn(
+                            "motion-safe:duration-[380ms]",
+                            pendingSlide.dir === "next"
+                              ? "-translate-x-full"
+                              : "translate-x-full"
+                          )
+                        : "translate-x-0"
+                    )}
+                    width={512}
+                    height={512}
+                    sizes="(max-width: 1024px) 100vw, min(32rem, 100vw)"
+                    decoding="async"
+                    onTransitionEnd={handleSlideTransitionEnd}
+                  />
+                  <img
+                    src={barco.imagens[pendingSlide.to]}
+                    alt={barco.nome}
+                    className={cn(
+                      "absolute inset-0 z-[2] h-full w-full object-cover",
+                      "motion-safe:transition-transform motion-safe:ease-in-out motion-reduce:transition-none",
+                      slideActive
+                        ? "translate-x-0 motion-safe:duration-[380ms]"
+                        : pendingSlide.dir === "next"
+                          ? "translate-x-full"
+                          : "-translate-x-full"
+                    )}
+                    width={512}
+                    height={512}
+                    sizes="(max-width: 1024px) 100vw, min(32rem, 100vw)"
+                    loading={pendingSlide.to === 0 ? "eager" : "lazy"}
+                    decoding="async"
+                    fetchPriority={pendingSlide.to === 0 ? "high" : "low"}
+                  />
+                </>
+              ) : (
+                <img
+                  src={barco.imagens[safeImgIndex]}
+                  alt={barco.nome}
+                  className="absolute inset-0 h-full w-full object-cover"
+                  width={512}
+                  height={512}
+                  sizes="(max-width: 1024px) 100vw, min(32rem, 100vw)"
+                  loading={safeImgIndex === 0 ? "eager" : "lazy"}
+                  decoding="async"
+                  fetchPriority={safeImgIndex === 0 ? "high" : "low"}
+                />
+              )}
+            </div>
           ) : (
             <div className="w-full h-full bg-muted flex items-center justify-center text-sm text-muted-foreground px-4 text-center">
               {barco.nome}
@@ -273,7 +382,7 @@ const DetalhesBarco = () => {
                 <span
                   key={i}
                   className={`w-2 h-2 rounded-full transition-all ${
-                    i === safeImgIndex ? "bg-primary scale-110" : "bg-background/60"
+                    i === displayIndex ? "bg-primary scale-110" : "bg-background/60"
                   }`}
                 />
               ))}
@@ -284,10 +393,7 @@ const DetalhesBarco = () => {
         {/* Info */}
         <div className="mt-6 space-y-3">
           <h1 className="text-2xl font-bold text-foreground">{barco.nome}</h1>
-          <div className="flex items-center gap-2">
-            <Star className="w-5 h-5 text-accent fill-accent" />
-            <span className="text-lg font-semibold text-accent">{barco.nota}</span>
-          </div>
+          <BoatConsumerReviews boatId={barco.id} ratingLabel={barco.nota} />
           <p className="text-muted-foreground">{barco.distancia}</p>
 
           {/* Details chips */}
@@ -342,46 +448,10 @@ const DetalhesBarco = () => {
             </>
           ) : null}
 
-          {barco.jetSkiOffered && barco.jetSkiPriceCents ? (
+          {boatHasAnyOptionals(barco) ? (
             <>
               <hr className="border-border" />
-              <div className="surface-elevated rounded-xl p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-primary bg-primary/10 inline-flex items-center rounded-md px-2 py-1">
-                  Opcionais
-                </h3>
-                <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  <Waves className="w-5 h-5 text-primary shrink-0" />
-                  Moto aquática
-                </h4>
-                <p className="text-xs text-muted-foreground">{t("detalhes.jetSkiIntro")}</p>
-                <p className="text-sm font-medium text-foreground">
-                  + {currencyFmt.format(barco.jetSkiPriceCents / 100)}
-                </p>
-                <hr className="border-border/70" />
-                <div className="space-y-1">
-                  <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                    <UtensilsCrossed className="w-4 h-4 text-accent shrink-0" />
-                    {t("reservar.bbqTitle")}
-                  </h4>
-                  <p className="text-xs text-muted-foreground">{t("reservar.bbqDesc")}</p>
-                  <p className="text-sm font-medium text-foreground">+ {currencyFmt.format(250)}</p>
-                </div>
-                {(barco.jetSkiImageUrls?.length ?? 0) > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {(barco.jetSkiImageUrls ?? []).map((url, i) => (
-                      <a
-                        key={`jet-${i}`}
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block aspect-video overflow-hidden rounded-lg border-0 bg-muted shadow-sm"
-                      >
-                        <img src={url} alt="" className="h-full w-full object-cover" />
-                      </a>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
+              <BoatOptionalsSection barco={barco} currencyFmt={currencyFmt} />
             </>
           ) : null}
 

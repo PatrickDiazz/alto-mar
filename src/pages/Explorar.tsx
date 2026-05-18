@@ -32,6 +32,7 @@ import {
   type SeatsFilterKey,
   type PriceFilterKey,
 } from "@/lib/exploreFilters";
+import { TRIP_OPTIONAL_FILTER_KEYS, type TripOptionalFilterKey } from "@/lib/trip-optionals";
 import { readResponseErrorMessage } from "@/lib/responseError";
 import { fetchBoatsAvailableOn } from "@/lib/boatsAvailableOnApi";
 import { cn } from "@/lib/utils";
@@ -542,6 +543,7 @@ const Explorar = () => {
   const [vagasFiltro, setVagasFiltro] = useState<SeatsFilterKey>("all");
   const [precoFiltro, setPrecoFiltro] = useState<PriceFilterKey>("all");
   const [amenitySelected, setAmenitySelected] = useState<string[]>([]);
+  const [tripOptionalSelected, setTripOptionalSelected] = useState<TripOptionalFilterKey[]>([]);
   const [exploreDates, setExploreDates] = useState<string[]>([]);
   const [amenityNames, setAmenityNames] = useState<string[]>([]);
   const exploreBoatsScrollSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -628,6 +630,15 @@ const Explorar = () => {
       const body = more > 0 ? `${top.join(", ")} (+${more})` : top.join(", ");
       items.push({ key: "amen", text: `${t("explorar.filters.included")}: ${body}` });
     }
+    if (tripOptionalSelected.length > 0) {
+      const labels = tripOptionalSelected.map((key) => {
+        if (key === "bbq") return t("optionals.bbqShort");
+        if (key === "jetSki") return t("optionals.jetSkiShort");
+        if (key === "floatingMat") return t("optionals.floatingMatShort");
+        return t("optionals.customFilterShort");
+      });
+      items.push({ key: "opt", text: `${t("explorar.filters.optionals")}: ${labels.join(", ")}` });
+    }
     if (exploreDatesKey.length === 1) {
       items.push({
         key: "date1",
@@ -637,7 +648,7 @@ const Explorar = () => {
       items.push({ key: "dates", text: t("explorar.selectedDaysCount", { count: exploreDatesKey.length }) });
     }
     return items;
-  }, [busca, tipoFiltro, tamFiltro, vagasFiltro, precoFiltro, amenitySelected, exploreDatesKey, t, i18n.language]);
+  }, [busca, tipoFiltro, tamFiltro, vagasFiltro, precoFiltro, amenitySelected, tripOptionalSelected, exploreDatesKey, t, i18n.language]);
 
   const [filterPreviewStripOpen, setFilterPreviewStripOpen] = useState(false);
 
@@ -656,6 +667,7 @@ const Explorar = () => {
     setVagasFiltro("all");
     setPrecoFiltro("all");
     setAmenitySelected([]);
+    setTripOptionalSelected([]);
     setExploreDates([]);
     setMainFilter("all");
   }, []);
@@ -687,9 +699,10 @@ const Explorar = () => {
           vagasFiltro,
           precoFiltro,
           amenitySelected,
+          tripOptionalSelected,
         })
       ),
-    [busca, listaBarcos, tipoFiltro, tamFiltro, vagasFiltro, precoFiltro, amenitySelected]
+    [busca, listaBarcos, tipoFiltro, tamFiltro, vagasFiltro, precoFiltro, amenitySelected, tripOptionalSelected]
   );
 
   const listaExibida = useMemo(() => {
@@ -829,6 +842,17 @@ const Explorar = () => {
     );
   }, []);
 
+  const handleToggleTripOptional = useCallback((key: TripOptionalFilterKey) => {
+    setTripOptionalSelected((prev) =>
+      prev.includes(key)
+        ? prev.filter((x) => x !== key)
+        : [...prev, key].sort(
+            (a, b) =>
+              TRIP_OPTIONAL_FILTER_KEYS.indexOf(a) - TRIP_OPTIONAL_FILTER_KEYS.indexOf(b)
+          )
+    );
+  }, []);
+
   useEffect(() => {
     let active = true;
     const loadFavorites = async () => {
@@ -899,13 +923,9 @@ const Explorar = () => {
     navigate(goHome ? "/" : "/explorar", { replace: true });
   };
 
-  const goMarinheiroFromHeader = useCallback(() => {
-    if (!user) {
-      navigate("/seja-locador");
-      return;
-    }
-    navigate("/marinheiro");
-  }, [navigate, user]);
+  const goSejaLocadorFromHeader = useCallback(() => {
+    navigate("/seja-locador");
+  }, [navigate]);
 
   const headerLogo = resolvedTheme === "dark" ? logoDark : logoLight;
 
@@ -976,7 +996,7 @@ const Explorar = () => {
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={goMarinheiroFromHeader}
+                  onClick={goSejaLocadorFromHeader}
                   className="inline-flex h-auto min-h-0 max-w-[min(100%,9.5rem)] shrink items-start text-balance py-1.5 pl-1.5 pr-1.5 text-left text-[11px] font-normal leading-snug text-muted-foreground hover:bg-transparent hover:text-foreground sm:max-w-none sm:pl-2 sm:pr-2 sm:text-xs"
                   aria-label={t("explorar.becomeRenterAria")}
                 >
@@ -1018,6 +1038,8 @@ const Explorar = () => {
                   amenitySelected={amenitySelected}
                   onToggleAmenity={handleToggleAmenity}
                   amenityNames={amenityNames}
+                  tripOptionalSelected={tripOptionalSelected}
+                  onToggleTripOptional={handleToggleTripOptional}
                   tiposDisponiveis={tiposDisponiveis}
                   labelTipo={labelTipo}
                   exploreDates={exploreDates}
