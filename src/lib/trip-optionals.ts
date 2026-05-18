@@ -5,8 +5,21 @@ import type { Boat, CustomOptional } from "@/lib/types";
 export const TRIP_OPTIONAL_FILTER_KEYS = ["bbq", "jetSki", "floatingMat", "custom"] as const;
 export type TripOptionalFilterKey = (typeof TRIP_OPTIONAL_FILTER_KEYS)[number];
 
+/** Preço padrão do kit churrasco quando o locador não definiu outro. */
 export const KIT_CHURRASCO_PRICE_REAIS = 250;
 export const KIT_CHURRASCO_CENTS = KIT_CHURRASCO_PRICE_REAIS * 100;
+
+export function bbqKitPriceCents(
+  barco: Pick<Boat, "bbqOffered" | "bbqKitPriceCents">
+): number {
+  if (barco.bbqOffered === false) return 0;
+  const cents = Number(barco.bbqKitPriceCents ?? KIT_CHURRASCO_CENTS);
+  return Number.isFinite(cents) && cents >= 100 ? cents : KIT_CHURRASCO_CENTS;
+}
+
+export function bbqKitPriceReais(barco: Pick<Boat, "bbqOffered" | "bbqKitPriceCents">): number {
+  return bbqKitPriceCents(barco) / 100;
+}
 
 /** Itens fixos do kit churrasco Alto Mar (rótulos e quantidades via i18n). */
 export const BBQ_KIT_ITEM_KEYS = [

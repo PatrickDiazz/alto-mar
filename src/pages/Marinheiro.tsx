@@ -21,6 +21,7 @@ import type { CustomOptional } from "@/lib/types";
 import {
   defaultOwnerBbqKitItems,
   isKitChurrascoAmenityName,
+  KIT_CHURRASCO_CENTS,
   normalizeBbqKitItems,
   ownerBbqKitItemsValid,
   type BbqKitItemConfig,
@@ -99,6 +100,7 @@ type OwnerBoat = {
   customOptionals?: CustomOptional[];
   bbqOffered?: boolean;
   bbqKitItems?: BbqKitItemConfig[];
+  bbqKitPriceCents?: number;
 };
 
 type OwnerBookingRow = {
@@ -309,6 +311,7 @@ const emptyBoatForm: Omit<OwnerBoat, "id" | "preco" | "nota" | "tamanho"> = {
   jetSkiPriceCents: 0,
   jetSkiImageUrls: [],
   jetSkiDocumentUrl: "",
+  bbqKitPriceCents: 25000,
 };
 
 function splitCommaList(s: string): string[] {
@@ -702,6 +705,10 @@ const Marinheiro_Page = () => {
       toast.error(t("marinheiro.bbqKitToastRequired"));
       return;
     }
+    if (kitChecked && (boatForm.bbqKitPriceCents ?? 0) < 100) {
+      toast.error(t("marinheiro.bbqKitToastPrice"));
+      return;
+    }
     setLoading(true);
     try {
       const resp = await authFetch(`/api/owner/boats/${editingBoatId}`, {
@@ -733,6 +740,7 @@ const Marinheiro_Page = () => {
           ),
           bbqOffered: kitChecked,
           bbqKitItems: kitChecked ? normalizeBbqKitItems(bbqKitItemsEdit) : [],
+          bbqKitPriceCents: kitChecked ? Number(boatForm.bbqKitPriceCents ?? KIT_CHURRASCO_CENTS) : 0,
         }),
       });
       if (resp.status === 401) return;
@@ -778,6 +786,10 @@ const Marinheiro_Page = () => {
       toast.error(t("marinheiro.bbqKitToastRequired"));
       return;
     }
+    if (kitCheckedNew && (newBoatForm.bbqKitPriceCents ?? 0) < 100) {
+      toast.error(t("marinheiro.bbqKitToastPrice"));
+      return;
+    }
     setLoading(true);
     try {
       const payload = {
@@ -795,6 +807,7 @@ const Marinheiro_Page = () => {
         jetSkiDocumentUrl: regMoto ? null : newBoatForm.jetSkiDocumentUrl?.trim() ? newBoatForm.jetSkiDocumentUrl.trim() : null,
         bbqOffered: kitCheckedNew,
         bbqKitItems: kitCheckedNew ? normalizeBbqKitItems(bbqKitItemsNew) : [],
+        bbqKitPriceCents: kitCheckedNew ? Number(newBoatForm.bbqKitPriceCents ?? KIT_CHURRASCO_CENTS) : 0,
       };
       const resp = await authFetch("/api/owner/boats", {
         method: "POST",
@@ -1564,7 +1577,14 @@ const Marinheiro_Page = () => {
                           ))}
                         </div>
                         {kitChurrascoAmenityChecked(catalogAmenities, amenityIncNew) ? (
-                          <OwnerBbqKitItemsEditor items={bbqKitItemsNew} onChange={setBbqKitItemsNew} />
+                          <OwnerBbqKitItemsEditor
+                            items={bbqKitItemsNew}
+                            onChange={setBbqKitItemsNew}
+                            priceCents={newBoatForm.bbqKitPriceCents ?? KIT_CHURRASCO_CENTS}
+                            onPriceCentsChange={(c) =>
+                              setNewBoatForm({ ...newBoatForm, bbqKitPriceCents: c })
+                            }
+                          />
                         ) : null}
                       </div>
                       <div className="space-y-3 rounded-lg border-0 bg-muted p-3 shadow-card dark:bg-card">
@@ -2049,6 +2069,10 @@ const Marinheiro_Page = () => {
                                     <OwnerBbqKitItemsEditor
                                       items={bbqKitItemsEdit}
                                       onChange={setBbqKitItemsEdit}
+                                      priceCents={boatForm.bbqKitPriceCents ?? KIT_CHURRASCO_CENTS}
+                                      onPriceCentsChange={(c) =>
+                                        setBoatForm({ ...boatForm, bbqKitPriceCents: c })
+                                      }
                                     />
                                   ) : null}
                                 </div>

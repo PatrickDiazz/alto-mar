@@ -38,6 +38,8 @@ export type Boat = {
   bbqOffered?: boolean;
   /** Composição do kit definida pelo locador (item + quantidade + unidade). */
   bbqKitItems?: BbqKitItemConfig[];
+  /** Preço do opcional kit churrasco em centavos (padrão R$ 250). */
+  bbqKitPriceCents?: number;
   /** Locador oferece moto aquática opcional na reserva */
   jetSkiOffered?: boolean;
   jetSkiPriceCents?: number;

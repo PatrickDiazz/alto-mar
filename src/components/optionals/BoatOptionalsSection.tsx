@@ -38,6 +38,7 @@ export function BoatOptionalsSection({ barco, currencyFmt }: BoatOptionalsSectio
       <div className="space-y-4">
       {boatOffersBbq(barco) ? (
         <BbqKitOptionalCard
+          barco={barco}
           currencyFmt={currencyFmt}
           badge={t("optionals.optionalBadge")}
           kitItems={barco.bbqKitItems}

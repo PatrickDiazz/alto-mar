@@ -266,6 +266,12 @@ async function ensureBbqKitItemsColumn() {
   );
 }
 
+async function ensureBbqKitPriceColumn() {
+  await query(
+    `alter table boats add column if not exists bbq_kit_price_cents integer not null default 25000`
+  );
+}
+
 async function ensureJetSkiBoatAndBookingColumns() {
   await query(`alter table boats add column if not exists jet_ski_offered boolean not null default false`);
   await query(
@@ -362,9 +368,11 @@ function customOptionalsTotalCents(ids, catalog) {
 }
 
 function mapBoatJetSkiFields(b) {
+  const bbqKitPriceCents = Number(b.bbq_kit_price_cents ?? 25000);
   return {
     bbqOffered: b.bbq_offered !== false,
     bbqKitItems: parseBbqKitItemsJson(b.bbq_kit_items),
+    bbqKitPriceCents: bbqKitPriceCents > 0 ? bbqKitPriceCents : 25000,
     jetSkiOffered: Boolean(b.jet_ski_offered),
     jetSkiPriceCents: Number(b.jet_ski_price_cents ?? 0),
     jetSkiImageUrls: Array.isArray(b.jet_ski_image_urls) ? b.jet_ski_image_urls : [],
@@ -373,8 +381,8 @@ function mapBoatJetSkiFields(b) {
   };
 }
 
-/** Preço fixo do kit churrasco (R$ 250) em centavos — alinhado ao frontend. */
-const KIT_CHURRASCO_CENTS = 250 * 100;
+/** Preço padrão do kit churrasco (R$ 250) em centavos — alinhado ao frontend. */
+const DEFAULT_BBQ_KIT_PRICE_CENTS = 250 * 100;
 
 function expectedBookingTotalCents(row) {
   const boatPrice = Number(row.price_cents ?? 0);
@@ -385,7 +393,13 @@ function expectedBookingTotalCents(row) {
       e.code = "BBQ_INVALID";
       throw e;
     }
-    t += KIT_CHURRASCO_CENTS;
+    const bbqCents = Number(row.bbq_kit_price_cents ?? DEFAULT_BBQ_KIT_PRICE_CENTS);
+    if (!Number.isFinite(bbqCents) || bbqCents < 100) {
+      const e = new Error("Preço do kit churrasco inválido para esta embarcação.");
+      e.code = "BBQ_INVALID";
+      throw e;
+    }
+    t += bbqCents;
   }
   if (row.jet_ski_selected) {
     if (!row.jet_ski_offered || Number(row.jet_ski_price_cents ?? 0) <= 0) {
@@ -1088,6 +1102,7 @@ app.get("/api/boats", async (req, res) => {
          coalesce(b.route_island_images, '{}'::jsonb) as route_island_images,
          coalesce(b.bbq_offered, true) as bbq_offered,
          coalesce(b.bbq_kit_items, '[]'::jsonb) as bbq_kit_items,
+         coalesce(b.bbq_kit_price_cents, 25000) as bbq_kit_price_cents,
          coalesce(b.jet_ski_offered, false) as jet_ski_offered,
          coalesce(b.jet_ski_price_cents, 0) as jet_ski_price_cents,
          coalesce(b.jet_ski_image_urls, '{}'::text[]) as jet_ski_image_urls,
@@ -1226,6 +1241,7 @@ app.get("/api/boats/:id", async (req, res) => {
          coalesce(b.route_island_images, '{}'::jsonb) as route_island_images,
          coalesce(b.bbq_offered, true) as bbq_offered,
          coalesce(b.bbq_kit_items, '[]'::jsonb) as bbq_kit_items,
+         coalesce(b.bbq_kit_price_cents, 25000) as bbq_kit_price_cents,
          coalesce(b.jet_ski_offered, false) as jet_ski_offered,
          coalesce(b.jet_ski_price_cents, 0) as jet_ski_price_cents,
          coalesce(b.jet_ski_image_urls, '{}'::text[]) as jet_ski_image_urls,
@@ -1555,6 +1571,7 @@ app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, r
          coalesce(b.route_island_images, '{}'::jsonb) as route_island_images,
          coalesce(b.bbq_offered, true) as bbq_offered,
          coalesce(b.bbq_kit_items, '[]'::jsonb) as bbq_kit_items,
+         coalesce(b.bbq_kit_price_cents, 25000) as bbq_kit_price_cents,
          coalesce(b.jet_ski_offered, false) as jet_ski_offered,
          coalesce(b.jet_ski_price_cents, 0) as jet_ski_price_cents,
          coalesce(b.jet_ski_image_urls, '{}'::text[]) as jet_ski_image_urls,
@@ -1684,6 +1701,7 @@ const ownerUpdateBoatSchema = z.object({
   horariosEmbarque: z.array(z.string().min(1).max(5)).max(50).optional(),
   bbqOffered: z.boolean().optional(),
   bbqKitItems: z.array(bbqKitItemSchema).max(24).optional(),
+  bbqKitPriceCents: z.number().int().min(0).max(500000000).optional(),
   jetSkiOffered: z.boolean(),
   jetSkiPriceCents: z.number().int().min(0).max(500000000).optional(),
   jetSkiImageUrls: z.array(assetOrUrlSchema).max(12).optional(),
@@ -1737,6 +1755,15 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
         ? JSON.stringify(normalizeBbqKitItemsInput(body.bbqKitItems))
         : null;
     const bbqOfferedFinal = body.bbqOffered !== undefined ? body.bbqOffered : null;
+    let bbqKitPriceFinal = null;
+    if (body.bbqKitPriceCents !== undefined) {
+      const bbqPc = Number(body.bbqKitPriceCents);
+      const offeringBbq = body.bbqOffered !== false;
+      if (offeringBbq && (!Number.isFinite(bbqPc) || bbqPc < 100)) {
+        return res.status(400).send("Defina o preço do kit churrasco (mínimo R$ 1,00).");
+      }
+      bbqKitPriceFinal = offeringBbq ? bbqPc : Math.max(0, bbqPc);
+    }
 
     const updated = await query(
       `update boats
@@ -1755,13 +1782,14 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
            route_island_images = $15::jsonb,
            bbq_offered = coalesce($16, bbq_offered),
            bbq_kit_items = coalesce($17::jsonb, bbq_kit_items),
-           jet_ski_offered = $18,
-           jet_ski_price_cents = $19,
-           jet_ski_image_urls = $20,
-           jet_ski_document_url = $21,
-           custom_optionals = coalesce($22::jsonb, custom_optionals)
+           bbq_kit_price_cents = coalesce($18, bbq_kit_price_cents),
+           jet_ski_offered = $19,
+           jet_ski_price_cents = $20,
+           jet_ski_image_urls = $21,
+           jet_ski_document_url = $22,
+           custom_optionals = coalesce($23::jsonb, custom_optionals)
        where id = $1 and owner_user_id = $2
-       returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands, route_island_images, bbq_offered, bbq_kit_items, jet_ski_offered, jet_ski_price_cents, jet_ski_image_urls, jet_ski_document_url, custom_optionals`,
+       returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands, route_island_images, bbq_offered, bbq_kit_items, bbq_kit_price_cents, jet_ski_offered, jet_ski_price_cents, jet_ski_image_urls, jet_ski_document_url, custom_optionals`,
       [
         boatId,
         req.user.sub,
@@ -1780,6 +1808,7 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
         riJson,
         bbqOfferedFinal,
         bbqKitItemsFinal,
+        bbqKitPriceFinal,
         jetOffered,
         jetSkiPriceFinal,
         jetSkiImagesFinal,
@@ -1869,6 +1898,7 @@ const ownerCreateBoatSchema = z.object({
   horariosEmbarque: z.array(z.string().min(1).max(5)).max(50).optional(),
   bbqOffered: z.boolean().optional(),
   bbqKitItems: z.array(bbqKitItemSchema).max(24).optional(),
+  bbqKitPriceCents: z.number().int().min(0).max(500000000).optional(),
   jetSkiOffered: z.boolean().default(false),
   jetSkiPriceCents: z.number().int().min(0).max(500000000).optional(),
   jetSkiImageUrls: z.array(assetOrUrlSchema).max(12).optional(),
@@ -1915,11 +1945,14 @@ app.post("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, 
     );
     const bbqKitItemsJson = JSON.stringify(normalizeBbqKitItemsInput(body.bbqKitItems ?? []));
     const bbqOfferedCreate = body.bbqOffered !== false;
+    const bbqKitPriceCreate = bbqOfferedCreate
+      ? Math.max(100, Number(body.bbqKitPriceCents ?? DEFAULT_BBQ_KIT_PRICE_CENTS))
+      : 0;
     const created = await query(
       `insert into boats
         (owner_user_id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands, route_island_images,
-         bbq_offered, bbq_kit_items, jet_ski_offered, jet_ski_price_cents, jet_ski_image_urls, jet_ski_document_url, custom_optionals)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17::jsonb,$18,$19,$20,$21,$22::jsonb)
+         bbq_offered, bbq_kit_items, bbq_kit_price_cents, jet_ski_offered, jet_ski_price_cents, jet_ski_image_urls, jet_ski_document_url, custom_optionals)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17::jsonb,$18,$19,$20,$21,$22,$23::jsonb)
        returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands, route_island_images`,
       [
         req.user.sub,
@@ -1939,6 +1972,7 @@ app.post("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, 
         riJson,
         bbqOfferedCreate,
         bbqKitItemsJson,
+        bbqKitPriceCreate,
         jetOffered,
         jetSkiPriceFinal,
         jetSkiImagesFinal,
@@ -2157,7 +2191,7 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
     }
 
     const boat = await query(
-      `select id, owner_user_id, capacity, price_cents, coalesce(bbq_offered, true) as bbq_offered, jet_ski_offered, jet_ski_price_cents, custom_optionals from boats where id = $1`,
+      `select id, owner_user_id, capacity, price_cents, coalesce(bbq_offered, true) as bbq_offered, coalesce(bbq_kit_price_cents, 25000) as bbq_kit_price_cents, jet_ski_offered, jet_ski_price_cents, custom_optionals from boats where id = $1`,
       [body.boatId]
     );
     const b = boat.rows[0];
@@ -2192,6 +2226,7 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
           price_cents: b.price_cents,
           bbq_kit: dayBbq,
           bbq_offered: b.bbq_offered,
+          bbq_kit_price_cents: b.bbq_kit_price_cents,
           jet_ski_selected: day.jetSki ?? body.jetSki,
           jet_ski_offered: b.jet_ski_offered,
           jet_ski_price_cents: b.jet_ski_price_cents,
@@ -2276,6 +2311,7 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
         price_cents: b.price_cents,
         bbq_kit: dayBbq,
         bbq_offered: b.bbq_offered,
+        bbq_kit_price_cents: b.bbq_kit_price_cents,
         jet_ski_selected: dayJetSki,
         jet_ski_offered: b.jet_ski_offered,
         jet_ski_price_cents: b.jet_ski_price_cents,
@@ -2370,6 +2406,7 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
          b.capacity as boat_capacity,
          coalesce(b.jet_ski_offered, false) as jet_ski_offered,
          coalesce(b.jet_ski_price_cents, 0) as jet_ski_price_cents,
+         coalesce(b.bbq_kit_price_cents, 25000) as bbq_kit_price_cents,
          br.boat_stars,
          br.boat_comment,
          br.boat_rated_at,
@@ -2426,6 +2463,7 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
           capacidade: r.boat_capacity,
           jetSkiOffered: Boolean(r.jet_ski_offered),
           jetSkiPriceCents: Number(r.jet_ski_price_cents ?? 0),
+          bbqKitPriceCents: Number(r.bbq_kit_price_cents ?? 25000),
         },
         rescheduleReason: r.reschedule_reason ?? null,
         rescheduleTitle: r.reschedule_title ?? null,
@@ -2531,6 +2569,7 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
               bk.embark_location, to_char(bk.embark_time, 'HH24:MI') as embark_time,
               bk.bbq_kit, bk.jet_ski_selected,
               b.price_cents, coalesce(b.bbq_offered, true) as bbq_offered,
+              coalesce(b.bbq_kit_price_cents, 25000) as bbq_kit_price_cents,
               coalesce(b.jet_ski_offered, false) as jet_ski_offered,
               coalesce(b.jet_ski_price_cents, 0) as jet_ski_price_cents
        from bookings bk
@@ -2634,6 +2673,7 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
           price_cents: row0.price_cents,
           bbq_kit: nextBbq,
           bbq_offered: row0.bbq_offered,
+          bbq_kit_price_cents: row0.bbq_kit_price_cents,
           jet_ski_selected: nextJet,
           jet_ski_offered: row0.jet_ski_offered,
           jet_ski_price_cents: row0.jet_ski_price_cents,
@@ -3473,6 +3513,7 @@ Teste: http://127.0.0.1:3001/api/health
     await ensureBoatEmbarkSlotsAndBookingEmbarkColumns();
     await ensureBookingsRescheduleColumns();
     await ensureBbqKitItemsColumn();
+    await ensureBbqKitPriceColumn();
     await ensureJetSkiBoatAndBookingColumns();
     await ensureTripExtrasColumns();
     try {

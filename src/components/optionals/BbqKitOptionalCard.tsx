@@ -7,9 +7,10 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import type { Boat } from "@/lib/types";
 import {
   DEFAULT_BBQ_IMAGE,
-  KIT_CHURRASCO_PRICE_REAIS,
+  bbqKitPriceReais,
   type BbqKitItemConfig,
 } from "@/lib/trip-optionals";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,7 @@ import { TripOptionalCard } from "@/components/optionals/TripOptionalCard";
 import { BbqKitContentsPanel } from "@/components/optionals/BbqKitContentsPanel";
 
 type BbqKitOptionalCardProps = {
+  barco: Pick<Boat, "bbqOffered" | "bbqKitPriceCents">;
   compact?: boolean;
   currencyFmt: Intl.NumberFormat;
   badge: string;
@@ -27,6 +29,7 @@ type BbqKitOptionalCardProps = {
 };
 
 export function BbqKitOptionalCard({
+  barco,
   compact = false,
   currencyFmt,
   badge,
@@ -44,7 +47,7 @@ export function BbqKitOptionalCard({
       imageAlt={t("reservar.bbqTitle")}
       title={t("reservar.bbqTitle")}
       description={open ? undefined : t("reservar.bbqDesc")}
-      priceLabel={`+ ${currencyFmt.format(KIT_CHURRASCO_PRICE_REAIS)}`}
+      priceLabel={`+ ${currencyFmt.format(bbqKitPriceReais(barco))}`}
       badge={badge}
       actions={actions}
       footer={

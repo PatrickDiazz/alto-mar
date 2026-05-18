@@ -65,6 +65,7 @@ export function ReservarOptionalsPicker({
       <div className="space-y-4">
       {showBbq ? (
         <BbqKitOptionalCard
+          barco={barco}
           compact
           currencyFmt={currencyFmt}
           badge={t("optionals.optionalBadge")}

@@ -53,7 +53,7 @@ import { fetchBoatsAvailableOn } from "@/lib/boatsAvailableOnApi";
 import { vesselTypeLabel } from "@/lib/boatVesselTypes";
 import { parseOwnerRouteIslands } from "@/lib/routeIslandsParse";
 import {
-  KIT_CHURRASCO_PRICE_REAIS,
+  bbqKitPriceReais,
   boatOffersBbq,
   boatHasAnyOptionals,
   customOptionalsTotalCents,
@@ -367,7 +367,7 @@ const Reservar = () => {
     return (
       acc +
       precoBase +
-      (dayOpts.bbqKit && boatOffersBbq(barco) ? KIT_CHURRASCO_PRICE_REAIS : 0) +
+      (dayOpts.bbqKit && boatOffersBbq(barco) ? bbqKitPriceReais(barco) : 0) +
       (dayOpts.jetSki && jetSkiReais > 0 ? jetSkiReais : 0) +
       customExtrasReais
     );
@@ -849,7 +849,7 @@ const Reservar = () => {
                     <span className="font-medium text-foreground">
                       {currencyFmt.format(
                         precoBase +
-                          (opcionaisPorDia[dia]?.bbqKit && boatOffersBbq(barco) ? KIT_CHURRASCO_PRICE_REAIS : 0) +
+                          (opcionaisPorDia[dia]?.bbqKit && boatOffersBbq(barco) ? bbqKitPriceReais(barco) : 0) +
                           (opcionaisPorDia[dia]?.jetSki && jetSkiReais > 0 ? jetSkiReais : 0)
                       )}
                     </span>

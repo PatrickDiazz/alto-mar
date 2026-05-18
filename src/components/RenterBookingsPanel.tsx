@@ -26,6 +26,7 @@ import {
   type RescheduleReason,
   rescheduleReasonI18nKey,
 } from "@/lib/rescheduleReasons";
+import { bbqKitPriceReais } from "@/lib/trip-optionals";
 
 type RenterBooking = {
   id: string;
@@ -54,6 +55,7 @@ type RenterBooking = {
     capacidade?: number;
     jetSkiOffered?: boolean;
     jetSkiPriceCents?: number;
+    bbqKitPriceCents?: number;
   };
   ratingBoat?: { stars: number; comment: string | null; ratedAt: string } | null;
   rescheduleReason?: RescheduleReason | null;
@@ -63,7 +65,6 @@ type RenterBooking = {
   renterNoticeCode?: string | null;
 };
 
-const KIT_CHURRASCO_PRECO = 250;
 const BANHISTA_BOOKING_LEAD_DAYS = 2;
 
 /** Códigos `bookings.renter_notice_code` → chave i18n em `reservasConta.*` */
@@ -228,13 +229,17 @@ export function RenterBookingsPanel() {
       const oldR = original.totalCents / 100;
       const jetCents = original.boat.jetSkiOffered ? Number(original.boat.jetSkiPriceCents || 0) : 0;
       const jetReais = jetCents / 100;
+      const bbqReais = bbqKitPriceReais({
+        bbqOffered: true,
+        bbqKitPriceCents: original.boat.bbqKitPriceCents,
+      });
       const base =
         oldR -
-        (original.bbqKit ? KIT_CHURRASCO_PRECO : 0) -
+        (original.bbqKit ? bbqReais : 0) -
         (original.jetSki && jetCents > 0 ? jetReais : 0);
       const newTotalReais =
         base +
-        (editDraft.bbqKit ? KIT_CHURRASCO_PRECO : 0) +
+        (editDraft.bbqKit ? bbqReais : 0) +
         (editDraft.jetSki && jetCents > 0 ? jetReais : 0);
       const locOpts = original.embarkLocationOptions ?? [];
       const timeOpts = original.embarkTimeOptions ?? [];

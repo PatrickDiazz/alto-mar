@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import type { Boat } from "@/lib/types";
 import {
   DEFAULT_BBQ_IMAGE,
+  bbqKitPriceReais,
   jetSkiPublicCoverImage,
   jetSkiPriceReais,
   customOptionalCoverImage,
@@ -75,7 +76,7 @@ export function buildBookingOptionalPreviewItems(input: {
           ? t("optionals.bbqNonAlcoholicOnly")
           : t("optionals.bbqFullKit"),
       imageUrl: DEFAULT_BBQ_IMAGE,
-      priceLabel: `+ ${currencyFmt.format(250)}`,
+      priceLabel: `+ ${currencyFmt.format(bbqKitPriceReais(barco))}`,
     });
   }
 
