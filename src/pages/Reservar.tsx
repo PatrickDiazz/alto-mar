@@ -863,6 +863,7 @@ const Reservar = () => {
         {diasPasseio.length <= 1 && boatHasAnyOptionals(barco) ? (
           <ReservarOptionalsPicker
             barco={barco}
+            tripDates={diasPasseio.length > 0 ? diasPasseio : dataPasseio ? [dataPasseio] : []}
             currencyFmt={currencyFmt}
             kitChurrasco={kitChurrasco}
             onKitChurrascoChange={setKitChurrasco}

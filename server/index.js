@@ -25,6 +25,31 @@ import {
 import { createConnectAccountLinkForOwner } from "./stripe/connect.js";
 import { startStripeBookingPayout } from "./stripe/payout.js";
 import { applyDemoFleetOptionalsVariety } from "./boatOptionalsProfile.js";
+import { buildOwnerDashboard } from "./ownerDashboard.js";
+import {
+  buildOwnerRevenueDaily,
+  buildOwnerRevenueMonthly,
+  normalizeRevenueChartMonths,
+} from "./ownerRevenue.js";
+import {
+  buildOwnerRevenueDashboard,
+  resolveOwnerRevenuePeriod,
+} from "./ownerRevenueDashboard.js";
+import { listOwnerStripeTransactions } from "./stripe/ownerTransactions.js";
+import {
+  buildDemoBoatReviews,
+  computeBoatDisplayRating,
+} from "./boatDisplayRating.js";
+import {
+  ensureOwnerOptionalsTables,
+  listOwnerOptionals,
+  getOwnerOptional,
+  createOwnerOptional,
+  updateOwnerOptional,
+  deleteOwnerOptional,
+  assertOwnerOptionalsAvailable,
+  getBoatOptionalAvailability,
+} from "./ownerOptionals.js";
 import {
   isPaymentsStripe,
   refundStripePaymentInTx,
@@ -294,6 +319,9 @@ async function ensureTripExtrasColumns() {
     `alter table boats add column if not exists custom_optionals jsonb not null default '[]'::jsonb`
   );
   await query(
+    `alter table boats add column if not exists is_active boolean not null default true`
+  );
+  await query(
     `alter table bookings add column if not exists bbq_non_alcoholic boolean not null default false`
   );
   await query(
@@ -351,9 +379,8 @@ function parseBbqKitItemsJson(v) {
 }
 
 function normalizeCustomOptionalsInput(list) {
-  const { randomUUID } = require("node:crypto");
   return (list ?? []).map((o) => ({
-    id: o.id && String(o.id).trim() ? String(o.id).trim() : randomUUID(),
+    id: o.id && String(o.id).trim() ? String(o.id).trim() : crypto.randomUUID(),
     title: o.title.trim(),
     description: o.description?.trim() ? o.description.trim() : undefined,
     priceCents: Number(o.priceCents),
@@ -474,16 +501,16 @@ async function assertBookingSlotAvailable(boatId, bookingDateStr, excludeBooking
     from bookings bk
     left join booking_days bd on bd.booking_id = bk.id and bd.day_date = $2::date and bd.status = 'ACTIVE'
     where bk.boat_id = $1
-      and bk.status in ('ACCEPTED','COMPLETED')
+      and bk.status in ('PENDING','ACCEPTED','COMPLETED')
       and (bk.booking_date = $2::date or bd.id is not null)`;
   if (excludeBookingId) {
-    sql += ` and id <> $3::uuid`;
+    sql += ` and bk.id <> $3::uuid`;
     params.push(excludeBookingId);
   }
   sql += ` limit 1`;
   const cf = await query(sql, params);
   if (cf.rows[0]) {
-    const e = new Error("Já existe passeio confirmado neste dia para este barco.");
+    const e = new Error("Já existe reserva neste dia para esta embarcação.");
     e.code = "DATE_OCCUPIED";
     throw e;
   }
@@ -945,15 +972,6 @@ function formatBoatNota(rating) {
   return v.toFixed(1).replace(".", ",");
 }
 
-function hashBoatIdForDemo(boatId) {
-  let h = 0;
-  const s = String(boatId ?? "");
-  for (let i = 0; i < s.length; i += 1) {
-    h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  }
-  return h;
-}
-
 function anonymizeReviewerName(fullName) {
   const parts = String(fullName ?? "")
     .trim()
@@ -964,42 +982,35 @@ function anonymizeReviewerName(fullName) {
   return `${parts[0]} ${parts[1].charAt(0).toUpperCase()}.`;
 }
 
-const DEMO_BOAT_REVIEW_AUTHORS = [
-  "Camila R.",
-  "João P.",
-  "Mariana L.",
-  "Rafael S.",
-  "Beatriz M.",
-  "Lucas T.",
-];
+function formatDisplayBoatNota(boatId, realStars) {
+  return formatBoatNota(computeBoatDisplayRating(boatId, realStars).average);
+}
 
-const DEMO_BOAT_REVIEW_COMMENTS = [
-  "Passeio incrível! Marinheiro muito atencioso e embarcação impecável.",
-  "Dia perfeito no mar. Embarque organizado e roteiro valeu cada minuto.",
-  "Barco confortável e limpo. Voltaria com a família sem pensar duas vezes.",
-  "Experiência maravilhosa. Comunicação clara e pontualidade no horário.",
-  "Superou as expectativas. Águas lindas e estrutura de segurança em dia.",
-  "Ótimo custo-benefício. Equipe simpática do início ao fim do passeio.",
-];
+/**
+ * @param {string[]} boatIds
+ * @returns {Promise<Record<string, number[]>>}
+ */
+async function fetchBoatStarsByBoatIds(boatIds) {
+  if (!boatIds.length) return {};
+  const r = await query(
+    `select bk.boat_id, br.boat_stars as stars
+     from booking_ratings br
+     join bookings bk on bk.id = br.booking_id
+     where bk.boat_id = any($1::uuid[]) and br.boat_stars is not null`,
+    [boatIds]
+  );
+  /** @type {Record<string, number[]>} */
+  const by = {};
+  for (const row of r.rows) {
+    (by[row.boat_id] ||= []).push(Number(row.stars));
+  }
+  return by;
+}
 
 function demoBoatReviews(boatId) {
-  const h = hashBoatIdForDemo(boatId);
-  const count = 3 + (h % 3);
-  const reviews = [];
-  for (let i = 0; i < count; i += 1) {
-    const idx = (h + i * 7) % DEMO_BOAT_REVIEW_COMMENTS.length;
-    const stars = 4 + ((h + i) % 2);
-    const daysAgo = 12 + i * 18 + (h % 9);
-    const ratedAt = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString();
-    reviews.push({
-      stars,
-      comment: DEMO_BOAT_REVIEW_COMMENTS[idx],
-      authorName: DEMO_BOAT_REVIEW_AUTHORS[(h + i) % DEMO_BOAT_REVIEW_AUTHORS.length],
-      ratedAt,
-    });
-  }
-  const avg = reviews.reduce((s, r) => s + r.stars, 0) / reviews.length;
-  return { reviews, count: reviews.length, average: Math.round(avg * 10) / 10, demo: true };
+  const reviews = buildDemoBoatReviews(boatId);
+  const { average, count } = computeBoatDisplayRating(boatId, []);
+  return { reviews, count, average, demo: true, includesDemo: true, realCount: 0 };
 }
 
 function normalizeRouteIslands(v) {
@@ -1050,9 +1061,8 @@ app.get("/api/boats", async (req, res) => {
   try {
     const amenityNames = parseAmenitiesQuery(req);
     const params = [];
-    let whereSql = "";
+    const parts = ["coalesce(b.is_active, true) = true"];
     if (amenityNames.length > 0) {
-      const parts = [];
       for (const name of amenityNames) {
         params.push(name);
         parts.push(`exists (
@@ -1061,8 +1071,8 @@ app.get("/api/boats", async (req, res) => {
         where ba.boat_id = b.id and ba.included = true and a.name = $${params.length}
       )`);
       }
-      whereSql = `where ${parts.join(" and ")}`;
     }
+    const whereSql = `where ${parts.join(" and ")}`;
 
     /** Paginação opcional: só quando `limit` ou `offset` vierem no query — senão devolve tudo (compat.) */
     let usePagination = false;
@@ -1179,12 +1189,14 @@ app.get("/api/boats", async (req, res) => {
       return acc;
     }, {});
 
+    const starsByBoat = await fetchBoatStarsByBoatIds(boatIds);
+
     const payload = boats.rows.map((b) => ({
       id: b.id,
       nome: b.name,
       distancia: b.location_text,
       preco: formatBoatPreco(b.price_cents),
-      nota: formatBoatNota(b.rating),
+      nota: formatDisplayBoatNota(b.id, starsByBoat[b.id] || []),
       imagens: imagesByBoat[b.id] || [],
       descricao: b.description ?? "",
       verificado: Boolean(b.verified),
@@ -1272,6 +1284,9 @@ app.get("/api/boats/:id", async (req, res) => {
       ),
     ]);
 
+    const starsByBoat = await fetchBoatStarsByBoatIds([boatId]);
+    const realStars = starsByBoat[boatId] || [];
+
     return res.json({
       boat: {
         id: b.id,
@@ -1279,7 +1294,7 @@ app.get("/api/boats/:id", async (req, res) => {
         nome: b.name,
         distancia: b.location_text,
         preco: formatBoatPreco(b.price_cents),
-        nota: formatBoatNota(b.rating),
+        nota: formatDisplayBoatNota(boatId, realStars),
         imagens: images.rows.map((r) => r.url),
         descricao: b.description ?? "",
         verificado: Boolean(b.verified),
@@ -1327,33 +1342,32 @@ app.get("/api/boats/:id/reviews", async (req, res) => {
       [boatId]
     );
 
-    if (!rows.rows.length) {
-      return res.json(demoBoatReviews(boatId));
-    }
+    const starsByBoat = await fetchBoatStarsByBoatIds([boatId]);
+    const realStars = starsByBoat[boatId] || [];
 
-    const reviews = rows.rows.map((r) => ({
+    const realReviews = rows.rows.map((r) => ({
       stars: Number(r.stars),
       comment: String(r.comment ?? "").trim(),
       authorName: anonymizeReviewerName(r.renter_name),
       ratedAt: r.rated_at ? new Date(r.rated_at).toISOString() : null,
+      demo: false,
     }));
 
-    const avgRow = await query(
-      `select coalesce(round(avg(br.boat_stars)::numeric, 1), 0)::numeric(2,1) as avg_stars,
-              count(*)::int as cnt
-       from booking_ratings br
-       join bookings bk on bk.id = br.booking_id
-       where bk.boat_id = $1::uuid and br.boat_stars is not null`,
-      [boatId]
-    );
-    const avg = Number(avgRow.rows[0]?.avg_stars ?? 0);
-    const count = Number(avgRow.rows[0]?.cnt ?? reviews.length);
+    const demoReviews = buildDemoBoatReviews(boatId);
+    const reviews = [...realReviews, ...demoReviews];
+    const { average, count } = computeBoatDisplayRating(boatId, realStars);
+
+    if (!realReviews.length && !demoReviews.length) {
+      return res.json({ reviews: [], count: 0, average: 0, demo: true, includesDemo: false, realCount: 0 });
+    }
 
     return res.json({
       reviews,
       count,
-      average: avg,
-      demo: false,
+      average,
+      demo: realReviews.length === 0,
+      includesDemo: demoReviews.length > 0,
+      realCount: realReviews.length,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -1444,18 +1458,25 @@ app.get("/api/public/boats-available-on", async (req, res) => {
           and bk.status not in ('DECLINED', 'CANCELLED')
           and (bk.booking_date = $1::date or bd.id is not null)
       )
+      and coalesce(b.is_active, true) = true
       order by b.rating desc nulls last, b.created_at desc
       limit 60
       `,
       [date]
     );
-    const list = rows.rows.map((row) => ({
-      id: row.id,
-      nome: row.name,
-      distancia: row.location_text ?? "",
-      nota: formatBoatNota(row.rating),
-      preco: formatBoatPreco(row.price_cents),
-    }));
+    const boatIds = rows.rows.map((row) => row.id);
+    const starsByBoat = await fetchBoatStarsByBoatIds(boatIds);
+    const list = rows.rows
+      .map((row) => ({
+        id: row.id,
+        nome: row.name,
+        distancia: row.location_text ?? "",
+        nota: formatDisplayBoatNota(row.id, starsByBoat[row.id] || []),
+        preco: formatBoatPreco(row.price_cents),
+        _displayRating: computeBoatDisplayRating(row.id, starsByBoat[row.id] || []).average,
+      }))
+      .sort((a, b) => b._displayRating - a._displayRating || 0)
+      .map(({ _displayRating: _d, ...rest }) => rest);
     return res.json({ boats: list, date });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -1576,7 +1597,8 @@ app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, r
          coalesce(b.jet_ski_price_cents, 0) as jet_ski_price_cents,
          coalesce(b.jet_ski_image_urls, '{}'::text[]) as jet_ski_image_urls,
          b.jet_ski_document_url,
-         coalesce(b.custom_optionals, '[]'::jsonb) as custom_optionals
+         coalesce(b.custom_optionals, '[]'::jsonb) as custom_optionals,
+         coalesce(b.is_active, true) as is_active
        from boats b
        where b.owner_user_id = $1
        order by b.created_at desc`,
@@ -1665,6 +1687,7 @@ app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, r
         amenidades: amenitiesByBoat[b.id] || [],
         locaisEmbarque: locsByOwnerBoat[b.id] || [],
         horariosEmbarque: slotsByOwnerBoat[b.id] || [],
+        ativo: Boolean(b.is_active),
         ...mapBoatJetSkiFields(b),
       })),
     });
@@ -1676,13 +1699,105 @@ app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, r
   }
 });
 
+app.get("/api/owner/stripe/transactions", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    if (String(process.env.PAYMENTS_PROVIDER || "").toLowerCase() !== "stripe") {
+      return res.json({
+        stripeEnabled: false,
+        transactions: [],
+        filterMonths: [],
+        boats: [],
+      });
+    }
+    const month = typeof req.query.month === "string" ? req.query.month : null;
+    const boatId = typeof req.query.boatId === "string" ? req.query.boatId : null;
+    const data = await listOwnerStripeTransactions(req.user.sub, { month, boatId });
+    return res.json(data);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao carregar pagamentos Stripe.";
+    // eslint-disable-next-line no-console
+    console.error("[GET /api/owner/stripe/transactions]", msg);
+    return res.status(503).send(msg);
+  }
+});
+
+app.get("/api/owner/dashboard", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const dashboard = await buildOwnerDashboard(req.user.sub);
+    return res.json(dashboard);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao carregar o painel.";
+    // eslint-disable-next-line no-console
+    console.error("[GET /api/owner/dashboard]", msg);
+    return res.status(503).send(msg);
+  }
+});
+
+app.get("/api/owner/revenue/monthly", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const months = normalizeRevenueChartMonths(req.query.months);
+    const payload = await buildOwnerRevenueMonthly(req.user.sub, months);
+    return res.json(payload);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao carregar faturamento mensal.";
+    // eslint-disable-next-line no-console
+    console.error("[GET /api/owner/revenue/monthly]", msg);
+    return res.status(503).send(msg);
+  }
+});
+
+app.get("/api/owner/revenue/daily", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const month = typeof req.query.month === "string" ? req.query.month : "";
+    const payload = await buildOwnerRevenueDaily(req.user.sub, month);
+    return res.json(payload);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao carregar faturamento diário.";
+    const status = msg === "Mês inválido." ? 400 : 503;
+    // eslint-disable-next-line no-console
+    console.error("[GET /api/owner/revenue/daily]", msg);
+    return res.status(status).send(msg);
+  }
+});
+
+app.get("/api/owner/revenue/dashboard", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const period = resolveOwnerRevenuePeriod(req.query);
+    const payload = await buildOwnerRevenueDashboard(req.user.sub, period);
+    return res.json(payload);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao carregar faturamento.";
+    const status =
+      msg.includes("inválid") || msg.includes("anterior") ? 400 : 503;
+    // eslint-disable-next-line no-console
+    console.error("[GET /api/owner/revenue/dashboard]", msg);
+    return res.status(status).send(msg);
+  }
+});
+
 const bbqKitItemSchema = z.object({
   label: z.string().min(1).max(120),
   amount: z.string().min(1).max(24),
   unit: z.enum(["un", "kg", "L"]),
 });
 
-const ownerUpdateBoatSchema = z.object({
+function isMotoAquaticaTipo(tipo) {
+  const t = String(tipo ?? "").trim();
+  return t === "Moto aquática" || t === "Jetsky" || t.toLowerCase() === "jetsky";
+}
+
+function refineOwnerBoatMotoCapacity(data, ctx) {
+  if (isMotoAquaticaTipo(data.tipo) && data.capacidade > 2) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Moto aquática: capacidade máxima de 2 pessoas.",
+      path: ["capacidade"],
+    });
+  }
+}
+
+const ownerUpdateBoatSchema = z
+  .object({
   nome: z.string().min(2).max(120),
   distancia: z.string().min(2).max(200),
   precoCents: z.number().int().min(0).max(500000000),
@@ -1718,12 +1833,22 @@ const ownerUpdateBoatSchema = z.object({
     )
     .max(8)
     .optional(),
-});
+})
+  .superRefine(refineOwnerBoatMotoCapacity);
 
 app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (req, res) => {
   try {
     const boatId = req.params.id;
-    const body = ownerUpdateBoatSchema.parse(req.body || {});
+    const raw = req.body || {};
+    if (typeof raw.ativo === "boolean" && Object.keys(raw).length === 1) {
+      const row = await query(
+        `update boats set is_active = $3 where id = $1 and owner_user_id = $2 returning id, is_active`,
+        [boatId, req.user.sub, raw.ativo]
+      );
+      if (!row.rows[0]) return res.status(404).send("Embarcação não encontrada.");
+      return res.json({ ok: true, ativo: Boolean(row.rows[0].is_active) });
+    }
+    const body = ownerUpdateBoatSchema.parse(raw);
 
     const jetOffered = body.jetSkiOffered === true;
     const jetImgs = Array.isArray(body.jetSkiImageUrls) ? body.jetSkiImageUrls : [];
@@ -1880,7 +2005,8 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
   }
 });
 
-const ownerCreateBoatSchema = z.object({
+const ownerCreateBoatSchema = z
+  .object({
   nome: z.string().min(2).max(120),
   distancia: z.string().min(2).max(200),
   precoCents: z.number().int().min(0).max(500000000),
@@ -1915,7 +2041,8 @@ const ownerCreateBoatSchema = z.object({
     )
     .max(8)
     .optional(),
-});
+})
+  .superRefine(refineOwnerBoatMotoCapacity);
 
 app.post("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, res) => {
   try {
@@ -2096,6 +2223,108 @@ app.put("/api/owner/boats/:id/calendar-locks", requireAuth, requireRole("locatar
   }
 });
 
+const ownerOptionalBodySchema = z.object({
+  kind: z.enum(["vehicle", "bbq", "other"]),
+  title: z.string().min(2).max(120),
+  description: z.string().max(400).optional().default(""),
+  priceCents: z.number().int().min(0).max(500000000),
+  imageUrls: z.array(z.string()).max(12),
+  boatIds: z.array(z.string().uuid()).max(50),
+  vehicleDocumentUrl: z.string().optional().nullable(),
+  bbqKitItems: z
+    .array(
+      z.object({
+        label: z.string().min(1).max(80),
+        amount: z.number().min(0).max(9999),
+        unit: z.string().max(24).optional(),
+      })
+    )
+    .max(24)
+    .optional(),
+});
+
+app.get("/api/owner/optionals", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const items = await listOwnerOptionals(query, req.user.sub, parseCustomOptionalsJson);
+    return res.json({ optionals: items });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao listar opcionais.";
+    return res.status(500).send(msg);
+  }
+});
+
+app.get("/api/owner/optionals/:id", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const item = await getOwnerOptional(query, req.user.sub, req.params.id);
+    if (!item) return res.status(404).send("Opcional não encontrado.");
+    return res.json({ optional: item });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao carregar opcional.";
+    return res.status(500).send(msg);
+  }
+});
+
+app.post("/api/owner/optionals", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const body = ownerOptionalBodySchema.parse(req.body);
+    const item = await createOwnerOptional(query, req.user.sub, body, parseCustomOptionalsJson);
+    return res.status(201).json({ optional: item });
+  } catch (e) {
+    if (e && typeof e === "object" && "code" in e && e.code === "OPTIONAL_KIND_EXISTS") {
+      return res.status(400).send(e instanceof Error ? e.message : "Opcional já existe.");
+    }
+    const msg = e instanceof Error ? e.message : "Erro ao criar opcional.";
+    return res.status(400).send(msg);
+  }
+});
+
+app.patch("/api/owner/optionals/:id", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const body = ownerOptionalBodySchema.partial().parse(req.body);
+    const item = await updateOwnerOptional(query, req.user.sub, req.params.id, body, parseCustomOptionalsJson);
+    if (!item) return res.status(404).send("Opcional não encontrado.");
+    return res.json({ optional: item });
+  } catch (e) {
+    if (e && typeof e === "object" && "code" in e && e.code === "OPTIONAL_KIND_EXISTS") {
+      return res.status(400).send(e instanceof Error ? e.message : "Opcional já existe.");
+    }
+    const msg = e instanceof Error ? e.message : "Erro ao atualizar opcional.";
+    return res.status(400).send(msg);
+  }
+});
+
+app.delete("/api/owner/optionals/:id", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const ok = await deleteOwnerOptional(query, req.user.sub, req.params.id, parseCustomOptionalsJson);
+    if (!ok) return res.status(404).send("Opcional não encontrado.");
+    return res.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao excluir opcional.";
+    return res.status(400).send(msg);
+  }
+});
+
+app.get("/api/boats/:boatId/optional-availability", async (req, res) => {
+  try {
+    const datesRaw = String(req.query.dates || "")
+      .split(",")
+      .map((d) => d.trim())
+      .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+    if (!datesRaw.length) return res.status(400).send("Informe dates=YYYY-MM-DD,...");
+    const data = await getBoatOptionalAvailability(
+      query,
+      req.params.boatId,
+      datesRaw,
+      parseCustomOptionalsJson
+    );
+    if (!data) return res.status(404).send("Barco não encontrado.");
+    return res.json(data);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao consultar disponibilidade.";
+    return res.status(500).send(msg);
+  }
+});
+
 // --- Bookings ---
 /** Banhista: não reserva no mesmo dia nem no dia seguinte (primeira data = hoje + 2). */
 const BANHISTA_MIN_CALENDAR_LEAD_DAYS = 2;
@@ -2243,6 +2472,23 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
       return res.status(400).send("Total da reserva inconsistente. Atualize a página e tente novamente.");
     }
 
+    try {
+      await assertOwnerOptionalsAvailable({
+        query,
+        ownerUserId: b.owner_user_id,
+        boatId: body.boatId,
+        tripDays,
+        bodyFallback: body,
+        excludeBookingId: null,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Opcional indisponível.";
+      if (e && typeof e === "object" && "code" in e && e.code === "OPTIONAL_UNAVAILABLE") {
+        return res.status(409).send(msg);
+      }
+      return res.status(400).send(msg);
+    }
+
     let embLoc = null;
     if (body.embarkLocation !== undefined && body.embarkLocation !== null) {
       const t = String(body.embarkLocation).trim();
@@ -2346,6 +2592,9 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
     }
     if (e && typeof e === "object" && "code" in e && e.code === "DATE_OCCUPIED") {
       return res.status(400).send(msg);
+    }
+    if (e && typeof e === "object" && "code" in e && e.code === "OPTIONAL_UNAVAILABLE") {
+      return res.status(409).send(msg);
     }
     if (e && typeof e === "object" && "code" in e && e.code === "BOOKING_MIN_LEAD") {
       return res.status(400).send(msg);
@@ -3063,14 +3312,14 @@ app.post(
       const conflict = await client.query(
         `select id from bookings
          where boat_id = $1 and booking_date = $2::date
-           and status in ('ACCEPTED','COMPLETED')
+           and status in ('PENDING','ACCEPTED','COMPLETED')
            and id <> $3::uuid
          limit 1`,
         [pr.boat_id, pr.bd, bookingId]
       );
       if (conflict.rows[0]) {
         await client.query("ROLLBACK");
-        return res.status(400).send("Já existe reserva confirmada neste dia para este barco.");
+        return res.status(400).send("Já existe reserva neste dia para esta embarcação.");
       }
 
       if (isPaymentsStripe()) {
@@ -3516,6 +3765,7 @@ Teste: http://127.0.0.1:3001/api/health
     await ensureBbqKitPriceColumn();
     await ensureJetSkiBoatAndBookingColumns();
     await ensureTripExtrasColumns();
+    await ensureOwnerOptionalsTables(query);
     try {
       await applyDemoFleetOptionalsVariety(query);
     } catch (e) {

@@ -127,7 +127,7 @@ export function MobileNavHost({ children }: { children: ReactNode }) {
                     to="/marinheiro"
                     active={false}
                     icon={Ship}
-                    label={t("nav.bottom.myBoats")}
+                    label={t("ownerPanel.tabHome")}
                   />
                   <TabButton
                     to="/conta/favoritos"

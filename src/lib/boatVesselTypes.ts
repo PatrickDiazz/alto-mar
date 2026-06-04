@@ -39,6 +39,15 @@ export function isMotoAquaticaVessel(tipo: string): boolean {
   return normalizeVesselTipo(tipo) === MOTO_AQUATICA_TIPO;
 }
 
+/** Capacidade máxima (e fixa no cadastro) para moto aquática. */
+export const MOTO_AQUATICA_MAX_CAPACITY = 2;
+
+export function clampBoatCapacityForTipo(capacidade: number, tipo: string): number {
+  const n = Math.max(1, Math.round(Number(capacidade) || 0));
+  if (isMotoAquaticaVessel(tipo)) return Math.min(MOTO_AQUATICA_MAX_CAPACITY, n);
+  return n;
+}
+
 export function vesselTypeLabel(t: TFunction, dbValue: string): string {
   const n = normalizeVesselTipo(dbValue);
   const entry = BOAT_VESSEL_TYPES.find((x) => x === n);

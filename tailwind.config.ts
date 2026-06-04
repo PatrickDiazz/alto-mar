@@ -114,6 +114,11 @@ export default {
           "0%": { transform: "translate3d(23vw, 0, 0)" },
           "100%": { transform: "translate3d(118vw, 0, 0)" },
         },
+        /** Leve flutuação — iate permanece visível na hero. */
+        "seja-locador-boat-float": {
+          "0%, 100%": { transform: "translate3d(0, 0, 0)" },
+          "50%": { transform: "translate3d(0, -10px, 0)" },
+        },
         /** BoatCard: opcionais em letreiro (faixa duplicada → -50%). */
         "boat-card-optionals-marquee": {
           "0%": { transform: "translateX(0)" },
@@ -141,6 +146,8 @@ export default {
         /** 110s bem lenta; linear = velocidade constante; 2.5s antes de começar a mover. */
         "seja-locador-boat-once":
           "seja-locador-boat-once 110s linear 2.5s both",
+        "seja-locador-boat-float":
+          "seja-locador-boat-float 7s ease-in-out infinite",
         "boat-card-optionals-marquee":
           "boat-card-optionals-marquee 16s linear infinite",
         "bbq-kit-collapsible-down":

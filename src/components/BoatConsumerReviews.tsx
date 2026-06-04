@@ -7,6 +7,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useBoatReviews } from "@/hooks/useBoatReviews";
+import { formatBoatRatingLabel } from "@/lib/boatRating";
 import { cn } from "@/lib/utils";
 import { bcp47FromAppLang } from "@/lib/localeFormat";
 
@@ -48,15 +49,20 @@ export function BoatConsumerReviews({ boatId, ratingLabel }: BoatConsumerReviews
   const { data, isPending, isError } = useBoatReviews(boatId);
 
   const reviews = data?.reviews ?? [];
-  const count = data?.count ?? reviews.length;
-  const hasReviews = reviews.length > 0;
+  const count = reviews.length;
+  const hasReviews = count > 0;
+  const displayRating =
+    data?.average != null && data.average > 0
+      ? formatBoatRatingLabel(data.average)
+      : ratingLabel;
+  const showDemoHint = Boolean(data?.includesDemo ?? data?.demo);
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="space-y-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <div className="flex items-center gap-2">
           <Star className="h-5 w-5 fill-accent text-accent" aria-hidden />
-          <span className="text-lg font-semibold text-accent tabular-nums">{ratingLabel}</span>
+          <span className="text-lg font-semibold text-accent tabular-nums">{displayRating}</span>
         </div>
         <CollapsibleTrigger asChild>
           <button
@@ -100,7 +106,7 @@ export function BoatConsumerReviews({ boatId, ratingLabel }: BoatConsumerReviews
             <p className="text-sm text-muted-foreground">{t("detalhes.reviewsEmpty")}</p>
           ) : (
             <>
-              {data?.demo ? (
+              {showDemoHint ? (
                 <p className="text-[11px] text-muted-foreground">{t("detalhes.reviewsDemoHint")}</p>
               ) : null}
               <ul className="space-y-2.5">

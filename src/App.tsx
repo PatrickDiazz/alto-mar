@@ -112,7 +112,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/marinheiro"
+                  path="/marinheiro/*"
                   element={
                     <RequireAuth>
                       <Marinheiro />

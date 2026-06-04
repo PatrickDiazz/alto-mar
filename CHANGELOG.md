@@ -31,6 +31,40 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
+## [0.14.0] — 2026-05-28
+
+### Adicionado
+
+- **Painel Marinheiro** reestruturado em rotas dedicadas (`OwnerPanelLayout`, navegação inferior no mobile): **Início**, **Agenda**, **Reservas**, **Embarcações**, **Opcionais**, **Perfil** e **Faturamento**.
+- **Início do locador** (`GET /api/owner/dashboard`): passeios e faturamento do mês, prévia da agenda, top embarcações e atalhos para opcionais.
+- **Cadastro de embarcação em etapas** (`/marinheiro/embarcacoes/novo`): wizard com pré-visualização do anúncio, validação por passo, confirmação com declarações e link ao **Contrato de Parceria** (PDF em `public/documents/`); ecrã **em análise** após envio (`verified: false`).
+- Etapas do wizard: dados básicos, fotos, roteiro (paradas + embarque), fotos do roteiro (opcional com **Pular**), opcionais (amenidades, kit churrasco, jet ski, extras), mídia (vídeo, TIE, TIEM) e confirmação.
+- **Moto aquática**: fluxo reduzido de etapas; **capacidade fixa em 2 pessoas** (UI e validação na API).
+- **Faturamento** (`/marinheiro/faturamento`): dashboard de receita com filtro de período, gráficos, desempenho, **receita por origem** (embarcações vs opcionais), repasses e transações Stripe (`ownerRevenueDashboard.js`, APIs `revenue/dashboard`, `monthly`, `daily`).
+- **Opcionais globais do locador**: CRUD em `/marinheiro/opcionais` e APIs `GET/POST/PATCH/DELETE /api/owner/optionals`; migração `db/owner_optionals.sql`.
+- **Preço do kit churrasco** configurável pelo locador (mín. R$ 1,00 quando o kit está activo).
+- **Avaliações ao banhista**: média e listagem combinam avaliações **reais** e **mock** estáveis por barco (`server/boatDisplayRating.js`); testes em `src/lib/boatDisplayRating.test.ts`.
+- Módulos de apoio: `ownerDashboard.js`, `ownerRevenue.js`, `ownerOptionals.js`, `ownerStripeTransactions.js`, libs `ownerBoatRegister*`, `ownerPartnershipContract.ts`.
+
+### Alterado
+
+- **`Marinheiro.tsx`**: de página monolítica para router com lazy-loading das páginas em `src/pages/owner/`.
+- **Detalhes / reviews**: estrela e média alinhadas à API de reviews (`BoatConsumerReviews` usa `average` combinado).
+- **Listagens públicas de barcos**: `nota` exibida com média real + mock; painel do locador mantém `rating` só de reservas reais.
+- Confirmação final do cadastro: declarações sem citação de cláusulas numeradas na UI (contrato só via PDF).
+- **i18n** (pt / en / es): `ownerPanel.*`, `marinheiro.register*`, faturamento, moto aquática, confirmação e bloqueios de etapa.
+
+### Corrigido
+
+- **`POST /api/owner/boats`**: `require is not defined` ao normalizar opcionais customizados (ESM: `crypto.randomUUID()`).
+- Reinício da API após refactor de avaliações (import único de `buildDemoBoatReviews` em `boatDisplayRating.js`).
+
+### Versões
+
+- Cliente e servidor **0.14.0**; Android **`versionName` 0.14.0**, **`versionCode` 12**.
+
+---
+
 ## [0.13.3] — 2026-05-16
 
 ### Adicionado

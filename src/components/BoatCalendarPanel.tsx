@@ -156,7 +156,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
       const hit = data.bookings.find(
         (b) =>
           b.date === key &&
-          (b.status === "ACCEPTED" || b.status === "COMPLETED") &&
+          (b.status === "PENDING" || b.status === "ACCEPTED" || b.status === "COMPLETED") &&
           b.id !== excludeId
       );
       return Boolean(hit);
@@ -297,7 +297,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
         {loadErr ? <p className="text-sm text-destructive">{loadErr}</p> : null}
         <div
           ref={monthNavHostRef}
-          className="w-full max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]"
+          className="flex w-full max-w-full justify-center overflow-x-hidden md:block md:overflow-x-auto md:overscroll-x-contain md:scrollbar-none [-webkit-overflow-scrolling:touch]"
         >
         <DayPicker
           mode="multiple"
@@ -367,15 +367,15 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
             ownerLockDateDraft:
               "!z-[1] !box-border !rounded-md !border-2 !border-red-300 !bg-transparent !text-foreground !font-medium !shadow-none !ring-0 dark:!border-red-500/55",
           }}
-          className="min-w-[260px] rounded-xl border-0 bg-muted p-2 shadow-card sm:p-3 dark:bg-card"
+          className="owner-calendar-outer-nav min-w-[260px] rounded-xl border-0 bg-muted p-2 shadow-card sm:p-3 dark:bg-card"
           classNames={{
             ...boatCalendarCaptionNavClassNames,
             ...boatCalendarMultiMonthClassNames,
             table: "w-full border-collapse",
-            head_row: "flex",
-            head_cell: "text-muted-foreground w-9 font-normal text-[0.8rem]",
-            row: "flex w-full mt-2",
-            cell: "h-9 w-9 text-center text-sm p-0 relative",
+            head_row: "table-row",
+            head_cell: "h-9 w-10 p-0 text-center align-middle text-[0.8rem] font-normal text-muted-foreground",
+            row: "table-row",
+            cell: "relative h-10 w-10 p-0 text-center align-middle text-sm",
             day: "h-9 w-9 rounded-md p-0 font-normal box-border border-2 border-transparent aria-selected:opacity-100 hover:bg-accent",
             /** Não forçar fundo transparente: senão esconde ownerLockDateSaved / rascunho ao estar em `selected`. */
             day_selected: "!font-medium !shadow-none focus:!text-foreground aria-selected:opacity-100",
@@ -446,7 +446,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
       {loadErr ? <p className="text-sm text-destructive">{loadErr}</p> : null}
       <div
         ref={monthNavHostRef}
-        className="w-full max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]"
+        className="flex w-full max-w-full justify-center overflow-x-hidden md:block md:overflow-x-auto md:overscroll-x-contain md:scrollbar-none [-webkit-overflow-scrolling:touch]"
       >
       <DayPicker
         mode="single"
@@ -478,15 +478,15 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
         disabled={props.variant === "picker" ? disabledMatcher : false}
         modifiers={{ ...modifiers }}
         modifiersClassNames={modifiersClassNamesPicker}
-        className="min-w-[260px] rounded-xl border-0 bg-muted p-2 shadow-card sm:p-3 dark:bg-card"
+        className="owner-calendar-outer-nav min-w-[260px] rounded-xl border-0 bg-muted p-2 shadow-card sm:p-3 dark:bg-card"
         classNames={{
           ...boatCalendarCaptionNavClassNames,
           ...boatCalendarMultiMonthClassNames,
           table: "w-full border-collapse",
-          head_row: "flex",
-          head_cell: "text-muted-foreground w-9 font-normal text-[0.8rem]",
-          row: "flex w-full mt-2",
-          cell: "h-9 w-9 text-center text-sm p-0 relative",
+          head_row: "table-row",
+          head_cell: "h-9 w-10 p-0 text-center align-middle text-[0.8rem] font-normal text-muted-foreground",
+          row: "table-row",
+          cell: "relative h-10 w-10 p-0 text-center align-middle text-sm",
           day: "h-9 w-9 rounded-md p-0 font-normal aria-selected:opacity-100 hover:bg-accent",
           day_selected:
             "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
