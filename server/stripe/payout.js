@@ -2,10 +2,11 @@ import { pool, query } from "../db.js";
 import { getStripe } from "./client.js";
 import { getBookingLedgerBalanceForUpdate, insertLedgerEntry } from "./ledger.js";
 import { StripeFlowStatus } from "./flowStatus.js";
+import { assertOwnerConnectReady } from "./connectStatus.js";
+import { processTransferQueue, TRANSFER_MAX_RETRIES } from "./transferWorker.js";
 
 /**
- * Locador inicia passeio: cria transferência Connect (idempotência por linha de transferência).
- * Corrige o doc: chave `stripe_transfer_${transferRowId}` (estável por tentativa de transferência).
+ * Locador inicia passeio: enfileira transferência Connect (processamento assíncrono).
  * @param {{ bookingId: string; ownerUserId: string }} input
  */
 export async function startStripeBookingPayout(input) {
@@ -18,9 +19,6 @@ export async function startStripeBookingPayout(input) {
 
   const client = await pool.connect();
   let transferRowId;
-  let ownerNetCents = 0;
-  let bookingOwnerStripe = null;
-  let stripeChargeId = null;
 
   try {
     await client.query("BEGIN");
@@ -45,34 +43,37 @@ export async function startStripeBookingPayout(input) {
       e.code = "INVALID_STATUS";
       throw e;
     }
-    if (b.stripe_flow_status !== StripeFlowStatus.PAID) {
+    if (b.stripe_flow_status !== StripeFlowStatus.PAID && b.stripe_flow_status !== StripeFlowStatus.TRANSFER_FAILED) {
       const e = new Error("O cliente ainda não concluiu o pagamento Stripe desta reserva.");
       e.code = "NOT_PAID";
       throw e;
     }
 
-    const dup = await client.query(
-      `select id from stripe_connect_transfers
-       where booking_id = $1::uuid and status <> 'FAILED'
+    await assertOwnerConnectReady(stripe, b.stripe_connect_account_id);
+
+    const active = await client.query(
+      `select id, status, retry_count from stripe_connect_transfers
+       where booking_id = $1::uuid and status in ('PENDING', 'PROCESSING', 'PAID')
        limit 1
        for update`,
       [input.bookingId]
     );
-    if (dup.rows[0]) {
+    if (active.rows[0]) {
       const e = new Error("Transferência já iniciada ou concluída para esta reserva.");
       e.code = "DUPLICATE_TRANSFER";
       throw e;
     }
 
-    const ownerStripe = b.stripe_connect_account_id;
-    if (!ownerStripe) {
-      const e = new Error("Conta Stripe Connect do locador não configurada.");
-      e.code = "NO_CONNECT_ACCOUNT";
-      throw e;
-    }
+    const failed = await client.query(
+      `select id, retry_count from stripe_connect_transfers
+       where booking_id = $1::uuid and status = 'FAILED'
+       limit 1
+       for update`,
+      [input.bookingId]
+    );
 
     const pay = await client.query(
-      `select stripe_charge_id, stripe_payment_intent_id, amount_cents
+      `select stripe_charge_id, amount_cents
        from payments
        where booking_id = $1::uuid and provider = 'STRIPE' and status = 'APPROVED'
        limit 1
@@ -86,20 +87,35 @@ export async function startStripeBookingPayout(input) {
       throw e;
     }
 
-    ownerNetCents = Number(b.owner_net_cents ?? p.amount_cents);
+    const ownerNetCents = Number(b.owner_net_cents ?? p.amount_cents);
     if (!Number.isFinite(ownerNetCents) || ownerNetCents <= 0) {
       const e = new Error("Valor líquido do locador inválido.");
       e.code = "INVALID_NET";
       throw e;
     }
 
-    const ins = await client.query(
-      `insert into stripe_connect_transfers (booking_id, owner_user_id, amount_cents, status)
-       values ($1::uuid, $2::uuid, $3, 'PENDING')
-       returning id`,
-      [input.bookingId, input.ownerUserId, ownerNetCents]
-    );
-    transferRowId = ins.rows[0].id;
+    if (failed.rows[0]) {
+      if (Number(failed.rows[0].retry_count) >= TRANSFER_MAX_RETRIES) {
+        const e = new Error("Número máximo de tentativas de repasse atingido. Contacte o suporte.");
+        e.code = "MAX_RETRIES";
+        throw e;
+      }
+      transferRowId = failed.rows[0].id;
+      await client.query(
+        `update stripe_connect_transfers
+         set status = 'PENDING', next_retry_at = now(), updated_at = now()
+         where id = $1::uuid`,
+        [transferRowId]
+      );
+    } else {
+      const ins = await client.query(
+        `insert into stripe_connect_transfers (booking_id, owner_user_id, amount_cents, status)
+         values ($1::uuid, $2::uuid, $3, 'PENDING')
+         returning id`,
+        [input.bookingId, input.ownerUserId, ownerNetCents]
+      );
+      transferRowId = ins.rows[0].id;
+    }
 
     await client.query(
       `update bookings
@@ -110,9 +126,6 @@ export async function startStripeBookingPayout(input) {
     );
 
     await client.query("COMMIT");
-
-    bookingOwnerStripe = ownerStripe;
-    stripeChargeId = p.stripe_charge_id;
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});
     throw e;
@@ -120,56 +133,14 @@ export async function startStripeBookingPayout(input) {
     client.release();
   }
 
-  const idempotencyKey = `stripe_transfer_${transferRowId}`;
+  setImmediate(() => {
+    processTransferQueue({ limit: 1 }).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error("[stripe] processTransferQueue após start-payout:", err);
+    });
+  });
 
-  try {
-    await query(
-      `update stripe_connect_transfers set status = 'PROCESSING', updated_at = now() where id = $1::uuid`,
-      [transferRowId]
-    );
-    await query(
-      `update bookings set stripe_flow_status = $2 where id = $1::uuid`,
-      [input.bookingId, StripeFlowStatus.TRANSFER_PROCESSING]
-    );
-
-    const transfer = await stripe.transfers.create(
-      {
-        amount: ownerNetCents,
-        currency: "brl",
-        destination: bookingOwnerStripe,
-        source_transaction: stripeChargeId,
-        transfer_group: `booking_${input.bookingId}`,
-        metadata: {
-          booking_id: input.bookingId,
-          transfer_row_id: String(transferRowId),
-          release_reason: "tour_started",
-        },
-      },
-      { idempotencyKey }
-    );
-
-    await query(
-      `update stripe_connect_transfers
-       set stripe_transfer_id = $2, status = 'PROCESSING', updated_at = now()
-       where id = $1::uuid`,
-      [transferRowId, transfer.id]
-    );
-
-    return { transferId: transfer.id, transferRowId };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await query(
-      `update stripe_connect_transfers
-       set status = 'FAILED', last_error = $2, failed_at = now(), updated_at = now()
-       where id = $1::uuid`,
-      [transferRowId, msg]
-    );
-    await query(
-      `update bookings set stripe_flow_status = $2 where id = $1::uuid`,
-      [input.bookingId, StripeFlowStatus.TRANSFER_FAILED]
-    );
-    throw err;
-  }
+  return { queued: true, transferRowId };
 }
 
 /**
@@ -218,8 +189,8 @@ export async function finalizeTransferPaidInTx(client, transfer, stripeEventId) 
      set stripe_flow_status = $2,
          status = 'COMPLETED',
          tour_completed_at = coalesce(tour_completed_at, now())
-     where id = $3::uuid`,
-    [StripeFlowStatus.TRANSFER_PAID, row.booking_id]
+     where id = $1::uuid`,
+    [row.booking_id, StripeFlowStatus.TRANSFER_PAID]
   );
 
   const currentBalance = await getBookingLedgerBalanceForUpdate(client, row.booking_id);
@@ -231,6 +202,9 @@ export async function finalizeTransferPaidInTx(client, transfer, stripeEventId) 
     runningBalanceCents: currentBalance - amount,
     eventId: ledgerEventId,
     description: "Transferência paga ao locador (Stripe Connect)",
-    metadata: { stripe_transfer_id: stripeTransferId },
+    metadata: {
+      stripe_transfer_id: stripeTransferId,
+      penalty_deducted_cents: row.penalty_deducted_cents,
+    },
   });
 }

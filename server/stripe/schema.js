@@ -63,8 +63,10 @@ export async function ensureStripeConnectSchema(q = query) {
       owner_user_id uuid not null references users(id) on delete restrict,
       stripe_transfer_id text unique,
       amount_cents integer not null check (amount_cents > 0),
+      penalty_deducted_cents integer not null default 0,
       status text not null,
       retry_count integer not null default 0,
+      next_retry_at timestamptz null,
       last_error text null,
       metadata jsonb null,
       requested_at timestamptz not null default now(),
@@ -72,6 +74,17 @@ export async function ensureStripeConnectSchema(q = query) {
       failed_at timestamptz null,
       updated_at timestamptz not null default now()
     )
+  `);
+  await q(
+    `alter table stripe_connect_transfers add column if not exists penalty_deducted_cents integer not null default 0`
+  );
+  await q(
+    `alter table stripe_connect_transfers add column if not exists next_retry_at timestamptz null`
+  );
+  await q(`
+    create unique index if not exists uq_stripe_connect_transfers_booking_active
+      on stripe_connect_transfers (booking_id)
+      where status in ('PENDING', 'PROCESSING', 'PAID')
   `);
   await q(
     `create index if not exists idx_stripe_connect_transfers_booking on stripe_connect_transfers (booking_id)`
@@ -132,5 +145,49 @@ export async function ensureStripeConnectSchema(q = query) {
       created_at timestamptz not null default now(),
       resolved_at timestamptz null
     )
+  `);
+
+  await q(`
+    create table if not exists stripe_disputes (
+      id uuid primary key default gen_random_uuid(),
+      booking_id uuid null references bookings(id) on delete set null,
+      payment_id uuid null references payments(id) on delete set null,
+      stripe_dispute_id text not null unique,
+      stripe_charge_id text null,
+      amount_cents integer not null,
+      currency text not null default 'brl',
+      status text not null,
+      reason text null,
+      payload jsonb null,
+      created_at timestamptz not null default now(),
+      closed_at timestamptz null,
+      updated_at timestamptz not null default now()
+    )
+  `);
+  await q(`create index if not exists idx_stripe_disputes_booking on stripe_disputes (booking_id)`);
+  await q(`create index if not exists idx_stripe_disputes_status on stripe_disputes (status)`);
+
+  await q(`
+    create or replace function get_refund_percentage(hours_until_service double precision)
+    returns integer
+    language sql
+    immutable
+    as $$
+      select case
+        when hours_until_service >= 168 then 100
+        when hours_until_service >= 48 then 50
+        else 0
+      end
+    $$
+  `);
+
+  await q(`
+    create or replace function can_cancel_booking(booking_status text)
+    returns boolean
+    language sql
+    immutable
+    as $$
+      select booking_status in ('PENDING', 'ACCEPTED')
+    $$
   `);
 }

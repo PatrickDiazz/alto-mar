@@ -949,7 +949,7 @@ const Explorar = () => {
         <div
           className="mx-auto max-w-6xl xl:max-w-7xl px-4"
           style={{
-            paddingTop: headerPadPx,
+            paddingTop: `calc(${headerPadPx}px + var(--safe-area-top, env(safe-area-inset-top, 0px)))`,
             paddingBottom: headerPadPx,
             transition: headerPadTransition,
           }}

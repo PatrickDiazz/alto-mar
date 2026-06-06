@@ -52,7 +52,7 @@ export function OwnerRevenueStatCard({
           )}
           {hint && !loading ? (
             <div className={cn("mt-1 text-[11px] font-medium", toneClass)}>{hint}</div>
-          ) : loading ? (
+          ) : hint && loading ? (
             <Skeleton className="mt-1.5 h-3 w-20" />
           ) : null}
         </div>

@@ -25,6 +25,11 @@ import {
 import { createConnectAccountLinkForOwner } from "./stripe/connect.js";
 import { startStripeBookingPayout } from "./stripe/payout.js";
 import { applyDemoFleetOptionalsVariety } from "./boatOptionalsProfile.js";
+import { startStripeCrons } from "./jobs/stripeCron.js";
+import { getConnectStatusForOwnerUser } from "./stripe/connectStatus.js";
+import { fetchStripeConnectMetrics } from "./stripe/metrics.js";
+import { calculateRefundAmount } from "./stripe/cancellationPolicy.js";
+import { cancelAcceptedBookingByOwnerInTx } from "./stripe/ownerCancel.js";
 import { buildOwnerDashboard } from "./ownerDashboard.js";
 import {
   buildOwnerRevenueDaily,
@@ -36,6 +41,7 @@ import {
   resolveOwnerRevenuePeriod,
 } from "./ownerRevenueDashboard.js";
 import { listOwnerStripeTransactions } from "./stripe/ownerTransactions.js";
+import { getOwnerBookingDetail } from "./stripe/ownerBookingDetail.js";
 import {
   buildDemoBoatReviews,
   computeBoatDisplayRating,
@@ -54,8 +60,28 @@ import {
   isPaymentsStripe,
   refundStripePaymentInTx,
   RenterNoticeCode,
-  estimateNonRefundableFeesCents,
 } from "./stripe/refunds.js";
+import { ensureNotificationsSchema } from "./notifications/schema.js";
+import {
+  registerPushToken,
+  unregisterPushToken,
+  listNotifications,
+  getUnreadNotificationCount,
+  markNotificationRead,
+  markAllNotificationsRead,
+} from "./notifications/service.js";
+import {
+  notifyAsync,
+  notifyBookingCreated,
+  notifyBookingAccepted,
+  notifyBookingDeclined,
+  notifyBookingCancelledByRenter,
+  notifyBookingCancelledByOwner,
+  notifyBookingRescheduled,
+  notifyBookingCompleted,
+  notifyBookingConflictCancelled,
+  notifyBookingPaymentReceived,
+} from "./notifications/bookingEvents.js";
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
@@ -2573,6 +2599,7 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
       );
     }
 
+    notifyAsync(() => notifyBookingCreated(String(booking.id)));
     return res.json({
       booking: {
         id: booking.id,
@@ -2749,10 +2776,13 @@ const stripeSyncBodySchema = z.object({
 app.post("/api/stripe/sync-checkout-session", requireAuth, requireRole("banhista"), async (req, res) => {
   try {
     const body = stripeSyncBodySchema.parse(req.body || {});
-    await syncPaidCheckoutSessionFromReturn({
+    const sync = await syncPaidCheckoutSessionFromReturn({
       sessionId: body.sessionId,
       renterUserId: req.user.sub,
     });
+    if (sync.bookingId) {
+      notifyAsync(() => notifyBookingPaymentReceived(String(sync.bookingId)));
+    }
     return res.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro ao sincronizar pagamento.";
@@ -2781,7 +2811,7 @@ app.post("/api/stripe/checkout-session", requireAuth, requireRole("banhista"), a
       const c = String(e.code);
       if (c === "STRIPE_DISABLED") return res.status(503).send(msg);
       if (c === "FORBIDDEN" || c === "NOT_FOUND") return res.status(403).send(msg);
-      if (c === "INVALID_STATUS" || c === "OWNER_NOT_ONBOARDED" || c === "ALREADY_PAID" || c === "ALREADY_PAID_MP") {
+      if (c === "INVALID_STATUS" || c === "OWNER_NOT_ONBOARDED" || c === "CONNECT_ACCOUNT_INACTIVE" || c === "ALREADY_PAID" || c === "ALREADY_PAID_MP") {
         return res.status(400).send(msg);
       }
     }
@@ -2805,6 +2835,29 @@ app.post("/api/stripe/connect/account-link", requireAuth, requireRole("locatario
     if (e && typeof e === "object" && "code" in e && String(e.code) === "STRIPE_DISABLED") {
       return res.status(503).send(msg);
     }
+    return res.status(400).send(msg);
+  }
+});
+
+app.get("/api/owner/stripe/connect-status", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const status = await getConnectStatusForOwnerUser(req.user.sub);
+    return res.json(status);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao consultar Stripe Connect.";
+    return res.status(400).send(msg);
+  }
+});
+
+app.get("/api/owner/stripe/metrics", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    if (!isPaymentsStripe()) {
+      return res.status(400).send("PAYMENTS_PROVIDER não está em modo stripe.");
+    }
+    const metrics = await fetchStripeConnectMetrics();
+    return res.json(metrics);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao carregar métricas Stripe.";
     return res.status(400).send(msg);
   }
 });
@@ -2979,11 +3032,7 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
       vals.push(body.totalCents);
       n += 1;
     }
-    if (body.routeIslands !== undefined) {
-      sets.push(`route_islands = $${n}`);
-      vals.push(body.routeIslands);
-      n += 1;
-    }
+    // Paradas vêm do anúncio na criação — banhista não pode alterar depois.
     if (body.bookingDate !== undefined) {
       sets.push(`booking_date = $${n}::date`);
       vals.push(body.bookingDate);
@@ -3023,6 +3072,9 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
       vals
     );
     const row = updated.rows[0];
+    if (reschedulePayload) {
+      notifyAsync(() => notifyBookingRescheduled(String(bookingId)));
+    }
     return res.json({ booking: row });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro ao atualizar reserva.";
@@ -3104,40 +3156,27 @@ app.post("/api/renter/bookings/:id/cancel", requireAuth, requireRole("banhista")
       if (stripePaid) {
         const totalCents = Math.max(0, Number(row.total_cents || 0));
         const hoursUntil = Number(row.hours_until_service ?? -999999);
-        let refundAmountCents = 0;
-        let refundType = "RENTER_CANCEL_NO_REFUND_LT48H";
-        let policyLabel = "Política aplicada: sem reembolso (menos de 48h ou no-show).";
-        if (hoursUntil >= 24 * 7) {
-          const nonRefundable = estimateNonRefundableFeesCents({
-            totalCents,
-            platformFeeCents: row.platform_fee_cents,
-          });
-          refundAmountCents = Math.max(0, totalCents - nonRefundable);
-          refundType = "RENTER_CANCEL_FULL_FEE_DEDUCTED";
-          policyLabel =
-            "Política aplicada: reembolso com 7+ dias, descontadas taxas não reembolsáveis da plataforma e do gateway.";
-          renterNoticeCode = RenterNoticeCode.RENTER_CANCEL_FULL_FEE_DEDUCTED;
-        } else if (hoursUntil >= 24 * 2) {
-          refundAmountCents = Math.floor(totalCents * 0.5);
-          refundType = "RENTER_CANCEL_PARTIAL_50";
-          policyLabel = "Política aplicada: cancelamento entre 6 e 2 dias, reembolso de 50% do valor do serviço.";
-          renterNoticeCode = RenterNoticeCode.RENTER_CANCEL_PARTIAL_50;
-        } else {
-          renterNoticeCode = RenterNoticeCode.RENTER_CANCEL_NO_REFUND_LT48H;
-        }
+        const calc = calculateRefundAmount({
+          totalCents,
+          ownerNetCents: row.owner_net_cents,
+          platformFeeCents: row.platform_fee_cents,
+          hoursUntilService: hoursUntil,
+          initiatedBy: "customer",
+        });
 
-        if (refundAmountCents > 0) {
+        if (calc.customerRefundCents > 0) {
           await refundStripePaymentInTx(client, stripe, {
             bookingId,
-            refundType,
-            reason: `Cancelamento pelo banhista. ${policyLabel}`,
+            refundType: calc.refundType,
+            reason: `Cancelamento pelo banhista. ${calc.policyLabel}`,
             cancelledBy: "RENTER",
             cancelledByUserId: req.user.sub,
-            refundAmountCents,
+            refundAmountCents: calc.customerRefundCents,
           });
         }
 
-        cancelNote = `${note}\n\n${policyLabel}`;
+        renterNoticeCode = calc.renterNoticeCode;
+        cancelNote = `${note}\n\n${calc.policyLabel}`;
       }
     }
 
@@ -3159,6 +3198,7 @@ app.post("/api/renter/bookings/:id/cancel", requireAuth, requireRole("banhista")
     }
 
     await client.query("COMMIT");
+    notifyAsync(() => notifyBookingCancelledByRenter(String(bookingId)));
     return res.json({ booking: out });
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});
@@ -3281,6 +3321,21 @@ app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req
   }
 });
 
+app.get("/api/owner/bookings/:id", requireAuth, requireRole("locatario"), async (req, res) => {
+  try {
+    const bookingId = String(req.params.id || "").trim();
+    if (!bookingId) return res.status(400).send("ID da reserva inválido.");
+    const data = await getOwnerBookingDetail(req.user.sub, bookingId);
+    if (!data) return res.status(404).send("Reserva não encontrada.");
+    return res.json(data);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao carregar reserva.";
+    // eslint-disable-next-line no-console
+    console.error("[GET /api/owner/bookings/:id]", msg);
+    return res.status(503).send(msg);
+  }
+});
+
 const decideSchema = z.object({
   note: z.string().max(500).optional(),
 });
@@ -3360,8 +3415,10 @@ app.post(
       );
       const reasonDup =
         "Cancelamento automático: outra reserva para a mesma embarcação e data foi aceite; reembolso quando aplicável (Stripe).";
+      const siblingIds = [];
       for (const s of sibs.rows) {
         const sid = String(s.id);
+        siblingIds.push(sid);
         if (isPaymentsStripe() && stripe) {
           await refundStripePaymentInTx(client, stripe, {
             bookingId: sid,
@@ -3382,6 +3439,12 @@ app.post(
       }
 
       await client.query("COMMIT");
+      notifyAsync(async () => {
+        await notifyBookingAccepted(String(bookingId));
+        for (const sid of siblingIds) {
+          await notifyBookingConflictCancelled(sid);
+        }
+      });
       return res.json({ booking: row });
     } catch (e) {
       await client.query("ROLLBACK").catch(() => {});
@@ -3451,6 +3514,7 @@ app.post(
       }
 
       await client.query("COMMIT");
+      notifyAsync(() => notifyBookingDeclined(String(bookingId)));
       return res.json({ booking: row });
     } catch (e) {
       await client.query("ROLLBACK").catch(() => {});
@@ -3473,7 +3537,7 @@ app.post(
       }
       const bookingId = req.params.id;
       const out = await startStripeBookingPayout({ bookingId, ownerUserId: req.user.sub });
-      return res.json({ ok: true, stripeTransferId: out.transferId, transferRowId: out.transferRowId });
+      return res.status(202).json({ ok: true, queued: true, transferRowId: out.transferRowId });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erro ao iniciar repasse Stripe.";
       if (e && typeof e === "object" && "code" in e) {
@@ -3485,13 +3549,58 @@ app.post(
           c === "NOT_PAID" ||
           c === "DUPLICATE_TRANSFER" ||
           c === "NO_CONNECT_ACCOUNT" ||
+          c === "CONNECT_ACCOUNT_INACTIVE" ||
           c === "NO_CHARGE" ||
-          c === "INVALID_NET"
+          c === "INVALID_NET" ||
+          c === "MAX_RETRIES"
         ) {
           return res.status(400).send(msg);
         }
       }
       return res.status(400).send(msg);
+    }
+  }
+);
+
+const ownerCancelSchema = z.object({
+  reason: z.string().min(10).max(1000),
+  scenario: z.enum(["owner", "weather", "boat_failure"]).default("owner"),
+});
+
+app.post(
+  "/api/owner/bookings/:id/cancel",
+  requireAuth,
+  requireRole("locatario"),
+  async (req, res) => {
+    const bookingId = req.params.id;
+    const client = await pool.connect();
+    try {
+      const body = ownerCancelSchema.parse(req.body || {});
+      const stripe = getStripe();
+
+      await client.query("BEGIN");
+      const result = await cancelAcceptedBookingByOwnerInTx(client, stripe, {
+        bookingId,
+        ownerUserId: req.user.sub,
+        reason: body.reason.trim(),
+        scenario: body.scenario,
+      });
+      if (!result.booking) {
+        await client.query("ROLLBACK");
+        return res.status(404).send("Reserva não encontrada ou não está aceita.");
+      }
+      await client.query("COMMIT");
+      notifyAsync(() => notifyBookingCancelledByOwner(String(bookingId)));
+      return res.json({ booking: result.booking, penaltyCents: result.refund.ownerPenaltyCents });
+    } catch (e) {
+      await client.query("ROLLBACK").catch(() => {});
+      const msg = e instanceof Error ? e.message : "Erro ao cancelar reserva.";
+      if (e && typeof e === "object" && "code" in e && String(e.code) === "NOT_FOUND") {
+        return res.status(404).send(msg);
+      }
+      return res.status(400).send(msg);
+    } finally {
+      client.release();
     }
   }
 );
@@ -3537,6 +3646,7 @@ app.post(
       );
       const row = updated.rows[0];
       if (!row) return res.status(404).send("Reserva não encontrada ou não está aceita.");
+      notifyAsync(() => notifyBookingCompleted(String(bookingId)));
       return res.json({ booking: row });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erro ao concluir reserva.";
@@ -3634,6 +3744,76 @@ app.post("/api/owner/bookings/:id/rate-renter", requireAuth, requireRole("locata
     return res.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro ao registrar avaliação.";
+    return res.status(400).send(msg);
+  }
+});
+
+const pushTokenSchema = z.object({
+  token: z.string().min(10).max(4096),
+  platform: z.string().max(32).optional(),
+});
+
+app.post("/api/notifications/push-token", requireAuth, async (req, res) => {
+  try {
+    const body = pushTokenSchema.parse(req.body || {});
+    await registerPushToken(req.user.sub, body.token, body.platform);
+    return res.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao registar dispositivo.";
+    return res.status(400).send(msg);
+  }
+});
+
+app.delete("/api/notifications/push-token", requireAuth, async (req, res) => {
+  try {
+    const body = pushTokenSchema.parse(req.body || {});
+    await unregisterPushToken(req.user.sub, body.token);
+    return res.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao remover dispositivo.";
+    return res.status(400).send(msg);
+  }
+});
+
+app.get("/api/notifications", requireAuth, async (req, res) => {
+  try {
+    const limitRaw = Number(req.query.limit);
+    const limit = Number.isFinite(limitRaw) ? limitRaw : 30;
+    const notifications = await listNotifications(req.user.sub, { limit });
+    return res.json({ notifications });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao carregar notificações.";
+    return res.status(400).send(msg);
+  }
+});
+
+app.get("/api/notifications/unread-count", requireAuth, async (req, res) => {
+  try {
+    const count = await getUnreadNotificationCount(req.user.sub);
+    return res.json({ count });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao contar notificações.";
+    return res.status(400).send(msg);
+  }
+});
+
+app.post("/api/notifications/read-all", requireAuth, async (req, res) => {
+  try {
+    const result = await markAllNotificationsRead(req.user.sub);
+    return res.json(result);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao marcar notificações.";
+    return res.status(400).send(msg);
+  }
+});
+
+app.post("/api/notifications/:id/read", requireAuth, async (req, res) => {
+  try {
+    const notification = await markNotificationRead(req.user.sub, req.params.id);
+    if (!notification) return res.status(404).send("Notificação não encontrada.");
+    return res.json({ notification });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao marcar notificação.";
     return res.status(400).send(msg);
   }
 });
@@ -3774,6 +3954,8 @@ Teste: http://127.0.0.1:3001/api/health
       console.warn("[alto-mar] variedade de opcionais (frota demo):", msg);
     }
     await ensureStripeConnectSchema();
+    await ensureNotificationsSchema();
+    startStripeCrons();
     if (
       String(process.env.PAYMENTS_PROVIDER || "").toLowerCase() === "stripe" &&
       isStripePixEnabled() &&

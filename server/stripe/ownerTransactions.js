@@ -7,7 +7,7 @@ import { StripeFlowStatus } from "./flowStatus.js";
  * @param {{ chargeId?: string | null; paymentIntentId?: string | null }} ids
  * @returns {Promise<string | null>}
  */
-async function resolveStripeReceiptUrl(stripe, { chargeId, paymentIntentId }) {
+export async function resolveStripeReceiptUrl(stripe, { chargeId, paymentIntentId }) {
   if (chargeId) {
     try {
       const ch = await stripe.charges.retrieve(chargeId);

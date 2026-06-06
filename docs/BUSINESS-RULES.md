@@ -50,11 +50,24 @@ Aviso institucional (`renter_notice_code`) é exibido no painel do banhista.
 ## 5) Repasse ao locador (Connect)
 
 - Plataforma recebe pagamento do banhista.
-- Repasse ao locador ocorre no gatilho operacional definido no fluxo (início/conclusão de serviço, conforme implementação atual).
+- Repasse ao locador ocorre quando o locador clica em **Iniciar passeio / repasse** (dia da reserva).
+- Transferência assíncrona (fila PostgreSQL + cron); confirmação via webhook `transfer.paid`.
+- Penalidades pendentes do locador são deduzidas do valor transferido.
+- Conta Connect activa (`charges_enabled` + `payouts_enabled`) exigida para checkout e repasse.
 
 ---
 
-## 6) PIX
+## 6) Cancelamento pelo locador (reserva `ACCEPTED`)
+
+Justificativa obrigatória (mínimo 10 caracteres). Cenários:
+
+- **Cancelamento pelo locador**: reembolso 100% ao banhista; multa 20% sobre `owner_net_cents`.
+- **Condições climáticas**: reembolso 100%; sem penalidade ao locador.
+- **Falha na embarcação**: reembolso 100%; multa 20% sobre `owner_net_cents`.
+
+---
+
+## 7) PIX
 
 - Pode ficar temporariamente indisponível por decisão operacional no front.
 - Reativação deve respeitar configuração de Stripe e flags da aplicação.

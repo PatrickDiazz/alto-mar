@@ -2,19 +2,16 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OwnerSurface } from "@/components/owner/OwnerSurface";
-import { OwnerRevenueDelta } from "@/components/owner/revenue/OwnerRevenueDelta";
 import { bcp47FromAppLang } from "@/lib/localeFormat";
 import type { OwnerRevenueDashboard } from "@/lib/ownerRevenueDashboardApi";
 
 function MetricRow({
   label,
   value,
-  deltaPct,
   loading,
 }: {
   label: string;
   value: string;
-  deltaPct: number;
   loading?: boolean;
 }) {
   return (
@@ -24,10 +21,7 @@ function MetricRow({
         {loading ? (
           <Skeleton className="ml-auto h-5 w-24" />
         ) : (
-          <>
-            <p className="text-sm font-semibold tabular-nums text-foreground">{value}</p>
-            <OwnerRevenueDelta pct={deltaPct} className="mt-0.5 block" />
-          </>
+          <p className="text-sm font-semibold tabular-nums text-foreground">{value}</p>
         )}
       </div>
     </div>
@@ -57,25 +51,21 @@ export function OwnerRevenuePerformanceCard({
         <MetricRow
           label={t("ownerRevenue.performanceGross")}
           value={fmt(financial?.grossCents ?? 0)}
-          deltaPct={financial?.grossDeltaPct ?? 0}
           loading={loading}
         />
         <MetricRow
           label={t("ownerRevenue.performanceDiscounts")}
           value={fmt(financial?.discountsCents ?? 0)}
-          deltaPct={financial?.discountsDeltaPct ?? 0}
           loading={loading}
         />
         <MetricRow
           label={t("ownerRevenue.performancePlatformFees")}
           value={fmt(financial?.platformFeesCents ?? 0)}
-          deltaPct={financial?.platformFeesDeltaPct ?? 0}
           loading={loading}
         />
         <MetricRow
           label={t("ownerRevenue.performanceNet")}
           value={fmt(financial?.netCents ?? 0)}
-          deltaPct={financial?.netDeltaPct ?? 0}
           loading={loading}
         />
       </div>

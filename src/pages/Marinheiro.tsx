@@ -5,7 +5,8 @@ import { PageLoader } from "@/components/PageLoader";
 
 const OwnerDashboardPage = lazy(() => import("./owner/OwnerDashboardPage"));
 const OwnerAgendaPage = lazy(() => import("./owner/OwnerAgendaPage"));
-const OwnerReservasPage = lazy(() => import("./owner/OwnerReservasPage"));
+const OwnerReservasListPage = lazy(() => import("./owner/OwnerReservasListPage"));
+const OwnerBookingDetailPage = lazy(() => import("./owner/OwnerBookingDetailPage"));
 const OwnerBoatsListPage = lazy(() => import("./owner/OwnerBoatsListPage"));
 const OwnerBoatDetailPage = lazy(() => import("./owner/OwnerBoatDetailPage"));
 const OwnerBoatRegisterPage = lazy(() => import("./owner/OwnerBoatRegisterPage"));
@@ -21,7 +22,8 @@ const Marinheiro = () => (
       <Route element={<OwnerPanelLayout />}>
         <Route index element={<OwnerDashboardPage />} />
         <Route path="agenda" element={<OwnerAgendaPage />} />
-        <Route path="reservas" element={<OwnerReservasPage />} />
+        <Route path="reservas" element={<OwnerReservasListPage />} />
+        <Route path="reservas/:bookingId" element={<OwnerBookingDetailPage />} />
         <Route path="embarcacoes" element={<OwnerBoatsListPage />} />
         <Route path="embarcacoes/novo" element={<OwnerBoatRegisterPage />} />
         <Route path="embarcacoes/:boatId" element={<OwnerBoatDetailPage />} />

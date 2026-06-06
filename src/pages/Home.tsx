@@ -30,8 +30,8 @@ const Home = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background px-4">
-      <div className="absolute top-4 right-4">
+    <div className="min-h-screen flex flex-col bg-background px-4 pt-safe">
+      <div className="absolute right-4 top-safe-4">
         <HeaderSettingsMenu />
       </div>
       <div className="flex flex-1 flex-col items-center justify-center">

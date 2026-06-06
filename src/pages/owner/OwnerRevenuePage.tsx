@@ -9,7 +9,7 @@ import { OwnerRevenuePeriodSummary } from "@/components/owner/revenue/OwnerReven
 import { OwnerRevenuePeriodChart } from "@/components/owner/revenue/OwnerRevenuePeriodChart";
 import { OwnerUpcomingPayouts } from "@/components/owner/revenue/OwnerUpcomingPayouts";
 import { OwnerStripeTransactions } from "@/components/owner/revenue/OwnerStripeTransactions";
-import { OwnerRevenueDelta } from "@/components/owner/revenue/OwnerRevenueDelta";
+import { OwnerPanelPage } from "@/components/owner/OwnerPanelPage";
 import { bcp47FromAppLang } from "@/lib/localeFormat";
 import {
   fetchOwnerRevenueDashboard,
@@ -86,35 +86,23 @@ export default function OwnerRevenuePage() {
   }, [data?.chart, periodLabel, t]);
 
   return (
-    <div className="min-w-0 space-y-6 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-500 motion-reduce:animate-none sm:space-y-8">
-      <header className="space-y-2">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              {t("ownerRevenue.title")}
-            </h1>
-            <p className="mt-1 max-w-xl text-sm text-muted-foreground">{t("ownerRevenue.subtitle")}</p>
-          </div>
-          <OwnerRevenuePeriodFilter value={period} onChange={onPeriodChange} />
-        </div>
-        {data?.period && !loading ? (
+    <OwnerPanelPage
+      subtitle={t("ownerRevenue.subtitle")}
+      actions={<OwnerRevenuePeriodFilter value={period} onChange={onPeriodChange} />}
+      meta={
+        data?.period && !loading ? (
           <p className="inline-flex max-w-full rounded-full border border-border/50 bg-muted/30 px-3 py-1 text-xs text-muted-foreground">
             {periodLabel}
           </p>
-        ) : null}
-      </header>
-
+        ) : null
+      }
+      bodyLayout="stack"
+    >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <OwnerRevenueStatCard
           label={t("ownerRevenue.statGrossPeriod")}
           value={currency.format((data?.financial.grossCents ?? 0) / 100)}
           loading={loading}
-          hint={
-            <span className="inline-flex flex-wrap items-center gap-1">
-              <OwnerRevenueDelta pct={data?.financial.grossDeltaPct ?? 0} />
-              <span className="text-muted-foreground">{t("ownerRevenue.vsPreviousPeriod")}</span>
-            </span>
-          }
           icon={DollarSign}
           tone="positive"
         />
@@ -122,12 +110,6 @@ export default function OwnerRevenuePage() {
           label={t("ownerRevenue.statNetPeriod")}
           value={currency.format((data?.financial.netCents ?? 0) / 100)}
           loading={loading}
-          hint={
-            <span className="inline-flex flex-wrap items-center gap-1">
-              <OwnerRevenueDelta pct={data?.financial.netDeltaPct ?? 0} />
-              <span className="text-muted-foreground">{t("ownerRevenue.vsPreviousPeriod")}</span>
-            </span>
-          }
           icon={Wallet}
           tone="positive"
         />
@@ -167,6 +149,6 @@ export default function OwnerRevenuePage() {
       <OwnerRevenuePeriodSummary summary={data?.summary ?? null} loading={loading} />
 
       <OwnerStripeTransactions />
-    </div>
+    </OwnerPanelPage>
   );
 }

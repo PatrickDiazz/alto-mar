@@ -14,6 +14,14 @@ type MeUser = {
   guest_rating?: string | number | null;
 };
 
+type ConnectStatus = {
+  configured?: boolean;
+  ready?: boolean;
+  chargesEnabled?: boolean;
+  payoutsEnabled?: boolean;
+  detailsSubmitted?: boolean;
+};
+
 export function OwnerProfileTab({
   paymentsStripe,
   onStripeConnect,
@@ -29,6 +37,7 @@ export function OwnerProfileTab({
   const navigate = useNavigate();
   const stored = getStoredUser();
   const [me, setMe] = useState<MeUser | null>(null);
+  const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -48,8 +57,28 @@ export function OwnerProfileTab({
     };
   }, []);
 
+  useEffect(() => {
+    if (!paymentsStripe) return;
+    let active = true;
+    void (async () => {
+      try {
+        const resp = await authFetch("/api/owner/stripe/connect-status");
+        if (resp.status === 401 || !active) return;
+        if (!resp.ok) return;
+        const data = (await resp.json()) as ConnectStatus;
+        if (active) setConnectStatus(data);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [paymentsStripe]);
+
   const name = me?.name || stored?.name || "—";
   const email = me?.email || stored?.email || "—";
+  const showConnectBanner = paymentsStripe && connectStatus && !connectStatus.ready;
 
   return (
     <div className="space-y-4">
@@ -66,6 +95,12 @@ export function OwnerProfileTab({
         </div>
       </OwnerSurface>
 
+      {showConnectBanner ? (
+        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-pretty text-xs leading-relaxed text-amber-950 dark:text-amber-100">
+          {t("marinheiro.stripeConnectIncomplete")}
+        </p>
+      ) : null}
+
       <div className="flex flex-col gap-2">
         <Button type="button" variant="outline" className="w-full justify-start" onClick={() => navigate("/conta/dados")}>
           {t("ownerPanel.editProfile")}
@@ -75,7 +110,7 @@ export function OwnerProfileTab({
         </Button>
         {paymentsStripe ? (
           <Button type="button" variant="outline" className="w-full justify-start" disabled={loading} onClick={onStripeConnect}>
-            {t("marinheiro.stripeConnectButton")}
+            {connectStatus?.ready ? t("marinheiro.stripeConnectManage") : t("marinheiro.stripeConnectButton")}
           </Button>
         ) : null}
         <Button

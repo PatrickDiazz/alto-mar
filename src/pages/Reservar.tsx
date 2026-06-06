@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, addDays, startOfDay, parseISO, isBefore } from "date-fns";
 import { ptBR, enUS, es } from "date-fns/locale";
@@ -26,7 +26,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
@@ -215,9 +214,7 @@ const Reservar = () => {
   const [cpf, setCpf] = useState("");
   const [telefone, setTelefone] = useState("");
   const [pagando, setPagando] = useState(false);
-  /** Paradas do roteiro selecionadas para o passeio */
-  const [paradasRoteiro, setParadasRoteiro] = useState<string[]>([]);
-  /** Ãndice do roteiro alternativo (quando o locador cadastrou vÃ¡rios) */
+  /** Índice do roteiro alternativo (quando o locador cadastrou vários) */
   const [selectedRouteIdx, setSelectedRouteIdx] = useState(0);
   /** Data do passeio (YYYY-MM-DD) */
   const [dataPasseio, setDataPasseio] = useState<string | null>(null);
@@ -254,7 +251,8 @@ const Reservar = () => {
     [barco?.id, (barco?.routeIslands ?? []).join("\u0001")]
   );
 
-  const checkboxStops = useMemo(() => {
+  /** Paradas fixas do anúncio — o banhista não altera. */
+  const activeRouteStops = useMemo(() => {
     if (!barco || !routeParsed) return [];
     const fallback = barco.distancia || t("reservar.routeFallback");
     if (routeParsed.kind === "multi") {
@@ -288,16 +286,8 @@ const Reservar = () => {
 
   useEffect(() => {
     if (!barco) return;
-    const p = parseOwnerRouteIslands(barco.routeIslands);
-    const fallback = barco.distancia || t("reservar.routeFallback");
-    if (p.kind === "multi") {
-      setSelectedRouteIdx(0);
-      const first = p.routes[0] || [];
-      setParadasRoteiro(first.length > 0 ? [...first] : [fallback]);
-    } else {
-      setParadasRoteiro(p.stops.length > 0 ? [...p.stops] : [fallback]);
-    }
-  }, [barco?.id, (barco?.routeIslands ?? []).join("\u0001"), barco?.distancia, t]);
+    setSelectedRouteIdx(0);
+  }, [barco?.id, (barco?.routeIslands ?? []).join("\u0001")]);
 
   useEffect(() => {
     if (!barco?.jetSkiOffered) setMotoAquatica(false);
@@ -361,9 +351,14 @@ const Reservar = () => {
   const precoBase = parseInt(barco.preco.replace(/[^0-9]/g, ""), 10);
   const jetSkiReais = jetSkiPriceReais(barco);
   const customExtrasReais = customOptionalsTotalCents(customOptionalIds, barco.customOptionals) / 100;
+  const perDayOptionalsMode = diasPasseio.length > 1;
+  const dayOptionalsFor = (dia: string) =>
+    perDayOptionalsMode
+      ? (opcionaisPorDia[dia] ?? { bbqKit: false, jetSki: false })
+      : { bbqKit: kitChurrasco, jetSki: motoAquatica };
   const total = (diasPasseio.length > 0 ? diasPasseio : [dataPasseio].filter(Boolean)).reduce((acc, dia) => {
     if (!dia) return acc;
-    const dayOpts = opcionaisPorDia[dia] ?? { bbqKit: kitChurrasco, jetSki: motoAquatica };
+    const dayOpts = dayOptionalsFor(dia);
     return (
       acc +
       precoBase +
@@ -416,7 +411,7 @@ const Reservar = () => {
       toast.error(t("reservar.toastEmbarkTime"));
       return;
     }
-    if (paradasRoteiro.length === 0) {
+    if (activeRouteStops.length === 0) {
       toast.error(t("reservar.toastRoute"));
       return;
     }
@@ -440,12 +435,15 @@ const Reservar = () => {
     setPagando(true);
     try {
       const totalCents = total * 100;
-      const tripDays = diasPasseio.map((dia) => ({
-        bookingDate: dia,
-        bbqKit: boatOffersBbq(barco) ? (opcionaisPorDia[dia]?.bbqKit ?? kitChurrasco) : false,
-        jetSki: opcionaisPorDia[dia]?.jetSki ?? motoAquatica,
-        routeIslands: paradasRoteiro,
-      }));
+      const tripDays = diasPasseio.map((dia) => {
+        const dayOpts = dayOptionalsFor(dia);
+        return {
+          bookingDate: dia,
+          bbqKit: boatOffersBbq(barco) ? dayOpts.bbqKit : false,
+          jetSki: dayOpts.jetSki,
+          routeIslands: activeRouteStops,
+        };
+      });
       const booking = await criarReserva({
         boatId: barco.id,
         bookingDate: diasPasseio[0],
@@ -459,7 +457,7 @@ const Reservar = () => {
         embarkLocation: locaisOpcionais ? localEmbarque : null,
         embarkTime: horariosOpcionais ? horarioEmbarque : null,
         totalCents,
-        routeIslands: paradasRoteiro,
+        routeIslands: activeRouteStops,
         tripDays,
       });
 
@@ -639,13 +637,7 @@ const Reservar = () => {
               <p className="text-xs font-medium text-foreground">{t("reservar.pickRouteVariant")}</p>
               <RadioGroup
                 value={String(selectedRouteIdx)}
-                onValueChange={(v) => {
-                  const idx = Number(v);
-                  setSelectedRouteIdx(idx);
-                  const row = routeParsed.routes[idx] || [];
-                  const fallback = barco.distancia || t("reservar.routeFallback");
-                  setParadasRoteiro(row.length > 0 ? [...row] : [fallback]);
-                }}
+                onValueChange={(v) => setSelectedRouteIdx(Number(v))}
                 className="space-y-2"
               >
                 {routeParsed.routes.map((stops, i) => (
@@ -659,23 +651,16 @@ const Reservar = () => {
               </RadioGroup>
             </div>
           ) : null}
-          <div className="surface-elevated space-y-2 rounded-xl p-3">
-            {checkboxStops.map((stop, si) => (
-              <label key={`${stop}-${si}`} className="flex items-center gap-3 text-sm cursor-pointer">
-                <Checkbox
-                  checked={paradasRoteiro.includes(stop)}
-                  onCheckedChange={(c) => {
-                    if (c === true) {
-                      setParadasRoteiro((prev) => (prev.includes(stop) ? prev : [...prev, stop]));
-                    } else {
-                      setParadasRoteiro((prev) => prev.filter((s) => s !== stop));
-                    }
-                  }}
-                />
+          <ul className="surface-elevated space-y-1.5 rounded-xl p-3 text-sm text-foreground">
+            {activeRouteStops.map((stop, si) => (
+              <li key={`${stop}-${si}`} className="flex items-start gap-2">
+                <span className="text-muted-foreground" aria-hidden>
+                  •
+                </span>
                 <span>{stop}</span>
-              </label>
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
 
         <section className="space-y-2">
@@ -712,11 +697,17 @@ const Reservar = () => {
                 setDataPasseio(null);
                 return;
               }
-              setDiasPasseio((prev) => [...prev, iso].sort((a, b) => a.localeCompare(b)));
-              setOpcionaisPorDia((prev) => ({
-                ...prev,
-                [iso]: prev[iso] ?? { bbqKit: kitChurrasco, jetSki: motoAquatica },
-              }));
+              const nextDays = [...diasPasseio, iso].sort((a, b) => a.localeCompare(b));
+              setDiasPasseio(nextDays);
+              if (nextDays.length > 1) {
+                setOpcionaisPorDia((prev) => {
+                  const next = { ...prev };
+                  for (const d of nextDays) {
+                    next[d] = next[d] ?? { bbqKit: kitChurrasco, jetSki: motoAquatica };
+                  }
+                  return next;
+                });
+              }
               setDataPasseio(iso);
             }}
             bookingLeadDays={BANHISTA_BOOKING_LEAD_DAYS}
@@ -849,8 +840,9 @@ const Reservar = () => {
                     <span className="font-medium text-foreground">
                       {currencyFmt.format(
                         precoBase +
-                          (opcionaisPorDia[dia]?.bbqKit && boatOffersBbq(barco) ? bbqKitPriceReais(barco) : 0) +
-                          (opcionaisPorDia[dia]?.jetSki && jetSkiReais > 0 ? jetSkiReais : 0)
+                          (dayOptionalsFor(dia).bbqKit && boatOffersBbq(barco) ? bbqKitPriceReais(barco) : 0) +
+                          (dayOptionalsFor(dia).jetSki && jetSkiReais > 0 ? jetSkiReais : 0) +
+                          customExtrasReais
                       )}
                     </span>
                   </div>
@@ -937,7 +929,7 @@ const Reservar = () => {
             </li>
             <li>
               <strong className="text-foreground">{t("reservar.reviewRoute")}</strong>{" "}
-              {paradasRoteiro.length ? paradasRoteiro.join(", ") : "â€”"}
+              {activeRouteStops.length ? activeRouteStops.join(", ") : "—"}
             </li>
             <li>
               <strong className="text-foreground">{t("reservar.embark")}</strong>{" "}

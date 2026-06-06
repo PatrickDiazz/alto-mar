@@ -15,10 +15,7 @@ import { readResponseErrorMessage } from "@/lib/responseError";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
-type OwnerBookingRow = {
-  id: string;
-  status: string;
-};
+import type { OwnerBookingRow } from "@/lib/ownerBookingTypes";
 
 type OwnerPanelContextValue = {
   boats: OwnerBoatRecord[];

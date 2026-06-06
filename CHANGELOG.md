@@ -10,24 +10,36 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ## [Unreleased]
 
+---
+
+## [0.14.1] — 2026-06-06
+
 ### Adicionado
 
-- **Stripe / PIX (backend)**: suporte a PIX no Checkout quando `STRIPE_PIX_ENABLED=1` (`payment_method_types`, opções de expiração do QR); pedido de capability **`pix_payments`** em contas Connect (novas e existentes); activação via **Payment Method Configurations** (`server/stripe/ensureStripePixPmc.js`, chamada no arranque da API e no onboarding Connect); script manual **`npm run stripe:enable-pix-pmc`** (`server/stripe/run-enable-pix-pmc.mjs`); flag **`STRIPE_SKIP_PIX_PMC`** para não tocar nas PMCs ao arrancar.
-- **Stripe / reembolsos**: módulo **`server/stripe/refunds.js`** (`refundStripePaymentInTx`, códigos `RenterNoticeCode`, estimativa de taxas não reembolsáveis com `STRIPE_CARD_FEE_PERCENT` e `STRIPE_CARD_FEE_FIXED_CENTS`); coluna **`bookings.renter_notice_code`**; valor **`REFUNDED`** no enum **`payment_status`**.
-- **Regras de negócio (API)**: pagamento pode existir em **`PENDING`** ou **`ACCEPTED`**; ao **aceitar**, exige pagamento **APPROVED** com Stripe; cancelamento automático e reembolso das outras reservas **PENDING** no mesmo barco/dia; **recusa** do locador com reembolso total quando aplicável; cancelamento pelo banhista em **ACCEPTED** com justificativa (mín. 10 caracteres) e política por janelas (7+ dias, 6–2 dias, menos de 48 h / no-show).
-- **Documentação para equipa**: `docs/ONBOARDING.md`, `docs/ENGINEERING-RUNBOOK.md`, `docs/BACKEND-API-CONTRACT.md`, `docs/BUSINESS-RULES.md`, `docs/SECURITY-SECRETS.md`, `docs/TEST-PLAYBOOK.md`; **README** com índice alargado; **`docs/STRIPE-INTEGRATION-DESIGN.md`** actualizado (fluxo de pagamento, reembolsos, variáveis de ambiente, checklist de testes).
+- **App Android (Capacitor)**: shell híbrido `com.altomar.app`, plugins App / Geolocation / Push, permissões no manifest, scripts `cap:sync`, `android:build`, `android:live*` e guia **`docs/ANDROID.md`** (build, API em dispositivo, FCM, live reload).
+- **Notificações**: módulo `server/notifications/` (schema, FCM opcional, eventos de reserva); APIs `GET/POST /api/notifications*`; **`NotificationBell`**, **`NotificationsContext`** (polling + push token); disparos nos fluxos de reserva, cancelamento, reagendamento e webhooks Stripe.
+- **Stripe / PIX (backend)**: suporte a PIX no Checkout quando `STRIPE_PIX_ENABLED=1`; capability **`pix_payments`** em Connect; activação via PMC (`ensureStripePixPmc.js`, `npm run stripe:enable-pix-pmc`); flag **`STRIPE_SKIP_PIX_PMC`**.
+- **Stripe / reembolsos e Connect**: `refunds.js`, `cancellationPolicy.js`, `transferWorker.js`, webhooks (refund, dispute, transfer), cron de repasses, cancelamento pelo locador, métricas Connect, banner de onboarding na UI.
+- **Painel locador**: sidebar desktop (**Agenda** antes de **Reservas**), ficha de reserva dedicada (`/marinheiro/reservas/:id`), agenda com navegação directa para a ficha, secção «Barcos sem reservas» colapsável.
+- **Documentação**: `docs/ONBOARDING.md`, `ENGINEERING-RUNBOOK.md`, `BACKEND-API-CONTRACT.md`, `BUSINESS-RULES.md`, `SECURITY-SECRETS.md`, `TEST-PLAYBOOK.md`; README e **`STRIPE-INTEGRATION-DESIGN.md`** actualizados.
+- **i18n** (pt / en / es): `notifications.*`, avisos ao locatário, política de cancelamento, PIX indisponível, **`APPROVED` → «Aprovado»** no painel de reservas.
 
 ### Alterado
 
-- **Reservar**: após criar reserva com **`paymentsProvider=stripe`**, redireccionamento imediato para o **Stripe Checkout**; PIX na UI marcado como **temporariamente indisponível** (forçar método cartão enquanto activo).
-- **RenterBookingsPanel**: botão **Pagar com Stripe** também em **PENDING**; avisos formais via **`renterNoticeCode`**; cancelamento de **ACCEPTED** com **formulário inline** (textarea + botões), alinhado ao padrão de justificativa de remarcação.
-- **Marinheiro**: **Aceitar** desactivado até pagamento **APPROVED** quando Stripe está activo; cópias **`stripeAcceptRequiresPayment`** / **`stripeAwaitPayment`**.
-- **i18n** (pt / en / es): mensagens de aviso ao locatário, política de cancelamento, PIX indisponível, chaves do formulário de cancelamento.
-- **`server/stripe/checkout.js`**: `customer_email` na sessão; versão de **idempotency** do Checkout incrementada para evitar erro Stripe ao mudar o corpo do pedido; sessão permitida para **PENDING** e **ACCEPTED**.
+- **Reservar**: redireccionamento imediato ao Stripe Checkout quando `paymentsProvider=stripe`; PIX na UI temporariamente indisponível.
+- **RenterBookingsPanel**: pagamento Stripe em **PENDING**; cancelamento de **ACCEPTED** com formulário inline; avisos via **`renterNoticeCode`**.
+- **Marinheiro**: aceite bloqueado até pagamento **APPROVED** (Stripe); conclusão e avaliação com refresh optimista na ficha.
+- **`server/stripe/checkout.js`**: `customer_email`, idempotency incrementada, sessão para **PENDING** e **ACCEPTED**.
+- **Android / safe area**: `viewport-fit=cover`, insets nativos e padding nos headers (Explorar, Home, painel locador) para entalhe da câmara frontal.
 
 ### Corrigido
 
-- **PostgreSQL**: `POST /api/renter/bookings/:id/cancel` com **`FOR UPDATE OF bk`** em vez de `FOR UPDATE` genérico sobre `LEFT JOIN`, evitando *«FOR UPDATE cannot be applied to the nullable side of an outer join»*.
+- **PostgreSQL**: `POST /api/renter/bookings/:id/cancel` com **`FOR UPDATE OF bk`** (evita erro em `LEFT JOIN`).
+- **Android**: crash ao abrir sessão sem Firebase — push nativo só com **`VITE_NATIVE_PUSH=1`** e `google-services.json`; URL de live reload não fica presa no APK após `cap sync` normal.
+
+### Versões
+
+- Cliente e servidor **0.14.1**; Android **`versionName` 0.14.1**, **`versionCode` 13**.
 
 ---
 

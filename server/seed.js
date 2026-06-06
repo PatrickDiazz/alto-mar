@@ -37,6 +37,7 @@ async function main() {
   // Limpa somente barcos/relacionamentos (mantém users e outras tabelas)
   await deleteFromIfTableExists("stripe_connect_ledger");
   await deleteFromIfTableExists("stripe_owner_penalties");
+  await deleteFromIfTableExists("stripe_disputes");
   await deleteFromIfTableExists("stripe_connect_refunds");
   await deleteFromIfTableExists("stripe_connect_transfers");
   await deleteFromIfTableExists("stripe_events");

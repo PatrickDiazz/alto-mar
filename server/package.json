@@ -1,7 +1,7 @@
 {
   "name": "alto-mar-server",
   "private": true,
-  "version": "0.14.0",
+  "version": "0.14.1",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -14,7 +14,12 @@
     "stripe:enable-pix-pmc": "node stripe/run-enable-pix-pmc.mjs",
     "refresh-demo-boat-images": "node refresh-demo-boat-images.js",
     "reset-demo-boats": "node reset-demo-boats.js",
-    "seed:stripe-bookings": "node seedStripeBookings.js"
+    "seed:stripe-bookings": "node seedStripeBookings.js",
+    "stripe:metrics": "node stripe/run-metrics.mjs",
+    "stripe:smoke": "node stripe/smoke-test.mjs",
+    "stripe:audit-env": "node stripe/audit-env.mjs",
+    "stripe:webhook-events": "node stripe/check-webhook-events.mjs",
+    "stripe:listen": "stripe listen --forward-to localhost:3001/api/stripe/webhook --events checkout.session.completed,charge.refunded,charge.refund.updated,charge.dispute.created,charge.dispute.closed"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
@@ -23,6 +28,7 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "mercadopago": "^2.6.0",
+    "node-cron": "^3.0.3",
     "pg": "^8.16.3",
     "stripe": "^18.5.0",
     "zod": "^3.25.76"

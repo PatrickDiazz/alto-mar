@@ -2,8 +2,8 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { OwnerOptionalForm } from "@/components/owner/OwnerOptionalForm";
-import { OwnerSurface } from "@/components/owner/OwnerSurface";
 import { OwnerBoatsOpcionaisNav } from "@/components/owner/OwnerBoatsOpcionaisNav";
+import { OwnerPanelPage } from "@/components/owner/OwnerPanelPage";
 import { useOwnerPanel } from "@/contexts/OwnerPanelContext";
 import { findCatalogItemFromApi } from "@/lib/ownerOptionalsCatalog";
 import { saveOwnerOptional } from "@/lib/ownerOptionalSave";
@@ -40,8 +40,7 @@ export default function OwnerOptionalEditPage() {
 
   if (!existing) {
     return (
-      <OwnerSurface variant="ghost" className="space-y-3">
-        <OwnerBoatsOpcionaisNav />
+      <OwnerPanelPage toolbar={<OwnerBoatsOpcionaisNav />} bodyLayout="stack-tight">
         <p className="text-sm text-muted-foreground">{t("ownerPanel.optionalNotFound")}</p>
         <button
           type="button"
@@ -50,7 +49,7 @@ export default function OwnerOptionalEditPage() {
         >
           {t("common.back")}
         </button>
-      </OwnerSurface>
+      </OwnerPanelPage>
     );
   }
 
@@ -71,9 +70,7 @@ export default function OwnerOptionalEditPage() {
   };
 
   return (
-    <OwnerSurface variant="ghost" className="space-y-3">
-      <OwnerBoatsOpcionaisNav />
-      <h2 className="text-lg font-semibold text-foreground">{t("ownerPanel.optionalEdit")}</h2>
+    <OwnerPanelPage toolbar={<OwnerBoatsOpcionaisNav />} bodyLayout="stack-tight">
       <OwnerOptionalForm
         mode="edit"
         boats={boats}
@@ -82,6 +79,6 @@ export default function OwnerOptionalEditPage() {
         onSubmit={handleSubmit}
         onCancel={() => navigate("/marinheiro/opcionais")}
       />
-    </OwnerSurface>
+    </OwnerPanelPage>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { OwnerProfileTab } from "@/components/owner/OwnerProfileTab";
+import { OwnerPanelPage } from "@/components/owner/OwnerPanelPage";
 import { authFetch, clearSession, apiUrl } from "@/lib/auth";
 import { useOwnerPanel } from "@/contexts/OwnerPanelContext";
 import { useTranslation } from "react-i18next";
@@ -53,11 +54,13 @@ export default function OwnerProfilePage() {
   };
 
   return (
-    <OwnerProfileTab
-      paymentsStripe={paymentsProvider === "stripe"}
-      onStripeConnect={() => void abrirStripeConnect()}
-      onLogout={handleLogout}
-      loading={loading}
-    />
+    <OwnerPanelPage bodyLayout="stack-tight">
+      <OwnerProfileTab
+        paymentsStripe={paymentsProvider === "stripe"}
+        onStripeConnect={() => void abrirStripeConnect()}
+        onLogout={handleLogout}
+        loading={loading}
+      />
+    </OwnerPanelPage>
   );
 }

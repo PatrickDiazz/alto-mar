@@ -100,11 +100,13 @@ export function setSession(token: string, user: AuthUser) {
   if (typeof sessionStorage !== "undefined") {
     sessionStorage.removeItem("alto_mar_401_once");
   }
+  window.dispatchEvent(new Event("alto-mar-auth-changed"));
 }
 
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  window.dispatchEvent(new Event("alto-mar-auth-changed"));
 }
 
 export function getStoredUser(): AuthUser | null {

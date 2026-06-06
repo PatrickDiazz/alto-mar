@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { AppVersionStamp } from "@/components/AppVersionStamp";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 
@@ -139,7 +140,8 @@ export function HeaderSettingsMenu({ className, triggerClassName }: HeaderSettin
   const [open, setOpen] = useState(false);
 
   return (
-    <div className={cn("shrink-0", className)}>
+    <div className={cn("flex shrink-0 items-center gap-2", className)}>
+      <NotificationBell />
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
           <Button

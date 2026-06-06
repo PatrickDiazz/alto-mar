@@ -1,23 +1,24 @@
-import { useEffect, useMemo, useState, type ComponentProps } from "react";
+import { useEffect, useMemo, useState, useCallback, type ComponentProps } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { DayPicker } from "react-day-picker";
 import { enUS, es, ptBR } from "date-fns/locale";
 import "react-day-picker/dist/style.css";
 import { addDays, format } from "date-fns";
-import { AlertCircle, CalendarClock, ChevronLeft, ChevronRight, Plus, Search, Ship } from "lucide-react";
+import { AlertCircle, CalendarClock, ChevronDown, ChevronLeft, ChevronRight, Plus, Search, Ship } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { authFetch } from "@/lib/auth";
+import { OwnerBookingPreviewStrip } from "@/components/owner/bookings/OwnerBookingCompactRow";
+import { OwnerPanelPage } from "@/components/owner/OwnerPanelPage";
 import { bcp47FromAppLang } from "@/lib/localeFormat";
 import { cn } from "@/lib/utils";
 import { useOwnerPanel } from "@/contexts/OwnerPanelContext";
 import { useMatchMediaLgUp } from "@/hooks/useMatchMediaLgUp";
-import { readResponseErrorMessage } from "@/lib/responseError";
-import { toast } from "sonner";
+import { ownerBookingYmd, type OwnerBookingRow } from "@/lib/ownerBookingTypes";
+import type { OwnerBookingStatusFilter } from "@/lib/ownerBookingTypes";
 
 const agendaDayPickerIcons = {
   IconLeft: ({ className, ...props }: ComponentProps<typeof ChevronLeft>) => (
@@ -27,21 +28,6 @@ const agendaDayPickerIcons = {
     <ChevronRight className={cn("h-4 w-4", className)} {...props} />
   ),
 };
-
-type OwnerBooking = {
-  id: string;
-  status: string;
-  bookingDate?: string;
-  totalCents: number;
-  passengersAdults: number;
-  passengersChildren: number;
-  embarkTime?: string | null;
-  decisionNote?: string | null;
-  boat: { id: string; nome: string };
-  renter: { nome: string };
-};
-
-type StatusFilter = "ALL" | "PENDING" | "ACCEPTED" | "COMPLETED" | "DECLINED" | "CANCELLED";
 
 function ymd(d: Date): string {
   const y = d.getFullYear();
@@ -70,6 +56,10 @@ function statusTone(status: string): string {
 
 const UPCOMING_SIDEBAR_DAYS = 3;
 
+function isActiveBookingStatus(status: string): boolean {
+  return status === "PENDING" || status === "ACCEPTED";
+}
+
 function priorityScore(status: string): number {
   if (status === "PENDING") return 5;
   if (status === "ACCEPTED") return 4;
@@ -77,10 +67,6 @@ function priorityScore(status: string): number {
   if (status === "DECLINED") return 2;
   if (status === "CANCELLED") return 1;
   return 0;
-}
-
-function bookingYmd(b: OwnerBooking): string {
-  return String(b.bookingDate || "").slice(0, 10);
 }
 
 function daysInMonth(d: Date): number {
@@ -96,17 +82,19 @@ function monthPrefix(d: Date): string {
 export default function OwnerAgendaPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const { boats } = useOwnerPanel();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedDate = searchParams.get("date");
-  const selectedStatus = (searchParams.get("status") as StatusFilter | null) ?? "ALL";
+  const selectedStatus = (searchParams.get("status") as OwnerBookingStatusFilter | null) ?? "ALL";
   const searchText = searchParams.get("q") ?? "";
+  const { boats, bookings: allBookings, loading } = useOwnerPanel();
+  const bookings = useMemo(
+    () => allBookings.filter((b) => Boolean(b.bookingDate)),
+    [allBookings]
+  );
 
   const [month, setMonth] = useState(() => new Date());
-  const [bookings, setBookings] = useState<OwnerBooking[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [expandedBoatId, setExpandedBoatId] = useState<string | null>(null);
   const [filterTransition, setFilterTransition] = useState(false);
+  const [withoutBookingsExpanded, setWithoutBookingsExpanded] = useState(false);
 
   const lgUp = useMatchMediaLgUp();
   const locale = bcp47FromAppLang(i18n.language);
@@ -117,32 +105,14 @@ export default function OwnerAgendaPage() {
   );
 
   useEffect(() => {
-    let active = true;
-    setLoading(true);
-    void (async () => {
-      try {
-        const resp = await authFetch("/api/owner/bookings");
-        if (!resp.ok) throw new Error(await readResponseErrorMessage(resp, t("marinheiro.toastBookings")));
-        const data = (await resp.json()) as { bookings: OwnerBooking[] };
-        if (!active) return;
-        setBookings((data.bookings ?? []).filter((b) => Boolean(b.bookingDate)));
-      } catch (e) {
-        const m = (e instanceof Error ? e.message : t("marinheiro.toastBookings")).trim();
-        toast.error(m || t("marinheiro.toastBookings"));
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [t]);
-
-  useEffect(() => {
     setFilterTransition(true);
     const timer = window.setTimeout(() => setFilterTransition(false), 260);
     return () => window.clearTimeout(timer);
   }, [selectedDate, selectedStatus, searchText]);
+
+  useEffect(() => {
+    if (selectedDate) setWithoutBookingsExpanded(false);
+  }, [selectedDate]);
 
   const countByDate = useMemo(() => {
     const map = new Map<string, number>();
@@ -165,7 +135,7 @@ export default function OwnerAgendaPage() {
     const dates = new Set<string>();
     let reservationCount = 0;
     for (const b of bookings) {
-      const key = bookingYmd(b);
+      const key = ownerBookingYmd(b);
       if (!key.startsWith(prefix)) continue;
       dates.add(key);
       reservationCount += 1;
@@ -180,7 +150,7 @@ export default function OwnerAgendaPage() {
   const selectedDayBookings = useMemo(() => {
     if (!selectedDate) return [];
     return bookings
-      .filter((b) => bookingYmd(b) === selectedDate)
+      .filter((b) => ownerBookingYmd(b) === selectedDate)
       .sort((a, b) => priorityScore(b.status) - priorityScore(a.status));
   }, [bookings, selectedDate]);
 
@@ -204,7 +174,7 @@ export default function OwnerAgendaPage() {
     const end = ymd(addDays(new Date(), UPCOMING_SIDEBAR_DAYS));
     return bookings
       .filter((b) => {
-        const d = bookingYmd(b);
+        const d = ownerBookingYmd(b);
         return (
           d >= todayYmd &&
           d <= end &&
@@ -213,7 +183,7 @@ export default function OwnerAgendaPage() {
         );
       })
       .sort((a, b) => {
-        const cmp = bookingYmd(a).localeCompare(bookingYmd(b));
+        const cmp = ownerBookingYmd(a).localeCompare(ownerBookingYmd(b));
         if (cmp !== 0) return cmp;
         return (a.embarkTime || "").localeCompare(b.embarkTime || "");
       })
@@ -224,10 +194,10 @@ export default function OwnerAgendaPage() {
     const end = ymd(addDays(new Date(), 7));
     const pending = bookings.filter((b) => b.status === "PENDING").length;
     const inProgressToday = bookings.filter(
-      (b) => b.status === "ACCEPTED" && bookingYmd(b) === todayYmd
+      (b) => b.status === "ACCEPTED" && ownerBookingYmd(b) === todayYmd
     ).length;
     const acceptedSoon = bookings.filter((b) => {
-      const d = bookingYmd(b);
+      const d = ownerBookingYmd(b);
       return b.status === "ACCEPTED" && d > todayYmd && d <= end;
     }).length;
     return { pending, inProgressToday, acceptedSoon };
@@ -243,7 +213,7 @@ export default function OwnerAgendaPage() {
   }, [bookings, selectedDate]);
 
   const bookingsByBoat = useMemo(() => {
-    const map = new Map<string, OwnerBooking[]>();
+    const map = new Map<string, OwnerBookingRow[]>();
     bookings.forEach((b) => {
       const key = b.boat.id;
       const list = map.get(key) ?? [];
@@ -269,19 +239,34 @@ export default function OwnerAgendaPage() {
     });
   }, [boats, bookedBoatIdsOnSelectedDay, bookingsByBoat, searchText, selectedStatus]);
 
+  const bookingsVisibleForBoat = useCallback(
+    (boatId: string) => {
+      const list = bookingsByBoat.get(boatId) ?? [];
+      return list
+        .filter((b) => {
+          if (selectedDate && ownerBookingYmd(b) !== selectedDate) return false;
+          if (selectedStatus !== "ALL" && b.status !== selectedStatus) return false;
+          if (selectedStatus === "ALL" && !isActiveBookingStatus(b.status)) return false;
+          return true;
+        })
+        .sort((a, b) => priorityScore(b.status) - priorityScore(a.status));
+    },
+    [bookingsByBoat, selectedDate, selectedStatus]
+  );
+
   const groupedBoats = useMemo(() => {
     const withBookings: typeof filteredBoats = [];
     const withoutBookings: typeof filteredBoats = [];
 
     filteredBoats.forEach((boat) => {
-      const list = bookingsByBoat.get(boat.id) ?? [];
-      if (list.length > 0) withBookings.push(boat);
+      const visible = bookingsVisibleForBoat(boat.id);
+      if (visible.length > 0) withBookings.push(boat);
       else withoutBookings.push(boat);
     });
 
     withBookings.sort((a, b) => {
-      const aList = bookingsByBoat.get(a.id) ?? [];
-      const bList = bookingsByBoat.get(b.id) ?? [];
+      const aList = bookingsVisibleForBoat(a.id);
+      const bList = bookingsVisibleForBoat(b.id);
       const aTop = Math.max(0, ...aList.map((x) => priorityScore(x.status)));
       const bTop = Math.max(0, ...bList.map((x) => priorityScore(x.status)));
       if (aTop !== bTop) return bTop - aTop;
@@ -289,15 +274,7 @@ export default function OwnerAgendaPage() {
     });
 
     return { withBookings, withoutBookings };
-  }, [filteredBoats, bookingsByBoat]);
-
-  const bookingsForBoat = (boatId: string) => {
-    const list = bookingsByBoat.get(boatId) ?? [];
-    const filtered = selectedDate
-      ? list.filter((b) => String(b.bookingDate).slice(0, 10) === selectedDate)
-      : list;
-    return filtered.sort((a, b) => priorityScore(b.status) - priorityScore(a.status));
-  };
+  }, [filteredBoats, bookingsVisibleForBoat]);
 
   const setParam = (key: string, value: string | null) => {
     const next = new URLSearchParams(searchParams);
@@ -306,15 +283,43 @@ export default function OwnerAgendaPage() {
     setSearchParams(next, { replace: true });
   };
 
+  const openReservas = (opts?: {
+    boat?: string;
+    status?: OwnerBookingStatusFilter;
+    bookingId?: string;
+    booking?: OwnerBookingRow;
+  }) => {
+    if (opts?.bookingId) {
+      navigate(`/marinheiro/reservas/${encodeURIComponent(opts.bookingId)}`, {
+        state: opts.booking ? { booking: opts.booking } : undefined,
+      });
+      return;
+    }
+    const params = new URLSearchParams();
+    if (opts?.boat) params.set("boat", opts.boat);
+    if (opts?.status && opts.status !== "ALL") params.set("status", opts.status);
+    const q = params.toString();
+    navigate(q ? `/marinheiro/reservas?${q}` : "/marinheiro/reservas");
+  };
+
+  const formatBookingWhen = (b: OwnerBookingRow, showDate: boolean) => {
+    const parts: string[] = [];
+    if (showDate) {
+      parts.push(format(parseYmd(ownerBookingYmd(b)), "d MMM", { locale: dayPickerLocale }));
+    }
+    if (b.embarkTime) parts.push(b.embarkTime);
+    return parts.join(" · ") || "—";
+  };
+
   const renderBoatCard = (boatId: string) => {
     const boat = boats.find((x) => x.id === boatId);
     if (!boat) return null;
-    const list = bookingsForBoat(boat.id);
-    const activeCount = list.filter((x) => x.status === "PENDING" || x.status === "ACCEPTED").length;
-    const hasBookings = list.length > 0;
-    const open = expandedBoatId === boat.id;
+    const list = bookingsVisibleForBoat(boat.id);
+    const activeCount = list.length;
+
     return (
       <article
+        id={`owner-boat-${boat.id}`}
         key={boat.id}
         className={cn(
           "overflow-hidden rounded-xl border border-border/45 bg-transparent transition-all duration-300",
@@ -323,7 +328,7 @@ export default function OwnerAgendaPage() {
       >
         <button
           type="button"
-          onClick={() => setExpandedBoatId((prev) => (prev === boat.id ? null : boat.id))}
+          onClick={() => openReservas({ boat: boat.id })}
           className="flex w-full items-start gap-3 p-3 text-left md:p-4"
         >
           <div className="h-16 w-20 shrink-0 overflow-hidden rounded-lg bg-muted md:h-20 md:w-24">
@@ -346,81 +351,29 @@ export default function OwnerAgendaPage() {
             </div>
           </div>
         </button>
-
-        <div
-          className={cn(
-            "grid transition-all duration-300",
-            open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-          )}
-        >
-          <div className="overflow-hidden border-t border-border/45">
-            <div className="space-y-2 p-3 md:p-4">
-              {!hasBookings ? (
-                <p className="text-sm text-muted-foreground">{t("ownerAgenda.noReservationsBoatDay")}</p>
-              ) : (
-                list.map((booking) => (
-                  <div
-                    key={booking.id}
-                    className="rounded-lg border border-border/35 bg-transparent p-3 transition-colors hover:bg-muted/20"
-                  >
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                      <p className="truncate text-sm font-semibold text-foreground">{booking.renter.nome}</p>
-                      <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", statusTone(booking.status))}>
-                        {t(`ownerAgenda.status.${booking.status}`)}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground md:grid-cols-3">
-                      <p>{t("ownerAgenda.summaryTime", { time: booking.embarkTime || "—" })}</p>
-                      <p>
-                        {t("ownerAgenda.summaryPeople", {
-                          count: booking.passengersAdults + booking.passengersChildren,
-                        })}
-                      </p>
-                      <p>{currency.format(booking.totalCents / 100)}</p>
-                    </div>
-                    {booking.decisionNote ? (
-                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{booking.decisionNote}</p>
-                    ) : null}
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        className="rounded-md border border-primary/30 px-2.5 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10"
-                        onClick={() => navigate(`/marinheiro/embarcacoes/${booking.boat.id}`)}
-                      >
-                        {t("ownerAgenda.quickBoat")}
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted"
-                        onClick={() => navigate("/marinheiro/reservas")}
-                      >
-                        {t("ownerAgenda.quickReservations")}
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+        {list.length > 0 ? (
+          <div className="space-y-1.5 border-t border-border/25 px-3 pb-3 md:px-4">
+            {list.map((booking) => (
+              <OwnerBookingPreviewStrip
+                key={booking.id}
+                booking={booking}
+                whenLabel={formatBookingWhen(booking, true)}
+                statusLabel={t(`ownerAgenda.status.${booking.status}`)}
+                amountLabel={currency.format(booking.totalCents / 100)}
+                onClick={() => openReservas({ bookingId: booking.id, booking })}
+              />
+            ))}
           </div>
-        </div>
+        ) : null}
       </article>
     );
   };
 
-  const formatBookingWhen = (b: OwnerBooking, showDate: boolean) => {
-    const parts: string[] = [];
-    if (showDate) {
-      parts.push(format(parseYmd(bookingYmd(b)), "d MMM", { locale: dayPickerLocale }));
-    }
-    if (b.embarkTime) parts.push(b.embarkTime);
-    return parts.join(" · ") || "—";
-  };
-
-  const renderSidebarBooking = (booking: OwnerBooking, showDate: boolean) => (
+  const renderSidebarBooking = (booking: OwnerBookingRow, showDate: boolean) => (
     <button
       key={booking.id}
       type="button"
-      onClick={() => navigate("/marinheiro/reservas")}
+      onClick={() => openReservas({ bookingId: booking.id, booking })}
       className="w-full rounded-lg border border-border/35 p-2 text-left transition-colors hover:bg-muted/25"
     >
       <div className="flex items-start justify-between gap-2">
@@ -457,35 +410,36 @@ export default function OwnerAgendaPage() {
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(440px,1.2fr)]">
-      <section className="order-2 space-y-3 lg:order-1">
-        <div className="rounded-xl bg-transparent p-0">
-          <div className="grid gap-2 sm:grid-cols-[1fr_190px]">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchText}
-                onChange={(e) => setParam("q", e.target.value)}
-                placeholder={t("ownerAgenda.searchPlaceholder")}
-                className="pl-8"
-              />
-            </div>
-            <Select value={selectedStatus} onValueChange={(v) => setParam("status", v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">{t("ownerAgenda.filterAll")}</SelectItem>
-                <SelectItem value="PENDING">PENDING</SelectItem>
-                <SelectItem value="ACCEPTED">ACCEPTED</SelectItem>
-                <SelectItem value="COMPLETED">COMPLETED</SelectItem>
-                <SelectItem value="DECLINED">DECLINED</SelectItem>
-                <SelectItem value="CANCELLED">CANCELLED</SelectItem>
-              </SelectContent>
-            </Select>
+    <OwnerPanelPage
+      toolbar={
+        <div className="grid gap-2 sm:grid-cols-[1fr_190px]">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchText}
+              onChange={(e) => setParam("q", e.target.value)}
+              placeholder={t("ownerAgenda.searchPlaceholder")}
+              className="pl-8"
+            />
           </div>
+          <Select value={selectedStatus} onValueChange={(v) => setParam("status", v)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">{t("ownerAgenda.filterAll")}</SelectItem>
+              <SelectItem value="PENDING">PENDING</SelectItem>
+              <SelectItem value="ACCEPTED">ACCEPTED</SelectItem>
+              <SelectItem value="COMPLETED">COMPLETED</SelectItem>
+              <SelectItem value="DECLINED">DECLINED</SelectItem>
+              <SelectItem value="CANCELLED">CANCELLED</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-
+      }
+      bodyLayout="grid-agenda"
+    >
+      <section className="order-2 space-y-3 lg:order-1">
         {loading ? (
           <div className="space-y-2">
             <Skeleton className="h-28 w-full rounded-2xl" />
@@ -500,22 +454,63 @@ export default function OwnerAgendaPage() {
         ) : (
           <div className={cn("space-y-3 transition-opacity duration-300", filterTransition && "opacity-60")}>
             <div>
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-2 flex items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold text-foreground">{t("ownerAgenda.withReservations")}</h3>
-                <Badge variant="secondary">{groupedBoats.withBookings.length}</Badge>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openReservas()}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    {t("ownerAgenda.seeAllBookings")}
+                  </button>
+                  <Badge variant="secondary">{groupedBoats.withBookings.length}</Badge>
+                </div>
               </div>
               <div className="space-y-2">{groupedBoats.withBookings.map((b) => renderBoatCard(b.id))}</div>
             </div>
 
-            {selectedDate ? null : (
+            {selectedDate ? null : groupedBoats.withoutBookings.length > 0 ? (
               <div className="pt-2">
-                <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-muted-foreground">{t("ownerAgenda.withoutReservations")}</h3>
-                  <Badge variant="outline">{groupedBoats.withoutBookings.length}</Badge>
-                </div>
-                <div className="space-y-2">{groupedBoats.withoutBookings.map((b) => renderBoatCard(b.id))}</div>
+                <button
+                  type="button"
+                  onClick={() => setWithoutBookingsExpanded((open) => !open)}
+                  aria-expanded={withoutBookingsExpanded}
+                  aria-controls="owner-agenda-without-bookings"
+                  className="mb-2 flex w-full items-center justify-between gap-2 rounded-lg border border-border/35 px-3 py-2.5 text-left transition-colors hover:bg-muted/20"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <ChevronDown
+                      className={cn(
+                        "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                        withoutBookingsExpanded && "rotate-180"
+                      )}
+                      aria-hidden
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-muted-foreground">
+                        {t("ownerAgenda.withoutReservations")}
+                      </span>
+                      {!withoutBookingsExpanded ? (
+                        <span className="block text-[11px] text-muted-foreground/80">
+                          {t("ownerAgenda.withoutReservationsHint", {
+                            count: groupedBoats.withoutBookings.length,
+                          })}
+                        </span>
+                      ) : null}
+                    </span>
+                  </span>
+                  <Badge variant="outline" className="shrink-0">
+                    {groupedBoats.withoutBookings.length}
+                  </Badge>
+                </button>
+                {withoutBookingsExpanded ? (
+                  <div id="owner-agenda-without-bookings" className="space-y-2">
+                    {groupedBoats.withoutBookings.map((b) => renderBoatCard(b.id))}
+                  </div>
+                ) : null}
               </div>
-            )}
+            ) : null}
           </div>
         )}
       </section>
@@ -656,10 +651,10 @@ export default function OwnerAgendaPage() {
                   </h3>
                   <button
                     type="button"
-                    onClick={() => navigate("/marinheiro/reservas")}
+                    onClick={() => openReservas()}
                     className="text-[10px] font-medium text-primary hover:underline"
                   >
-                    {t("ownerAgenda.seeAll")}
+                    {t("ownerAgenda.seeAllBookings")}
                   </button>
                 </div>
                 {upcomingBookings.length === 0 ? (
@@ -685,7 +680,7 @@ export default function OwnerAgendaPage() {
                   {actionAlerts.pending > 0 ? (
                     <button
                       type="button"
-                      onClick={() => navigate("/marinheiro/reservas")}
+                      onClick={() => openReservas({ status: "PENDING" })}
                       className="w-full rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-left text-[11px] font-medium text-amber-700 transition-colors hover:bg-amber-500/15 dark:text-amber-200"
                     >
                       {t("ownerAgenda.alertPending", { count: actionAlerts.pending })}
@@ -705,7 +700,7 @@ export default function OwnerAgendaPage() {
                   {actionAlerts.acceptedSoon > 0 ? (
                     <button
                       type="button"
-                      onClick={() => navigate("/marinheiro/reservas")}
+                      onClick={() => openReservas({ status: "ACCEPTED" })}
                       className="w-full rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-2 text-left text-[11px] font-medium text-primary transition-colors hover:bg-primary/15"
                     >
                       {t("ownerAgenda.alertAcceptedSoon", { count: actionAlerts.acceptedSoon })}
@@ -725,7 +720,7 @@ export default function OwnerAgendaPage() {
                       variant="outline"
                       size="sm"
                       className="h-8 justify-start text-xs"
-                      onClick={() => navigate("/marinheiro/reservas")}
+                      onClick={() => openReservas({ status: "PENDING" })}
                     >
                       {t("ownerAgenda.shortcutPending")}
                     </Button>
@@ -760,7 +755,7 @@ export default function OwnerAgendaPage() {
           </div>
         </div>
       </aside>
-    </div>
+    </OwnerPanelPage>
   );
 }
 

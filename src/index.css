@@ -54,6 +54,17 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    --scrollbar-size: 8px;
+    --scrollbar-thumb: 199 40% 72%;
+    --scrollbar-thumb-hover: 199 92% 56%;
+    --scrollbar-track: 210 20% 94%;
+
+    /* Safe area (Capacitor / notch) — actualizado em runtime em capacitorNative.ts */
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-left: env(safe-area-inset-left, 0px);
+    --safe-area-right: env(safe-area-inset-right, 0px);
   }
 
   .dark {
@@ -88,6 +99,11 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    --scrollbar-size: 8px;
+    --scrollbar-thumb: 199 35% 38%;
+    --scrollbar-thumb-hover: 199 92% 56%;
+    --scrollbar-track: 210 22% 14%;
   }
 }
 
@@ -103,6 +119,43 @@
 
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
+  }
+
+  /* Scrollbars personalizadas — Firefox */
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--scrollbar-thumb)) hsl(var(--scrollbar-track));
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--scrollbar-thumb)) hsl(var(--scrollbar-track));
+  }
+
+  /* Scrollbars personalizadas — Chromium / Safari */
+  *::-webkit-scrollbar {
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
+  }
+
+  *::-webkit-scrollbar-track {
+    background: hsl(var(--scrollbar-track) / 0.55);
+    border-radius: 9999px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: hsl(var(--scrollbar-thumb) / 0.85);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--scrollbar-thumb-hover) / 0.95);
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: transparent;
   }
 }
 
@@ -128,6 +181,17 @@
     display: none;
     width: 0;
     height: 0;
+  }
+
+  /** Scrollbar fina com cores do tema (quando quiser reforçar além do global). */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--scrollbar-thumb)) hsl(var(--scrollbar-track));
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
   }
 
   /**
@@ -448,5 +512,19 @@ html.explorar-mobile-scroll-hide::-webkit-scrollbar {
 @media (prefers-reduced-motion: reduce) {
   .bbq-kit-expand-trigger::after {
     animation: none;
+  }
+}
+
+@layer utilities {
+  .pt-safe {
+    padding-top: var(--safe-area-top);
+  }
+
+  .pb-safe {
+    padding-bottom: var(--safe-area-bottom);
+  }
+
+  .top-safe-4 {
+    top: calc(1rem + var(--safe-area-top));
   }
 }

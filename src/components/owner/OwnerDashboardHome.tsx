@@ -1,20 +1,42 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { CalendarCheck, ChevronRight, Star, TrendingUp } from "lucide-react";
+import { format } from "date-fns";
+import { enUS, es, ptBR } from "date-fns/locale";
+import { CalendarCheck, ChevronRight, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { OwnerSurface } from "@/components/owner/OwnerSurface";
 import { cn } from "@/lib/utils";
 import { bcp47FromAppLang } from "@/lib/localeFormat";
 import { topRatedBoats, parseOwnerBoatRating, type OwnerBoatRecord } from "@/lib/ownerBoats";
 import { buildOwnerOptionalsCatalogFromApi } from "@/lib/ownerOptionalsCatalog";
 import type { OwnerOptionalRecord } from "@/lib/ownerOptionalsApi";
-import type { OwnerDashboardAgendaDay, OwnerDashboardStats } from "@/lib/ownerDashboardApi";
+import type { OwnerDashboardStats } from "@/lib/ownerDashboardApi";
+import {
+  ownerBookingYmd,
+  ownerUpcomingActiveBookings,
+  type OwnerBookingRow,
+} from "@/lib/ownerBookingTypes";
+
+const DASHBOARD_UPCOMING_LIMIT = 3;
+
+function parseBookingYmd(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function bookingStatusTone(status: string) {
+  if (status === "ACCEPTED") return "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300";
+  if (status === "PENDING") return "bg-amber-500/15 text-amber-600 dark:text-amber-300";
+  return "bg-muted text-muted-foreground";
+}
 
 export function OwnerDashboardHome({
   stats,
-  agendaPreview,
   boats,
   ownerOptionals,
+  bookings,
+  bookingsLoading,
   loading,
   onOpenAgenda,
   onOpenBoats,
@@ -23,9 +45,10 @@ export function OwnerDashboardHome({
   onOpenRevenue,
 }: {
   stats: OwnerDashboardStats | null;
-  agendaPreview: OwnerDashboardAgendaDay[];
   boats: OwnerBoatRecord[];
   ownerOptionals: OwnerOptionalRecord[];
+  bookings: OwnerBookingRow[];
+  bookingsLoading?: boolean;
   loading?: boolean;
   onOpenAgenda: () => void;
   onOpenBoats: () => void;
@@ -35,20 +58,37 @@ export function OwnerDashboardHome({
 }) {
   const { t, i18n } = useTranslation();
   const locale = bcp47FromAppLang(i18n.language);
+  const dayPickerLocale = i18n.language.startsWith("pt")
+    ? ptBR
+    : i18n.language.startsWith("es")
+      ? es
+      : enUS;
   const currencyFmt = useMemo(
     () => new Intl.NumberFormat(locale, { style: "currency", currency: "BRL" }),
     [locale]
   );
 
   const tripsMonth = stats?.tripsMonth ?? 0;
-  const tripsMonthDelta = stats?.tripsMonthDeltaPct ?? 0;
   const revenueMonth = currencyFmt.format((stats?.revenueMonthCents ?? 0) / 100);
-  const revenueMonthDelta = stats?.revenueMonthDeltaPct ?? 0;
   const topBoats = useMemo(() => topRatedBoats(boats, 3), [boats]);
   const optionals = useMemo(
     () => buildOwnerOptionalsCatalogFromApi(ownerOptionals),
     [ownerOptionals]
   );
+  const upcomingBookings = useMemo(
+    () => ownerUpcomingActiveBookings(bookings, DASHBOARD_UPCOMING_LIMIT),
+    [bookings]
+  );
+
+  const formatBookingWhen = (b: OwnerBookingRow) => {
+    const parts: string[] = [];
+    const ymd = ownerBookingYmd(b);
+    if (ymd) {
+      parts.push(format(parseBookingYmd(ymd), "d MMM", { locale: dayPickerLocale }));
+    }
+    if (b.embarkTime) parts.push(b.embarkTime);
+    return parts.join(" · ") || "—";
+  };
 
   return (
     <div className="space-y-4">
@@ -57,14 +97,6 @@ export function OwnerDashboardHome({
           <p className="text-[11px] font-medium text-muted-foreground">{t("ownerPanel.tripsMonth")}</p>
           <p className="mt-1 text-2xl font-bold tabular-nums text-foreground sm:text-3xl">
             {loading ? "—" : tripsMonth}
-          </p>
-          <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-primary">
-            <TrendingUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            {loading
-              ? "…"
-              : tripsMonthDelta >= 0
-                ? t("ownerPanel.tripsMonthDelta", { pct: tripsMonthDelta })
-                : t("ownerPanel.tripsMonthDeltaNeg", { pct: -tripsMonthDelta })}
           </p>
         </OwnerSurface>
         <button
@@ -77,56 +109,54 @@ export function OwnerDashboardHome({
             <p className="mt-1 text-lg font-bold tabular-nums text-foreground sm:text-xl">
               {loading ? "—" : revenueMonth}
             </p>
-            <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-primary">
-              <TrendingUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              {loading
-                ? "…"
-                : revenueMonthDelta >= 0
-                  ? t("ownerPanel.revenueMonthDelta", { pct: revenueMonthDelta })
-                  : t("ownerPanel.revenueMonthDeltaNeg", { pct: -revenueMonthDelta })}
-            </p>
           </OwnerSurface>
         </button>
       </div>
 
       <OwnerSurface className="p-4">
-        <div className="flex gap-3">
-          <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-primary/15">
-            <CalendarCheck className="h-8 w-8 text-primary" aria-hidden />
-            <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
-              <span className="text-[10px] font-bold">✓</span>
-            </span>
-          </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-semibold text-foreground">{t("ownerPanel.agendaTitle")}</h2>
-            {agendaPreview.length === 0 ? (
-              <p className="mt-2 text-xs text-muted-foreground">{t("ownerPanel.agendaEmpty")}</p>
-            ) : (
-              <ul className="mt-2 space-y-1.5">
-                {agendaPreview.map((row) => (
-                  <li key={row.date} className="flex items-baseline justify-between gap-2 text-xs">
-                    <span className="font-medium text-foreground">
-                      {new Intl.DateTimeFormat(locale, {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                      }).format(
-                        new Date(
-                          Number(row.date.slice(0, 4)),
-                          Number(row.date.slice(5, 7)) - 1,
-                          Number(row.date.slice(8, 10))
-                        )
-                      )}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {t("ownerPanel.agendaSlots", { count: row.availableSlots })}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+        <div className="flex items-center gap-2">
+          <CalendarCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+          <h2 className="text-sm font-semibold text-foreground">{t("ownerPanel.agendaTitle")}</h2>
         </div>
+
+        <div className="mt-3 space-y-2">
+          {bookingsLoading ? (
+            <>
+              <Skeleton className="h-14 w-full rounded-lg" />
+              <Skeleton className="h-14 w-full rounded-lg" />
+            </>
+          ) : upcomingBookings.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-border/50 bg-muted/20 px-3 py-4 text-center text-sm text-muted-foreground">
+              {t("ownerPanel.agendaNoUpcoming")}
+            </p>
+          ) : (
+            upcomingBookings.map((booking) => (
+              <button
+                key={booking.id}
+                type="button"
+                onClick={onOpenAgenda}
+                className="w-full rounded-lg border border-border/35 p-3 text-left transition-colors hover:bg-muted/25"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="truncate text-sm font-medium text-foreground">{booking.boat.nome}</p>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                      bookingStatusTone(booking.status)
+                    )}
+                  >
+                    {t(`ownerAgenda.status.${booking.status}`)}
+                  </span>
+                </div>
+                <p className="truncate text-xs text-muted-foreground">{booking.renter.nome}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground/90">
+                  {formatBookingWhen(booking)} · {currencyFmt.format(booking.totalCents / 100)}
+                </p>
+              </button>
+            ))
+          )}
+        </div>
+
         <Button
           type="button"
           variant="outline"

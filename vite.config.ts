@@ -57,9 +57,19 @@ export default defineConfig(({ mode }) => ({
     proxy: {
       "/api": apiProxyOptions,
     },
-    hmr: {
-      overlay: false,
-    },
+    hmr: (() => {
+      const hmrHost = process.env.VITE_HMR_HOST?.trim();
+      return {
+        overlay: false,
+        ...(hmrHost
+          ? {
+              host: hmrHost,
+              port: 8080,
+              protocol: "ws",
+            }
+          : {}),
+      };
+    })(),
   },
   // Mesmo proxy em `vite preview` (build local); se não houver, /api não chega à API.
   preview: {

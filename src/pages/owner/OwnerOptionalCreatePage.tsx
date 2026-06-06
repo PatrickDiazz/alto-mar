@@ -2,8 +2,8 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { OwnerOptionalForm } from "@/components/owner/OwnerOptionalForm";
-import { OwnerSurface } from "@/components/owner/OwnerSurface";
 import { OwnerBoatsOpcionaisNav } from "@/components/owner/OwnerBoatsOpcionaisNav";
+import { OwnerPanelPage } from "@/components/owner/OwnerPanelPage";
 import { useOwnerPanel } from "@/contexts/OwnerPanelContext";
 import { saveOwnerOptional } from "@/lib/ownerOptionalSave";
 import { defaultOwnerBbqKitItems } from "@/lib/trip-optionals";
@@ -46,12 +46,11 @@ export default function OwnerOptionalCreatePage() {
   };
 
   return (
-    <OwnerSurface variant="ghost" className="space-y-3">
-      <OwnerBoatsOpcionaisNav />
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">{t("ownerPanel.optionalAdd")}</h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">{t("ownerPanel.optionalCreateHint")}</p>
-      </div>
+    <OwnerPanelPage
+      subtitle={t("ownerPanel.optionalCreateHint")}
+      toolbar={<OwnerBoatsOpcionaisNav />}
+      bodyLayout="stack-tight"
+    >
       <OwnerOptionalForm
         mode="create"
         boats={boats}
@@ -60,6 +59,6 @@ export default function OwnerOptionalCreatePage() {
         onSubmit={handleSubmit}
         onCancel={() => navigate("/marinheiro/opcionais")}
       />
-    </OwnerSurface>
+    </OwnerPanelPage>
   );
 }

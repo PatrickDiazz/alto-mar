@@ -74,6 +74,9 @@ const RENTER_NOTICE_I18N: Record<string, string> = {
   RENTER_CANCEL_FULL_FEE_DEDUCTED: "reservasConta.noticeRenterCancelFullFeeDeducted",
   RENTER_CANCEL_PARTIAL_50: "reservasConta.noticeRenterCancelPartial50",
   RENTER_CANCEL_NO_REFUND_LT48H: "reservasConta.noticeRenterCancelNoRefundLt48h",
+  OWNER_CANCEL_REFUND: "reservasConta.noticeOwnerCancelRefund",
+  OWNER_CANCEL_WEATHER: "reservasConta.noticeOwnerCancelWeather",
+  OWNER_CANCEL_BOAT_FAILURE: "reservasConta.noticeOwnerCancelBoatFailure",
 };
 
 /** Intervalo para alinhar lista com o servidor (aceite/recusa do locador, etc.). */
@@ -252,7 +255,6 @@ export function RenterBookingsPanel() {
         embarkLocation: locOpts.length > 0 ? (editDraft.embarkLocation ?? null) : null,
         embarkTime: timeOpts.length > 0 ? (editDraft.embarkTime ?? null) : null,
         totalCents: Math.round(newTotalReais * 100),
-        routeIslands: editDraft.routeIslands,
         bookingDate: editDraft.bookingDate,
       };
       if (isRescheduling && editDraft.rescheduleReason) {
@@ -1066,18 +1068,10 @@ function BookingCard({
           ) : null}
           <div>
             <Label>{t("reservasConta.routeStops")}</Label>
-            <Input
-              value={(editDraft.routeIslands || []).join(", ")}
-              onChange={(e) =>
-                setEditDraft({
-                  ...editDraft,
-                  routeIslands: e.target.value
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter(Boolean),
-                })
-              }
-            />
+            <p className="mt-1 text-sm text-muted-foreground">
+              {(b.routeIslands || []).length ? (b.routeIslands || []).join(", ") : "—"}
+            </p>
+            <p className="text-[11px] text-muted-foreground">{t("reservasConta.routeStopsReadOnly")}</p>
           </div>
           <div className="flex gap-2">
             <Button size="sm" onClick={onSave}>

@@ -1,6 +1,7 @@
 import { pool, query } from "../db.js";
 import { getStripe } from "./client.js";
 import { splitPlatformOwnerNet } from "./fees.js";
+import { assertOwnerConnectReady } from "./connectStatus.js";
 import { StripeFlowStatus } from "./flowStatus.js";
 import { applyPaidCheckoutSessionInTx } from "./applyCheckoutPaid.js";
 import { ensureStripePixOnPaymentMethodConfigurations } from "./ensureStripePixPmc.js";
@@ -60,6 +61,7 @@ export async function createStripeCheckoutSessionForBooking(input) {
     e.code = "OWNER_NOT_ONBOARDED";
     throw e;
   }
+  await assertOwnerConnectReady(stripe, b.owner_stripe_account);
 
   const pay = await query(
     `select provider, status from payments where booking_id = $1::uuid limit 1`,
@@ -199,7 +201,7 @@ export async function syncPaidCheckoutSessionFromReturn(input) {
       `return_sync_${session.id}:payment_in`
     );
     await client.query("COMMIT");
-    return { ok: true };
+    return { ok: true, bookingId: session.metadata?.booking_id || session.client_reference_id || null };
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});
     throw e;

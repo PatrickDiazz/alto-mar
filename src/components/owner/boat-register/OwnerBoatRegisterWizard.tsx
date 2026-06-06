@@ -294,7 +294,10 @@ export function OwnerBoatRegisterWizard({ onSuccess, onCancel }: OwnerBoatRegist
           throw new Error(await readResponseErrorMessage(amResp, t("marinheiro.toastAmenitiesFail")));
         }
       }
-      setSubmittedBoatId(boatId ?? "");
+      // TESTE: pular ecrã “Embarcação em análise” — redirecionamento em OwnerBoatRegisterPage.
+      toast.success(t("marinheiro.toastRegister"));
+      resetForm();
+      onSuccess(boatId ?? undefined);
     } catch (e) {
       const m = (e instanceof Error ? e.message : t("marinheiro.toastRegisterFail")).trim();
       toast.error(m || t("marinheiro.toastRegisterFail"));

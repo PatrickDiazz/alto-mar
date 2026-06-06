@@ -3,6 +3,13 @@ import { pool } from "../db.js";
 import { getStripe } from "./client.js";
 import { finalizeTransferPaidInTx } from "./payout.js";
 import { applyPaidCheckoutSessionInTx } from "./applyCheckoutPaid.js";
+import { StripeFlowStatus } from "./flowStatus.js";
+import { upsertDisputeFromWebhookInTx } from "./disputes.js";
+import {
+  syncChargeRefundFromWebhookInTx,
+  syncRefundUpdatedFromWebhookInTx,
+} from "./refundWebhookHandlers.js";
+import { notifyAsync, dispatchStripeWebhookNotifications } from "../notifications/bookingEvents.js";
 
 /**
  * Regista POST /api/stripe/webhook com body raw (obrigatório para assinatura).
@@ -72,11 +79,15 @@ export function installStripeWebhook(app) {
         case "transfer.failed":
           await handleTransferFailed(client, event);
           break;
+        case "charge.refunded":
+          await handleChargeRefunded(client, stripe, event);
+          break;
         case "charge.refund.updated":
+          await handleChargeRefundUpdated(client, event);
+          break;
         case "charge.dispute.created":
         case "charge.dispute.closed":
-        case "charge.refunded":
-          // Reservado para fases seguintes (cancelamentos / disputas).
+          await handleDispute(client, event);
           break;
         default:
           break;
@@ -84,6 +95,7 @@ export function installStripeWebhook(app) {
 
       await client.query(`update stripe_events set processed = true where id = $1`, [event.id]);
       await client.query("COMMIT");
+      notifyAsync(() => dispatchStripeWebhookNotifications(event));
       return res.json({ received: true });
     } catch (e) {
       await client.query("ROLLBACK").catch(() => {});
@@ -149,4 +161,38 @@ async function handleTransferFailed(client, event) {
       [bookingId, StripeFlowStatus.TRANSFER_FAILED]
     );
   }
+}
+
+/**
+ * @param {import("pg").PoolClient} client
+ * @param {import("stripe").Stripe} stripe
+ * @param {import("stripe").Stripe.Event} event
+ */
+async function handleChargeRefunded(client, stripe, event) {
+  /** @type {import("stripe").Stripe.Charge} */
+  let charge = event.data.object;
+  if (!charge.refunds?.data?.length && charge.id) {
+    charge = await stripe.charges.retrieve(charge.id, { expand: ["refunds"] });
+  }
+  await syncChargeRefundFromWebhookInTx(client, charge, event.id);
+}
+
+/**
+ * @param {import("pg").PoolClient} client
+ * @param {import("stripe").Stripe.Event} event
+ */
+async function handleChargeRefundUpdated(client, event) {
+  /** @type {import("stripe").Stripe.Refund} */
+  const refund = event.data.object;
+  await syncRefundUpdatedFromWebhookInTx(client, refund, event.id);
+}
+
+/**
+ * @param {import("pg").PoolClient} client
+ * @param {import("stripe").Stripe.Event} event
+ */
+async function handleDispute(client, event) {
+  /** @type {import("stripe").Stripe.Dispute} */
+  const dispute = event.data.object;
+  await upsertDisputeFromWebhookInTx(client, dispute, event.id);
 }

@@ -10,6 +10,7 @@ import Home from "./pages/Home";
 import { RequireAuth } from "@/components/RequireAuth";
 import { BoatsQueryRecovery } from "@/components/BoatsQueryRecovery";
 import { MobileNavHost } from "@/components/MobileNavHost";
+import { NotificationsProvider } from "@/contexts/NotificationsContext";
 
 const Explorar = lazy(() => import("./pages/Explorar"));
 const DetalhesBarco = lazy(() => import("./pages/DetalhesBarco"));
@@ -52,7 +53,8 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <MobileNavHost>
+          <NotificationsProvider>
+            <MobileNavHost>
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/" element={<Home />} />
@@ -123,6 +125,7 @@ const App = () => (
               </Routes>
             </Suspense>
           </MobileNavHost>
+          </NotificationsProvider>
         </BrowserRouter>
       </TooltipProvider>
     </ThemeProvider>

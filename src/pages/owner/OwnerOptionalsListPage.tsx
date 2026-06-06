@@ -5,8 +5,8 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useOwnerPanel } from "@/contexts/OwnerPanelContext";
 import { buildOwnerOptionalsCatalogFromApi } from "@/lib/ownerOptionalsCatalog";
-import { OwnerSurface } from "@/components/owner/OwnerSurface";
 import { OwnerBoatsOpcionaisNav } from "@/components/owner/OwnerBoatsOpcionaisNav";
+import { OwnerPanelPage } from "@/components/owner/OwnerPanelPage";
 import { cn } from "@/lib/utils";
 
 export default function OwnerOptionalsListPage() {
@@ -16,19 +16,17 @@ export default function OwnerOptionalsListPage() {
   const items = useMemo(() => buildOwnerOptionalsCatalogFromApi(optionals), [optionals]);
 
   return (
-    <OwnerSurface variant="ghost" className="space-y-3">
-      <OwnerBoatsOpcionaisNav />
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">{t("ownerPanel.myOptionalsTitle")}</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">{t("ownerPanel.optionalsInventoryHint")}</p>
-        </div>
+    <OwnerPanelPage
+      subtitle={t("ownerPanel.optionalsInventoryHint")}
+      toolbar={<OwnerBoatsOpcionaisNav />}
+      actions={
         <Button size="sm" onClick={() => navigate("/marinheiro/opcionais/novo")}>
           <Plus className="mr-1 h-4 w-4" />
           {t("ownerPanel.optionalAdd")}
         </Button>
-      </div>
-
+      }
+      bodyLayout="stack-tight"
+    >
       {items.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border/50 px-4 py-8 text-center text-sm text-muted-foreground">
           {t("ownerPanel.optionalsEmpty")}
@@ -66,6 +64,6 @@ export default function OwnerOptionalsListPage() {
           ))}
         </div>
       )}
-    </OwnerSurface>
+    </OwnerPanelPage>
   );
 }
