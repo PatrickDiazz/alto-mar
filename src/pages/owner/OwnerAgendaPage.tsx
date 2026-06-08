@@ -17,8 +17,14 @@ import { bcp47FromAppLang } from "@/lib/localeFormat";
 import { cn } from "@/lib/utils";
 import { useOwnerPanel } from "@/contexts/OwnerPanelContext";
 import { useMatchMediaLgUp } from "@/hooks/useMatchMediaLgUp";
-import { ownerBookingYmd, type OwnerBookingRow } from "@/lib/ownerBookingTypes";
-import type { OwnerBookingStatusFilter } from "@/lib/ownerBookingTypes";
+import { ownerBookingYmd, type OwnerBookingRow, type OwnerBookingStatusFilter } from "@/lib/ownerBookingTypes";
+import {
+  ownerBookingPreviewSurfaceClass,
+  ownerBookingStatusDisplayLabel,
+  ownerBookingStatusVariant,
+} from "@/lib/ownerBookingTiming";
+import { OwnerBookingWhenAmountLine } from "@/components/owner/bookings/BookingCountdownBadge";
+import { reservationStatusTone } from "@/components/owner/reservations/reservationUi";
 
 const agendaDayPickerIcons = {
   IconLeft: ({ className, ...props }: ComponentProps<typeof ChevronLeft>) => (
@@ -45,13 +51,6 @@ function localeForLang(lang: string) {
   if (lang.startsWith("pt")) return ptBR;
   if (lang.startsWith("es")) return es;
   return enUS;
-}
-
-function statusTone(status: string): string {
-  if (status === "ACCEPTED") return "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300";
-  if (status === "PENDING") return "bg-amber-500/15 text-amber-600 dark:text-amber-300";
-  if (status === "COMPLETED") return "bg-primary/15 text-primary";
-  return "bg-muted text-muted-foreground";
 }
 
 const UPCOMING_SIDEBAR_DAYS = 3;
@@ -358,7 +357,7 @@ export default function OwnerAgendaPage() {
                 key={booking.id}
                 booking={booking}
                 whenLabel={formatBookingWhen(booking, true)}
-                statusLabel={t(`ownerAgenda.status.${booking.status}`)}
+                statusLabel={ownerBookingStatusDisplayLabel(booking, t)}
                 amountLabel={currency.format(booking.totalCents / 100)}
                 onClick={() => openReservas({ bookingId: booking.id, booking })}
               />
@@ -369,30 +368,40 @@ export default function OwnerAgendaPage() {
     );
   };
 
-  const renderSidebarBooking = (booking: OwnerBookingRow, showDate: boolean) => (
-    <button
-      key={booking.id}
-      type="button"
-      onClick={() => openReservas({ bookingId: booking.id, booking })}
-      className="w-full rounded-lg border border-border/35 p-2 text-left transition-colors hover:bg-muted/25"
-    >
-      <div className="flex items-start justify-between gap-2">
-        <p className="truncate text-xs font-medium text-foreground">{booking.boat.nome}</p>
-        <span
-          className={cn(
-            "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
-            statusTone(booking.status)
-          )}
-        >
-          {t(`ownerAgenda.status.${booking.status}`)}
-        </span>
-      </div>
-      <p className="truncate text-[11px] text-muted-foreground">{booking.renter.nome}</p>
-      <p className="mt-0.5 text-[10px] text-muted-foreground/90">
-        {formatBookingWhen(booking, showDate)} · {currency.format(booking.totalCents / 100)}
-      </p>
-    </button>
-  );
+  const renderSidebarBooking = (booking: OwnerBookingRow, showDate: boolean) => {
+    const statusVariant = ownerBookingStatusVariant(booking);
+    const whenBase = formatBookingWhen(booking, showDate);
+    return (
+      <button
+        key={booking.id}
+        type="button"
+        onClick={() => openReservas({ bookingId: booking.id, booking })}
+        className={cn(
+          "w-full rounded-lg border p-2 text-left transition-colors",
+          ownerBookingPreviewSurfaceClass(booking)
+        )}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <p className="truncate text-xs font-medium text-foreground">{booking.boat.nome}</p>
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
+              reservationStatusTone(statusVariant)
+            )}
+          >
+            {ownerBookingStatusDisplayLabel(booking, t)}
+          </span>
+        </div>
+        <p className="truncate text-[11px] text-muted-foreground">{booking.renter.nome}</p>
+        <OwnerBookingWhenAmountLine
+          className="mt-0.5 text-[10px] leading-tight"
+          whenLabel={whenBase}
+          amountLabel={currency.format(booking.totalCents / 100)}
+          booking={booking}
+        />
+      </button>
+    );
+  };
 
   const DayContent = ({ date }: { date: Date }) => {
     const key = ymd(date);

@@ -35,12 +35,24 @@ export const reservationMainGridClass =
 export const reservationCompletedGridClass =
   "grid grid-cols-1 gap-2 pr-0.5 lg:max-h-[min(22rem,52vh)] lg:overflow-y-auto lg:overscroll-contain xl:grid-cols-2";
 
-export type ReservationStatusVariant = "inProgress" | "confirmed" | "pending" | "completed" | "cancelled";
+export type ReservationStatusVariant =
+  | "inProgress"
+  | "confirmed"
+  | "pending"
+  | "completed"
+  | "cancelled"
+  | "overdue";
 
 /** Tons de status — mesmo padrão da agenda e do dashboard. */
 export function reservationStatusTone(variant: ReservationStatusVariant): string {
-  if (variant === "inProgress" || variant === "confirmed") {
+  if (variant === "inProgress") {
     return "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300";
+  }
+  if (variant === "confirmed") {
+    return "bg-primary/15 text-primary";
+  }
+  if (variant === "overdue") {
+    return "bg-amber-500/15 text-amber-700 dark:text-amber-200";
   }
   if (variant === "pending") return "bg-amber-500/15 text-amber-600 dark:text-amber-300";
   if (variant === "completed") return "bg-primary/15 text-primary";
@@ -54,7 +66,9 @@ export function reservationStatusVariant(
   if (status === "COMPLETED") return "completed";
   if (status === "CANCELLED" || status === "DECLINED") return "cancelled";
   if (status === "PENDING") return "pending";
-  if (status === "ACCEPTED" && dayDiff !== null && dayDiff <= 0) return "inProgress";
+  if (status === "ACCEPTED" && dayDiff !== null && dayDiff < 0) return "overdue";
+  if (status === "ACCEPTED" && dayDiff === 0) return "inProgress";
+  if (status === "ACCEPTED") return "confirmed";
   return "confirmed";
 }
 
@@ -92,7 +106,7 @@ export function computeReservationMetrics(bookings: OwnerBookingRow[]): Reservat
 
     if (inMonth) totalMonth += 1;
 
-    if (b.status === "ACCEPTED" && dayDiff !== null && dayDiff <= 0) {
+    if (b.status === "ACCEPTED" && dayDiff === 0) {
       inCourseNow += 1;
     }
 
@@ -135,10 +149,11 @@ export function splitReservationLists(bookings: OwnerBookingRow[]) {
       inCourse.push(b);
       continue;
     }
-    if (
-      (b.status === "PENDING" || b.status === "ACCEPTED") &&
-      (dayDiff === null || (dayDiff > 0 && dayDiff <= 7))
-    ) {
+    if (b.status === "PENDING" && (dayDiff === null || dayDiff >= 0)) {
+      upcoming.push(b);
+      continue;
+    }
+    if (b.status === "ACCEPTED" && dayDiff !== null && dayDiff > 0) {
       upcoming.push(b);
     }
   }

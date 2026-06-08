@@ -7,11 +7,14 @@ import {
   reservationListCardHover,
   reservationListCardSurface,
   reservationListTileWidthClass,
-  reservationStatusVariant,
 } from "./reservationUi";
 import { ReservationStatusBadge } from "./ReservationStatusBadge";
 import { ReservationThumbnail } from "./ReservationThumbnail";
-import { ownerBookingDayDiff } from "@/lib/ownerBookingTypes";
+import { OwnerBookingWhenAmountLine } from "@/components/owner/bookings/BookingCountdownBadge";
+import {
+  ownerBookingListCardSurfaceClass,
+  ownerBookingStatusVariant,
+} from "@/lib/ownerBookingTiming";
 
 const TAP_MOVE_THRESHOLD_PX = 10;
 
@@ -68,14 +71,13 @@ export function ReservationListCard({
   className?: string;
 }) {
   const tapHandlers = useTapLinkHandlers();
-  const statusVariant = reservationStatusVariant(
-    booking.status,
-    ownerBookingDayDiff(booking.bookingDate)
-  );
+  const statusVariant = ownerBookingStatusVariant(booking);
+  const timingSurface = ownerBookingListCardSurfaceClass(booking);
 
   const linkClass = cn(
     reservationListCardSurface,
     reservationListCardHover,
+    timingSurface,
     className
   );
 
@@ -97,9 +99,12 @@ export function ReservationListCard({
             {booking.boat.nome}
           </p>
           <p className="mt-0.5 truncate text-[10px] leading-tight text-muted-foreground">{booking.renter.nome}</p>
-          <p className="mt-0.5 truncate text-[10px] leading-tight text-muted-foreground/90">
-            {dateLabel} · {amountLabel}
-          </p>
+          <OwnerBookingWhenAmountLine
+            className="mt-0.5 text-[10px] leading-tight"
+            whenLabel={dateLabel}
+            amountLabel={amountLabel}
+            booking={booking}
+          />
           <ReservationStatusBadge
             label={statusLabel}
             variant={statusVariant}
@@ -135,9 +140,12 @@ export function ReservationListCard({
           />
         </div>
         <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">{booking.renter.nome}</p>
-        <p className="mt-0.5 truncate text-[10px] leading-tight text-muted-foreground/90">
-          {dateLabel} · {amountLabel}
-        </p>
+        <OwnerBookingWhenAmountLine
+          className="mt-0.5 text-[10px] leading-tight sm:text-[11px]"
+          whenLabel={dateLabel}
+          amountLabel={amountLabel}
+          booking={booking}
+        />
         <ReservationStatusBadge
           label={statusLabel}
           variant={statusVariant}

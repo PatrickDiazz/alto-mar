@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { OwnerProfileTab } from "@/components/owner/OwnerProfileTab";
 import { OwnerPanelPage } from "@/components/owner/OwnerPanelPage";
 import { authFetch, clearSession, apiUrl } from "@/lib/auth";
+import { openStripeCheckoutUrl } from "@/lib/stripeCheckout";
 import { useOwnerPanel } from "@/contexts/OwnerPanelContext";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -46,7 +47,7 @@ export default function OwnerProfilePage() {
       }
       const data = (await resp.json()) as { url?: string };
       if (!data.url) throw new Error(t("marinheiro.toastStripeConnectFail"));
-      window.location.assign(data.url);
+      await openStripeCheckoutUrl(data.url);
     } catch (e) {
       const m = (e instanceof Error ? e.message : t("marinheiro.toastStripeConnectFail")).trim();
       toast.error(m || t("marinheiro.toastStripeConnectFail"));

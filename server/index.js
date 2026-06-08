@@ -62,6 +62,8 @@ import {
   RenterNoticeCode,
 } from "./stripe/refunds.js";
 import { ensureNotificationsSchema } from "./notifications/schema.js";
+import { ensureBookingChatSchema } from "./chat/schema.js";
+import { installBookingChatRoutes } from "./chat/routes.js";
 import {
   registerPushToken,
   unregisterPushToken,
@@ -69,10 +71,10 @@ import {
   getUnreadNotificationCount,
   markNotificationRead,
   markAllNotificationsRead,
+  markNotificationsReadForVisit,
 } from "./notifications/service.js";
 import {
   notifyAsync,
-  notifyBookingCreated,
   notifyBookingAccepted,
   notifyBookingDeclined,
   notifyBookingCancelledByRenter,
@@ -82,6 +84,7 @@ import {
   notifyBookingConflictCancelled,
   notifyBookingPaymentReceived,
 } from "./notifications/bookingEvents.js";
+import { BOOKING_SLOT_OCCUPIED_STATUSES, sqlOwnerVisibleBookingClause } from "./bookingAvailability.js";
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
@@ -523,16 +526,18 @@ async function assertBookingSlotAvailable(boatId, bookingDateStr, excludeBooking
     throw e;
   }
   const params = [boatId, bookingDateStr];
+  const statusParam = excludeBookingId ? "$4" : "$3";
   let sql = `select bk.id
     from bookings bk
     left join booking_days bd on bd.booking_id = bk.id and bd.day_date = $2::date and bd.status = 'ACTIVE'
     where bk.boat_id = $1
-      and bk.status in ('PENDING','ACCEPTED','COMPLETED')
+      and bk.status::text = any(${statusParam}::text[])
       and (bk.booking_date = $2::date or bd.id is not null)`;
   if (excludeBookingId) {
     sql += ` and bk.id <> $3::uuid`;
     params.push(excludeBookingId);
   }
+  params.push(BOOKING_SLOT_OCCUPIED_STATUSES);
   sql += ` limit 1`;
   const cf = await query(sql, params);
   if (cf.rows[0]) {
@@ -708,6 +713,11 @@ const allowedOrigins = [
   "http://localhost:8081",
   "http://127.0.0.1:8080",
   "http://127.0.0.1:8081",
+  // Capacitor WebView (Android/iOS)
+  "https://localhost",
+  "http://localhost",
+  "capacitor://localhost",
+  "ionic://localhost",
   ...extraCors,
 ].filter(Boolean);
 
@@ -1459,7 +1469,7 @@ app.get("/api/boats/:id/calendar", async (req, res) => {
   }
 });
 
-/** Lista embarcações com esse dia livre (sem travas nem marcação ACCEPTED/PENDING/COMPLETED). Exclui só DECLINED/CANCELLED. */
+/** Lista embarcações com esse dia livre (sem travas nem reserva ACCEPTED/COMPLETED). */
 app.get("/api/public/boats-available-on", async (req, res) => {
   const date = typeof req.query.date === "string" ? req.query.date.trim() : "";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -1481,7 +1491,7 @@ app.get("/api/public/boats-available-on", async (req, res) => {
         select 1 from bookings bk
         left join booking_days bd on bd.booking_id = bk.id and bd.day_date = $1::date and bd.status = 'ACTIVE'
         where bk.boat_id = b.id
-          and bk.status not in ('DECLINED', 'CANCELLED')
+          and bk.status = any('{ACCEPTED,COMPLETED}'::text[])
           and (bk.booking_date = $1::date or bd.id is not null)
       )
       and coalesce(b.is_active, true) = true
@@ -2599,7 +2609,6 @@ app.post("/api/bookings", requireAuth, requireRole("banhista"), async (req, res)
       );
     }
 
-    notifyAsync(() => notifyBookingCreated(String(booking.id)));
     return res.json({
       booking: {
         id: booking.id,
@@ -2767,6 +2776,8 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
 
 const stripeCheckoutBodySchema = z.object({
   bookingId: z.string().uuid(),
+  /** App nativo envia `https://localhost` para o retorno pós-pagamento abrir no WebView. */
+  returnBaseUrl: z.string().url().max(300).optional(),
 });
 
 const stripeSyncBodySchema = z.object({
@@ -2799,12 +2810,13 @@ app.post("/api/stripe/sync-checkout-session", requireAuth, requireRole("banhista
 app.post("/api/stripe/checkout-session", requireAuth, requireRole("banhista"), async (req, res) => {
   try {
     const body = stripeCheckoutBodySchema.parse(req.body || {});
-    const { url } = await createStripeCheckoutSessionForBooking({
+    const session = await createStripeCheckoutSessionForBooking({
       bookingId: body.bookingId,
       renterUserId: req.user.sub,
+      returnBaseUrl: body.returnBaseUrl,
     });
-    if (!url) return res.status(500).send("Stripe não devolveu URL de checkout.");
-    return res.json({ url });
+    if (!session.url) return res.status(500).send("Stripe não devolveu URL de checkout.");
+    return res.json({ url: session.url, sessionId: session.sessionId });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro ao criar sessão Stripe.";
     if (e && typeof e === "object" && "code" in e) {
@@ -3222,7 +3234,7 @@ app.get("/api/owner/bookings", requireAuth, requireRole("locatario"), async (req
         : null;
 
     const params = [req.user.sub];
-    let where = `where bk.owner_user_id = $1`;
+    let where = `where bk.owner_user_id = $1 and ${sqlOwnerVisibleBookingClause("bk")}`;
     if (statusFilter) {
       params.push(statusFilter);
       where += ` and bk.status = $2`;
@@ -3367,7 +3379,7 @@ app.post(
       const conflict = await client.query(
         `select id from bookings
          where boat_id = $1 and booking_date = $2::date
-           and status in ('PENDING','ACCEPTED','COMPLETED')
+           and status in ('ACCEPTED','COMPLETED')
            and id <> $3::uuid
          limit 1`,
         [pr.boat_id, pr.bd, bookingId]
@@ -3748,6 +3760,8 @@ app.post("/api/owner/bookings/:id/rate-renter", requireAuth, requireRole("locata
   }
 });
 
+installBookingChatRoutes(app);
+
 const pushTokenSchema = z.object({
   token: z.string().min(10).max(4096),
   platform: z.string().max(32).optional(),
@@ -3800,6 +3814,21 @@ app.get("/api/notifications/unread-count", requireAuth, async (req, res) => {
 app.post("/api/notifications/read-all", requireAuth, async (req, res) => {
   try {
     const result = await markAllNotificationsRead(req.user.sub);
+    return res.json(result);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro ao marcar notificações.";
+    return res.status(400).send(msg);
+  }
+});
+
+const notificationVisitSchema = z.object({
+  pathname: z.string().min(1).max(500),
+});
+
+app.post("/api/notifications/mark-visit", requireAuth, async (req, res) => {
+  try {
+    const body = notificationVisitSchema.parse(req.body || {});
+    const result = await markNotificationsReadForVisit(req.user.sub, body.pathname);
     return res.json(result);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro ao marcar notificações.";
@@ -3955,6 +3984,7 @@ Teste: http://127.0.0.1:3001/api/health
     }
     await ensureStripeConnectSchema();
     await ensureNotificationsSchema();
+    await ensureBookingChatSchema();
     startStripeCrons();
     if (
       String(process.env.PAYMENTS_PROVIDER || "").toLowerCase() === "stripe" &&

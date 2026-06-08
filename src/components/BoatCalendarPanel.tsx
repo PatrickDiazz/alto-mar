@@ -156,7 +156,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
       const hit = data.bookings.find(
         (b) =>
           b.date === key &&
-          (b.status === "PENDING" || b.status === "ACCEPTED" || b.status === "COMPLETED") &&
+          (b.status === "ACCEPTED" || b.status === "COMPLETED") &&
           b.id !== excludeId
       );
       return Boolean(hit);
@@ -206,11 +206,14 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
           (b) => b.date === key && (b.status === "ACCEPTED" || b.status === "COMPLETED")
         );
       },
-      tripPending: (d: Date) => {
-        const key = dayKey(d);
-        if (pickerSelectedKey && key === pickerSelectedKey) return false;
-        return data.bookings.some((b) => b.date === key && b.status === "PENDING");
-      },
+      tripPending:
+        props.variant === "owner"
+          ? (d: Date) => {
+              const key = dayKey(d);
+              if (pickerSelectedKey && key === pickerSelectedKey) return false;
+              return data.bookings.some((b) => b.date === key && b.status === "PENDING");
+            }
+          : undefined,
     };
   }, [data, pickerSelectedKey, props.variant, pickerHighlighted]);
 

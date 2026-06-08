@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import type { BookingChatLocationState } from "@/pages/booking/BookingChatPage";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -7,14 +8,31 @@ import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { RenterBookingsPanel } from "@/components/RenterBookingsPanel";
 import { authFetch, getStoredUser } from "@/lib/auth";
 import { readResponseErrorMessage } from "@/lib/responseError";
+import { useMarkNotificationsReadOnVisit } from "@/hooks/useMarkNotificationsReadOnVisit";
+import { parseLegacyRenterChatHash, renterBookingChatPath } from "@/lib/bookingChatRoutes";
 
 const ContaReservas = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { pathname } = location;
   const [searchParams, setSearchParams] = useSearchParams();
+  useMarkNotificationsReadOnVisit(pathname);
   const stripeReturnQuery = searchParams.toString();
   const user = getStoredUser();
   const [bookingsPanelKey, setBookingsPanelKey] = useState(0);
+  const chatNavState = (location.state as BookingChatLocationState | null) ?? null;
+  const autoOpenChatBookingId = useMemo(
+    () => chatNavState?.openChatBookingId ?? null,
+    [chatNavState?.openChatBookingId]
+  );
+
+  useEffect(() => {
+    const legacyId = parseLegacyRenterChatHash(window.location.hash);
+    if (legacyId) {
+      navigate(renterBookingChatPath(legacyId), { replace: true });
+    }
+  }, [navigate]);
 
   useEffect(() => {
     if (!user) {
@@ -92,7 +110,12 @@ const ContaReservas = () => {
       </header>
 
       <div className="mx-auto max-w-2xl space-y-4 px-4 py-5">
-        <RenterBookingsPanel key={bookingsPanelKey} />
+        <RenterBookingsPanel
+          key={bookingsPanelKey}
+          autoOpenChatBookingId={autoOpenChatBookingId}
+          autoOpenChatPeerLabel={chatNavState?.peerLabel}
+          autoOpenChatSubtitle={chatNavState?.subtitle}
+        />
       </div>
     </div>
   );

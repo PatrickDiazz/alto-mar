@@ -59,7 +59,7 @@
       "sat": "Sat"
     },
     "ownerHint": "Lock specific dates or weekdays to stop new bookings. Pending requests do not block the day until accepted.",
-    "pickerHint": "Green: confirmed trip. Amber: pending booking (day unavailable). Red: blocked by owner.",
+    "pickerHint": "Green: confirmed trip. Red: blocked by owner. Pending bookings from others do not block the date.",
     "banhistaMinLeadHint": "Minimum lead time: {{days}} calendar days from today — today and tomorrow cannot be selected.",
     "panelHint": "View bookings and locks. To edit locks, open the boat editor.",
     "pickBoat": "Choose a boat"
@@ -254,7 +254,7 @@
     "pending": "Verification pending",
     "description": "Description",
     "availabilityTitle": "Availability",
-    "availabilityHint": "See when the boat is free or busy. Unavailable: owner lock, weekday closure, or existing booking. Green: confirmed trip. Amber: pending booking (day taken).",
+    "availabilityHint": "See when the boat is free or busy. Unavailable for new bookings: owner lock, weekday closure, or confirmed trip (accepted). Pending unpaid bookings do not block the day.",
     "bookNow": "Book now",
     "photoCarousel": "Boat photos, swipe to change",
     "jetSkiTitle": "Jet ski (optional)",
@@ -362,7 +362,7 @@
     "toastDate": "Choose the trip date on the calendar.",
     "toastDateMinLead": "The trip date must be at least two days after today (today and tomorrow are not available).",
     "tripDate": "Trip date",
-    "tripDateHint": "Green: confirmed. Amber: pending booking (day unavailable). Red: blocked by owner.",
+    "tripDateHint": "Green: confirmed trip (accepted). Red: blocked by owner. Pending bookings from others do not block the date.",
     "tripDateMinLead": "Bookings require at least 2 days’ notice: you cannot choose today or tomorrow.",
     "toastRoute": "Select at least one route stop.",
     "routeStops": "Trip route",
@@ -423,6 +423,7 @@
     "tabProfile": "Profile",
     "bottomNavAria": "Owner dashboard navigation",
     "sidebarAria": "Owner dashboard sidebar",
+    "mobileMenuAria": "Open navigation and settings menu",
     "navAgenda": "Calendar",
     "navRevenue": "Revenue",
     "tripsDone": "Trips completed",
@@ -629,7 +630,7 @@
     "metricNow": "now",
     "metricNext7Days": "next 7 days",
     "columnInCourse": "In progress (now)",
-    "columnUpcoming": "Upcoming (next 7 days)",
+    "columnUpcoming": "Upcoming",
     "columnCompletedRecent": "Recent completed bookings",
     "summaryTitle": "Bookings summary",
     "periodThisMonth": "This month",
@@ -637,7 +638,7 @@
     "seeLess": "Show less",
     "statusConfirmed": "Confirmed",
     "emptyInCourse": "No bookings in progress right now.",
-    "emptyUpcoming": "No bookings in the next 7 days.",
+    "emptyUpcoming": "No upcoming bookings.",
     "emptyCompleted": "No recent completed bookings.",
     "emptyTitle": "No bookings found",
     "emptyDesc": "Adjust filters or wait for new requests.",
@@ -694,6 +695,15 @@
       "TRANSFER_FAILED": "Payout failed"
     }
   },
+  "ownerBooking": {
+    "statusInProgress": "In progress",
+    "countdownDays_one": "In 1 day",
+    "countdownDays_other": "In {{count}} days",
+    "countdownWeeks_one": "In 1 wk",
+    "countdownWeeks_other": "In {{count}} wks",
+    "countdownMonths_one": "In 1 mo",
+    "countdownMonths_other": "In {{count}} mos"
+  },
   "ownerAgenda": {
     "calendarTitle": "Booking calendar",
     "calendarHint": "Click a highlighted day to filter boats with bookings on that date.",
@@ -737,7 +747,7 @@
     "shortcutBoats": "My boats",
     "status": {
       "PENDING": "Pending",
-      "ACCEPTED": "In progress",
+      "ACCEPTED": "Confirmed",
       "COMPLETED": "Completed",
       "DECLINED": "Declined",
       "CANCELLED": "Cancelled"
@@ -1177,5 +1187,26 @@
     "markAllRead": "Mark all as read",
     "loading": "Loading…",
     "empty": "No notifications yet."
+  },
+  "bookingChat": {
+    "sectionTitle": "Messages",
+    "pageTitle": "Messages",
+    "open": "Open messages",
+    "backToBooking": "Back to booking",
+    "you": "You",
+    "owner": "Owner",
+    "inputPlaceholder": "Write a message about the trip…",
+    "send": "Send",
+    "empty": "No messages yet. Coordinate embarkation details here.",
+    "readOnlyBanner": "Conversation closed — you can still read the history.",
+    "unreadBadge_one": "1 new message",
+    "unreadBadge_other": "{{count}} new messages",
+    "errorContentBlocked": "Sharing contacts or links is not allowed. Use the chat only to coordinate trip details.",
+    "errorReadOnly": "This conversation is closed.",
+    "errorNotAvailable": "Chat is only available for confirmed bookings.",
+    "errorRateLimit": "Please wait a moment before sending another message.",
+    "errorInvalid": "Invalid message.",
+    "errorLoad": "Could not load messages.",
+    "errorSend": "Could not send the message."
   }
 }

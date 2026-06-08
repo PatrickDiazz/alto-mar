@@ -58,3 +58,22 @@ export async function markAllNotificationsRead(): Promise<void> {
     throw new Error(await readResponseErrorMessage(resp, "Erro ao marcar notificações."));
   }
 }
+
+export async function markNotificationsReadForVisit(pathname: string): Promise<{ updated: number }> {
+  const resp = await authFetch("/api/notifications/mark-visit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pathname }),
+  });
+  if (resp.status === 401) return { updated: 0 };
+  if (!resp.ok) {
+    throw new Error(await readResponseErrorMessage(resp, "Erro ao marcar notificações."));
+  }
+  const data = (await resp.json()) as { updated?: number };
+  return { updated: Number(data.updated ?? 0) };
+}
+
+export function notificationMatchesPathPrefix(n: AppNotification, prefix: string): boolean {
+  if (n.readAt || !n.path) return false;
+  return n.path === prefix || n.path.startsWith(`${prefix}/`);
+}

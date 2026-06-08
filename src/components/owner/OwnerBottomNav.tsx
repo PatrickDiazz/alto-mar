@@ -37,11 +37,11 @@ function TabButton({
 export function OwnerBottomNav({
   tab,
   onTabChange,
-  pendingCount,
+  bookingsBadgeCount,
 }: {
   tab: OwnerPanelTab;
   onTabChange: (tab: OwnerPanelTab) => void;
-  pendingCount: number;
+  bookingsBadgeCount: number;
 }) {
   const { t } = useTranslation();
 
@@ -69,9 +69,9 @@ export function OwnerBottomNav({
         >
           <ClipboardList className="h-5 w-5 shrink-0" strokeWidth={tab === "reservas" ? 2.25 : 2} aria-hidden />
           <span className="max-w-full truncate">{t("ownerPanel.tabBookings")}</span>
-          {pendingCount > 0 ? (
+          {bookingsBadgeCount > 0 ? (
             <span className="absolute right-[18%] top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">
-              {pendingCount > 9 ? "9+" : pendingCount}
+              {bookingsBadgeCount > 9 ? "9+" : bookingsBadgeCount}
             </span>
           ) : null}
         </button>

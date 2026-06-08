@@ -22,6 +22,7 @@ const RecuperarSenha = lazy(() => import("./pages/RecuperarSenha"));
 const RedefinirSenha = lazy(() => import("./pages/RedefinirSenha"));
 const ContaUsuario = lazy(() => import("./pages/ContaUsuario"));
 const ContaReservas = lazy(() => import("./pages/ContaReservas"));
+const RenterBookingChatPage = lazy(() => import("./pages/booking/BookingChatPage"));
 const ContaFavoritos = lazy(() => import("./pages/ContaFavoritos"));
 const ContaDados = lazy(() => import("./pages/ContaDados"));
 const AjudaTeste = lazy(() => import("./pages/AjudaTeste"));
@@ -75,6 +76,14 @@ const App = () => (
                   element={
                     <RequireAuth>
                       <ContaReservas />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/conta/reservas/:bookingId/chat"
+                  element={
+                    <RequireAuth>
+                      <RenterBookingChatPage audience="renter" />
                     </RequireAuth>
                   }
                 />

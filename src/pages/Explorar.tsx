@@ -40,12 +40,7 @@ import type { Boat } from "@/lib/types";
 
 const STRIP_PAGE_DESKTOP = 5;
 
-/** Distância circular entre índices no carrossel (centro modo). */
-function exploreCircIndexDistance(a: number, b: number, len: number): number {
-  if (len <= 1) return 0;
-  const raw = Math.abs(a - b);
-  return Math.min(raw, len - raw);
-}
+const MOBILE_AXIS_LOCK_PX = 10;
 
 function subscribeMatchMd768(onChange: () => void) {
   const mq = window.matchMedia("(min-width: 768px)");
@@ -245,7 +240,6 @@ function ExploreBoatStrip({
   const [mobileTouching, setMobileTouching] = useState(false);
   /** Enquanto a faixa faz snap (transition), só 1 swipe de cada vez — ignora novo toque. */
   const [mobileTrackSwipeLock, setMobileTrackSwipeLock] = useState(false);
-  const [suppressMobileTrackTransition, setSuppressMobileTrackTransition] = useState(false);
   /** Geometria do track em modo centro (medida no cliente). */
   const [mobileCenterMetrics, setMobileCenterMetrics] = useState<{ vw: number; stride: number; slideW: number } | null>(
     null
@@ -254,7 +248,19 @@ function ExploreBoatStrip({
   const mobileCenterTrackRef = useRef<HTMLDivElement>(null);
   const mobileIndexRef = useRef(0);
   const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const touchAxisLockRef = useRef<"none" | "horizontal" | "vertical">("none");
   const touchDeltaXRef = useRef(0);
+  const mobileTrackSwipeLockRef = useRef(false);
+  const boatsLengthRef = useRef(boats.length);
+
+  useEffect(() => {
+    boatsLengthRef.current = boats.length;
+  }, [boats.length]);
+
+  useEffect(() => {
+    mobileTrackSwipeLockRef.current = mobileTrackSwipeLock;
+  }, [mobileTrackSwipeLock]);
 
   useEffect(() => {
     setShownDesktop(STRIP_PAGE_DESKTOP);
@@ -303,41 +309,42 @@ function ExploreBoatStrip({
     setMobileDragX(0);
     mobileIndexRef.current = 0;
     setMobileTrackSwipeLock(false);
-    setSuppressMobileTrackTransition(false);
+    touchAxisLockRef.current = "none";
   }, [boatKey, isMdUp]);
 
   useEffect(() => {
     mobileIndexRef.current = mobileIndex;
   }, [mobileIndex]);
 
-  const handleTouchStart = useCallback(
-    (event: React.TouchEvent<HTMLDivElement>) => {
-      if (!isMdUp && mobileTrackSwipeLock) return;
-      touchStartXRef.current = event.touches[0]?.clientX ?? null;
-      touchDeltaXRef.current = 0;
-      setMobileTouching(true);
-    },
-    [isMdUp, mobileTrackSwipeLock]
-  );
-
-  const handleTouchMove = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
-    if (!isMdUp && mobileTrackSwipeLock) return;
-    if (touchStartXRef.current === null) return;
-    const currentX = event.touches[0]?.clientX;
-    if (typeof currentX !== "number") return;
-    const dx = currentX - touchStartXRef.current;
-    touchDeltaXRef.current = dx;
+  const applyMobileDragX = useCallback((dx: number) => {
+    const n = boatsLengthRef.current;
+    const cur = mobileIndexRef.current;
+    let adjusted = dx;
+    if (cur === 0 && adjusted > 0) adjusted *= 0.32;
+    if (n > 0 && cur === n - 1 && adjusted < 0) adjusted *= 0.32;
     const max = typeof window !== "undefined" ? window.innerWidth * 0.45 : 220;
-    setMobileDragX(Math.max(-max, Math.min(max, dx)));
-  }, [isMdUp, mobileTrackSwipeLock]);
+    setMobileDragX(Math.max(-max, Math.min(max, adjusted)));
+  }, []);
 
   const finalizeMobileSwipe = useCallback(() => {
+    if (touchAxisLockRef.current === "vertical") {
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
+      touchAxisLockRef.current = "none";
+      touchDeltaXRef.current = 0;
+      setMobileTouching(false);
+      setMobileDragX(0);
+      return;
+    }
+
     const dx = touchDeltaXRef.current;
     touchStartXRef.current = null;
+    touchStartYRef.current = null;
+    touchAxisLockRef.current = "none";
     touchDeltaXRef.current = 0;
     setMobileTouching(false);
 
-    const n = boats.length;
+    const n = boatsLengthRef.current;
     if (n <= 1) {
       setMobileDragX(0);
       setMobileTrackSwipeLock(false);
@@ -347,43 +354,76 @@ function ExploreBoatStrip({
     const vw = typeof window !== "undefined" ? window.innerWidth : 360;
     const threshold = Math.max(40, vw * 0.08);
 
-    /** No máximo 1 barco por gesto (+1 ou -1), nunca vários índices de uma só vez */
     let step = 0;
     if (dx < -threshold) step = 1;
     else if (dx > threshold) step = -1;
 
     const cur = mobileIndexRef.current;
     let next = cur;
-    if (step !== 0) {
-      next = (cur + step + n) % n;
-    }
+    if (step === 1 && cur < n - 1) next = cur + 1;
+    else if (step === -1 && cur > 0) next = cur - 1;
 
-    const crossesWrapForward = step === 1 && cur === n - 1;
-    const crossesWrapBackward = step === -1 && cur === 0;
-
-    /** Evita atravessar visualmente todos os slides no wrap circular */
-    if (crossesWrapForward || crossesWrapBackward) {
-      setSuppressMobileTrackTransition(true);
-      setMobileIndex(next);
-      setMobileDragX(0);
-      setMobileTrackSwipeLock(false);
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setSuppressMobileTrackTransition(false);
-        });
-      });
-      return;
-    }
-
-    const usesTransition = step !== 0 || Math.abs(dx) > 0.5;
+    const usesTransition = next !== cur || Math.abs(dx) > 0.5;
 
     setMobileDragX(0);
     setMobileIndex(next);
 
-    if (usesTransition) {
+    if (usesTransition && next !== cur) {
       setMobileTrackSwipeLock(true);
     }
-  }, [boats.length]);
+  }, []);
+
+  useEffect(() => {
+    if (isMdUp) return;
+    const el = mobileCenterViewportRef.current;
+    if (!el) return;
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (mobileTrackSwipeLockRef.current) return;
+      const touch = event.touches[0];
+      if (!touch) return;
+      touchStartXRef.current = touch.clientX;
+      touchStartYRef.current = touch.clientY;
+      touchAxisLockRef.current = "none";
+      touchDeltaXRef.current = 0;
+      setMobileTouching(true);
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (mobileTrackSwipeLockRef.current) return;
+      if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+      const touch = event.touches[0];
+      if (!touch) return;
+
+      const dx = touch.clientX - touchStartXRef.current;
+      const dy = touch.clientY - touchStartYRef.current;
+
+      if (touchAxisLockRef.current === "none") {
+        if (Math.abs(dx) < MOBILE_AXIS_LOCK_PX && Math.abs(dy) < MOBILE_AXIS_LOCK_PX) return;
+        touchAxisLockRef.current = Math.abs(dx) > Math.abs(dy) ? "horizontal" : "vertical";
+      }
+
+      if (touchAxisLockRef.current === "vertical") return;
+
+      event.preventDefault();
+      touchDeltaXRef.current = dx;
+      applyMobileDragX(dx);
+    };
+
+    const onTouchEnd = () => finalizeMobileSwipe();
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    el.addEventListener("touchcancel", onTouchEnd, { passive: true });
+
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [isMdUp, boatKey, applyMobileDragX, finalizeMobileSwipe]);
 
   const handleMobileTrackTransitionEnd = useCallback((event: React.TransitionEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
@@ -411,23 +451,19 @@ function ExploreBoatStrip({
           "gap-3 pb-2 md:mx-0 md:px-0 md:[scrollbar-width:thin]",
           isMdUp
             ? "grid md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 md:gap-4 md:overflow-visible"
-            : "overflow-hidden max-md:-mx-4 max-md:px-4"
+            : "max-md:-mx-4 max-md:px-4"
         )}
-        onTouchStart={!isMdUp ? handleTouchStart : undefined}
-        onTouchMove={!isMdUp ? handleTouchMove : undefined}
-        onTouchEnd={!isMdUp ? finalizeMobileSwipe : undefined}
-        onTouchCancel={!isMdUp ? finalizeMobileSwipe : undefined}
       >
         {!isMdUp ? (
           <div
             ref={mobileCenterViewportRef}
-            className="relative w-full overflow-hidden py-1 select-none"
+            className="relative w-full overflow-hidden overscroll-x-none py-1 select-none touch-pan-y"
           >
             <div
               ref={mobileCenterTrackRef}
               className={cn(
                 "relative z-10 flex flex-row items-center gap-3 will-change-transform",
-                mobileTouching || suppressMobileTrackTransition
+                mobileTouching
                   ? "transition-none"
                   : "transition-transform duration-[300ms] ease-out motion-reduce:transition-none"
               )}
@@ -440,9 +476,9 @@ function ExploreBoatStrip({
               }}
             >
               {boats.map((barco, i) => {
-                const ring = exploreCircIndexDistance(i, mobileIndex, boats.length);
-                const inactive = ring > 0;
-                const neighbour = ring === 1;
+                const dist = Math.abs(i - mobileIndex);
+                const inactive = dist > 0;
+                const neighbour = dist === 1;
                 return (
                   <div
                     key={barco.id}
@@ -452,7 +488,6 @@ function ExploreBoatStrip({
                       className={cn(
                         "w-full origin-center",
                         !mobileTouching &&
-                          !suppressMobileTrackTransition &&
                           "transition-[transform,opacity] duration-[300ms] ease-out motion-reduce:transition-none"
                       )}
                       style={{

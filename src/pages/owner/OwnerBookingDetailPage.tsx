@@ -26,6 +26,10 @@ import { useOwnerPanel } from "@/contexts/OwnerPanelContext";
 import { ownerBookingDayDiff, ownerBookingYmd, type OwnerBookingDetailResponse, type OwnerBookingRow } from "@/lib/ownerBookingTypes";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { BookingChatEntry } from "@/components/chat/BookingChatEntry";
+import type { BookingChatLocationState } from "@/pages/booking/BookingChatPage";
+import { ownerBookingChatPath } from "@/lib/bookingChatRoutes";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 function parseYmd(iso: string): Date {
   const [y, m, d] = iso.split("-").map(Number);
@@ -189,6 +193,32 @@ export default function OwnerBookingDetailPage() {
     });
   }, [bookings, bookingId]);
 
+  const isMobile = useIsMobile();
+  const chatLocationState = (location.state as BookingChatLocationState | null)?.openChat === true;
+  const chatHashFocus = location.hash === "#chat";
+  const chatAutoOpen = chatLocationState || chatHashFocus;
+  const chatBookingStatus = data?.booking?.status;
+
+  useEffect(() => {
+    if (!chatHashFocus || !bookingId || !isMobile) return;
+    if (chatBookingStatus !== "ACCEPTED") return;
+    navigate(ownerBookingChatPath(bookingId), {
+      replace: true,
+      state: {
+        peerLabel: data?.booking?.renter?.nome,
+        subtitle: data?.booking?.boat?.nome,
+      } satisfies BookingChatLocationState,
+    });
+  }, [
+    bookingId,
+    chatBookingStatus,
+    chatHashFocus,
+    data?.booking?.boat?.nome,
+    data?.booking?.renter?.nome,
+    isMobile,
+    navigate,
+  ]);
+
   const b = data?.booking;
   const payment = data?.payment;
   const showActionsSection =
@@ -250,6 +280,7 @@ export default function OwnerBookingDetailPage() {
   const opcionais: string[] = [];
   if (b.bbqKit) opcionais.push(t("ownerPanel.optionalBbqTitle"));
   if (b.jetSki) opcionais.push(t("ownerPanel.optionalJetTitle"));
+  const showChat = b.status === "ACCEPTED";
 
   return (
     <OwnerPanelPage
@@ -320,6 +351,18 @@ export default function OwnerBookingDetailPage() {
         <OwnerSurface className="p-4 sm:p-5">
           <h2 className="text-sm font-semibold text-foreground">{t("ownerReservas.detailDecisionNote")}</h2>
           <p className="mt-2 text-sm text-muted-foreground">{b.decisionNote}</p>
+        </OwnerSurface>
+      ) : null}
+
+      {showChat ? (
+        <OwnerSurface className="p-4 sm:p-5">
+          <BookingChatEntry
+            bookingId={b.id}
+            audience="owner"
+            peerLabel={b.renter.nome}
+            subtitle={b.boat.nome}
+            autoOpen={chatAutoOpen && !isMobile}
+          />
         </OwnerSurface>
       ) : null}
 

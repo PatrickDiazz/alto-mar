@@ -1,6 +1,7 @@
 import { query } from "../db.js";
 import { getStripe } from "./client.js";
 import { resolveStripeReceiptUrl } from "./ownerTransactions.js";
+import { sqlOwnerVisibleBookingClause } from "../bookingAvailability.js";
 
 /**
  * Detalhe de uma reserva do locador — mesma base do GET /api/owner/bookings (lista).
@@ -71,6 +72,7 @@ export async function getOwnerBookingDetail(ownerUserId, rawBookingId) {
      left join booking_ratings br on br.booking_id = bk.id
      left join payments p on p.booking_id = bk.id
      where bk.owner_user_id = $1 and bk.id = $2::uuid
+       and ${sqlOwnerVisibleBookingClause("bk")}
      limit 1`,
     [ownerUserId, bookingId]
   );

@@ -2,7 +2,7 @@
  * Inventário unitário de opcionais do locador + disponibilidade por dia na frota.
  */
 
-const ACTIVE_BOOKING_STATUSES = ["PENDING", "ACCEPTED", "COMPLETED"];
+const ACTIVE_BOOKING_STATUSES = ["ACCEPTED", "COMPLETED"];
 
 export async function ensureOwnerOptionalsTables(query) {
   await query(`
@@ -315,7 +315,7 @@ async function findOptionalConflict(query, ownerUserId, optional, dayDate, exclu
     join boats b on b.id = bk.boat_id
     where bk.owner_user_id = $1::uuid
       and bd.day_date = $2::date
-      and bk.status = any($3::text[])
+      and bk.status::text = any($3::text[])
       and ($4::uuid is null or bk.id <> $4::uuid)
       and bk.boat_id = any($5::uuid[])
       and ${usageClause}

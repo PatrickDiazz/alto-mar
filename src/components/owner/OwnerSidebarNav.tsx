@@ -27,7 +27,7 @@ type NavItem = {
   labelKey: string;
 };
 
-const NAV_ITEMS: NavItem[] = [
+export const OWNER_PANEL_NAV_ITEMS: NavItem[] = [
   { id: "home", icon: Home, labelKey: "ownerPanel.tabHome" },
   { id: "agenda", icon: CalendarDays, labelKey: "ownerPanel.navAgenda" },
   { id: "bookings", icon: ClipboardList, labelKey: "ownerPanel.tabBookings" },
@@ -74,41 +74,52 @@ function NavLink({
   );
 }
 
-export function OwnerSidebarNav({
-  pendingCount,
+export function OwnerPanelNavContent({
+  bookingsBadgeCount,
   onRefresh,
   onLogout,
   refreshing,
+  onNavigate,
+  showHeader = true,
+  className,
 }: {
-  pendingCount: number;
+  bookingsBadgeCount: number;
   onRefresh: () => void;
   onLogout: () => void;
   refreshing: boolean;
+  /** Fecha o sheet mobile após navegar. */
+  onNavigate?: () => void;
+  showHeader?: boolean;
+  className?: string;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const activeNav = ownerPanelNavFromPath(pathname);
 
-  return (
-    <aside
-      className="sticky top-0 hidden h-svh w-[15.5rem] shrink-0 flex-col border-r border-border/60 bg-background dark:bg-[hsl(220_28%_6%)] md:flex"
-      aria-label={t("ownerPanel.sidebarAria")}
-    >
-      <div className="flex items-center gap-2 border-b border-border/60 px-4 py-4">
-        <Anchor className="h-5 w-5 shrink-0 text-primary" aria-hidden />
-        <span className="truncate text-sm font-semibold text-foreground">{t("marinheiro.title")}</span>
-      </div>
+  const go = (id: OwnerPanelNavId) => {
+    navigate(ownerPanelNavPath(id));
+    onNavigate?.();
+  };
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-        {NAV_ITEMS.map(({ id, icon, labelKey }) => (
+  return (
+    <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
+      {showHeader ? (
+        <div className="flex items-center gap-2 border-b border-border/60 px-4 py-4">
+          <Anchor className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+          <span className="truncate text-sm font-semibold text-foreground">{t("marinheiro.title")}</span>
+        </div>
+      ) : null}
+
+      <nav className="flex-1 space-y-1 overflow-y-auto p-3" aria-label={t("ownerPanel.sidebarAria")}>
+        {OWNER_PANEL_NAV_ITEMS.map(({ id, icon, labelKey }) => (
           <NavLink
             key={id}
             active={activeNav === id}
             icon={icon}
             label={t(labelKey)}
-            badge={id === "bookings" ? pendingCount : undefined}
-            onClick={() => navigate(ownerPanelNavPath(id))}
+            badge={id === "bookings" ? bookingsBadgeCount : undefined}
+            onClick={() => go(id)}
           />
         ))}
       </nav>
@@ -134,6 +145,34 @@ export function OwnerSidebarNav({
           {t("marinheiro.logout")}
         </Button>
       </div>
+    </div>
+  );
+}
+
+export function OwnerSidebarNav({
+  bookingsBadgeCount,
+  onRefresh,
+  onLogout,
+  refreshing,
+}: {
+  bookingsBadgeCount: number;
+  onRefresh: () => void;
+  onLogout: () => void;
+  refreshing: boolean;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <aside
+      className="sticky top-0 hidden h-svh w-[15.5rem] shrink-0 flex-col border-r border-border/60 bg-background dark:bg-[hsl(220_28%_6%)] md:flex"
+      aria-label={t("ownerPanel.sidebarAria")}
+    >
+      <OwnerPanelNavContent
+        bookingsBadgeCount={bookingsBadgeCount}
+        onRefresh={onRefresh}
+        onLogout={onLogout}
+        refreshing={refreshing}
+      />
     </aside>
   );
 }

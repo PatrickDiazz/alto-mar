@@ -18,13 +18,15 @@ import {
   reservationListRowClass,
   reservationMainGridClass,
   reservationTopPanelMinHeightClass,
-  reservationStatusVariant,
   splitReservationLists,
 } from "@/components/owner/reservations/reservationUi";
+import {
+  ownerBookingStatusDisplayLabel,
+} from "@/lib/ownerBookingTiming";
 import { bcp47FromAppLang } from "@/lib/localeFormat";
 import { useOwnerBookings } from "@/hooks/useOwnerBookings";
 import { useOwnerPanel } from "@/contexts/OwnerPanelContext";
-import { ownerBookingDayDiff, ownerBookingYmd, type OwnerBookingRow } from "@/lib/ownerBookingTypes";
+import { ownerBookingYmd, type OwnerBookingRow } from "@/lib/ownerBookingTypes";
 import { cn } from "@/lib/utils";
 
 type ReservasLocationState = { editBoatId?: string; registerBoat?: boolean };
@@ -87,12 +89,9 @@ function SectionSeeAll({
 
 function statusLabelForBooking(
   booking: OwnerBookingRow,
-  t: (key: string) => string
+  t: (key: string, options?: Record<string, unknown>) => string
 ): string {
-  const variant = reservationStatusVariant(booking.status, ownerBookingDayDiff(booking.bookingDate));
-  if (variant === "confirmed") return t("ownerReservas.statusConfirmed");
-  if (variant === "inProgress") return t("ownerAgenda.status.ACCEPTED");
-  return t(`ownerAgenda.status.${booking.status}`);
+  return ownerBookingStatusDisplayLabel(booking, t);
 }
 
 export default function OwnerReservasListPage() {

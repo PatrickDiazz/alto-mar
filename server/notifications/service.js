@@ -147,3 +147,85 @@ export async function markAllNotificationsRead(userId) {
   );
   return { updated: r.rowCount ?? 0 };
 }
+
+/**
+ * Marca como lidas as notificações cuja `path` corresponde à página visitada
+ * (ex.: abrir Reservas limpa avisos de novas reservas).
+ * @param {string} userId
+ * @param {string} pathname
+ */
+export async function markNotificationsReadForVisit(userId, pathname) {
+  const path = String(pathname || "").split("?")[0].replace(/\/$/, "") || "/";
+  if (path === "/") return { updated: 0, ids: [] };
+
+  const ownerChat = path.match(/^\/marinheiro\/reservas\/([^/]+)\/chat$/);
+  if (ownerChat) {
+    const bookingId = ownerChat[1];
+    const r = await query(
+      `update app_notifications set read_at = coalesce(read_at, now())
+       where user_id = $1::uuid and read_at is null
+         and (
+           booking_id = $2::uuid
+           or path = $3
+           or path like $4
+         )
+       returning id`,
+      [userId, bookingId, path, `/marinheiro/reservas/${bookingId}%`]
+    );
+    return { updated: r.rowCount ?? 0, ids: r.rows.map((row) => row.id) };
+  }
+
+  const ownerDetail = path.match(/^\/marinheiro\/reservas\/([^/]+)$/);
+  if (ownerDetail) {
+    const bookingId = ownerDetail[1];
+    const r = await query(
+      `update app_notifications set read_at = coalesce(read_at, now())
+       where user_id = $1::uuid and read_at is null
+         and (
+           booking_id = $2::uuid
+           or path = $3
+           or path like $4
+         )
+       returning id`,
+      [userId, bookingId, path, `${path}%`]
+    );
+    return { updated: r.rowCount ?? 0, ids: r.rows.map((row) => row.id) };
+  }
+
+  const renterChat = path.match(/^\/conta\/reservas\/([^/]+)\/chat$/);
+  if (renterChat) {
+    const bookingId = renterChat[1];
+    const r = await query(
+      `update app_notifications set read_at = coalesce(read_at, now())
+       where user_id = $1::uuid and read_at is null
+         and (
+           booking_id = $2::uuid
+           or path = $3
+           or path like $4
+         )
+       returning id`,
+      [userId, bookingId, path, `/conta/reservas/${bookingId}%`]
+    );
+    return { updated: r.rowCount ?? 0, ids: r.rows.map((row) => row.id) };
+  }
+
+  const rules = [
+    { test: /^\/marinheiro\/reservas(\/|$)/, prefix: "/marinheiro/reservas" },
+    { test: /^\/marinheiro\/agenda(\/|$)/, prefix: "/marinheiro/reservas" },
+    { test: /^\/conta\/reservas(\/|$)/, prefix: "/conta/reservas" },
+  ];
+
+  for (const { test, prefix } of rules) {
+    if (!test.test(path)) continue;
+    const r = await query(
+      `update app_notifications set read_at = coalesce(read_at, now())
+       where user_id = $1::uuid and read_at is null
+         and (path = $2 or path like $3)
+       returning id`,
+      [userId, prefix, `${prefix}%`]
+    );
+    return { updated: r.rowCount ?? 0, ids: r.rows.map((row) => row.id) };
+  }
+
+  return { updated: 0, ids: [] };
+}

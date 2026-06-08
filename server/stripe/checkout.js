@@ -9,12 +9,38 @@ import { isStripePixEnabled } from "./pixEnabled.js";
 
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
 
+/** @param {string | null | undefined} raw */
+export function resolveCheckoutReturnBase(raw) {
+  const fallback = FRONTEND_URL.replace(/\/$/, "");
+  if (!raw || !String(raw).trim()) return fallback;
+  try {
+    const u = new URL(String(raw).trim().replace(/\/$/, ""));
+    const host = u.hostname.toLowerCase();
+    if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0") {
+      return u.origin;
+    }
+    if (host.endsWith(".vercel.app")) return u.origin;
+    const fe = new URL(fallback);
+    if (u.origin === fe.origin) return u.origin;
+  } catch {
+    /* ignore */
+  }
+  return fallback;
+}
+
+function returnBaseIdempotencySuffix(returnBase) {
+  return String(returnBase)
+    .replace(/^https?:\/\//i, "")
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .slice(0, 48);
+}
+
 /**
  * Sufixo da chave de idempotência do Checkout. A Stripe só reutiliza a mesma chave
  * com parâmetros idênticos — ao mudar payment_method_types, URLs, etc., incrementar.
  */
 /** Incrementar se mudar de novo o corpo do `checkout.sessions.create` (idempotência Stripe). */
-const CHECKOUT_SESSION_IDEMPOTENCY_VERSION = 3;
+const CHECKOUT_SESSION_IDEMPOTENCY_VERSION = 4;
 
 /**
  * Cria sessão Stripe Checkout para uma reserva já aceita (pagamento pós-aceite).
@@ -83,6 +109,7 @@ export async function createStripeCheckoutSessionForBooking(input) {
   const { platformFeeCents, ownerNetCents } = splitPlatformOwnerNet(totalCents);
 
   const renterEmail = b.renter_email ? String(b.renter_email).trim() : "";
+  const returnBase = resolveCheckoutReturnBase(input.returnBaseUrl);
   const pixOn = isStripePixEnabled();
 
   if (
@@ -129,11 +156,11 @@ export async function createStripeCheckoutSessionForBooking(input) {
           },
         },
       ],
-      success_url: `${FRONTEND_URL}/conta/reservas?stripe=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${FRONTEND_URL}/conta/reservas?stripe=cancel`,
+      success_url: `${returnBase}/conta/reservas?stripe=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${returnBase}/conta/reservas?stripe=cancel`,
     },
     {
-      idempotencyKey: `checkout_session_booking_${input.bookingId}_v${CHECKOUT_SESSION_IDEMPOTENCY_VERSION}`,
+      idempotencyKey: `checkout_session_booking_${input.bookingId}_v${CHECKOUT_SESSION_IDEMPOTENCY_VERSION}_${returnBaseIdempotencySuffix(returnBase)}`,
     }
   );
 

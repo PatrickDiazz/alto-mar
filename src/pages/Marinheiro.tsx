@@ -7,6 +7,7 @@ const OwnerDashboardPage = lazy(() => import("./owner/OwnerDashboardPage"));
 const OwnerAgendaPage = lazy(() => import("./owner/OwnerAgendaPage"));
 const OwnerReservasListPage = lazy(() => import("./owner/OwnerReservasListPage"));
 const OwnerBookingDetailPage = lazy(() => import("./owner/OwnerBookingDetailPage"));
+const OwnerBookingChatPage = lazy(() => import("./booking/BookingChatPage"));
 const OwnerBoatsListPage = lazy(() => import("./owner/OwnerBoatsListPage"));
 const OwnerBoatDetailPage = lazy(() => import("./owner/OwnerBoatDetailPage"));
 const OwnerBoatRegisterPage = lazy(() => import("./owner/OwnerBoatRegisterPage"));
@@ -19,6 +20,7 @@ const OwnerRevenuePage = lazy(() => import("./owner/OwnerRevenuePage"));
 const Marinheiro = () => (
   <Suspense fallback={<PageLoader />}>
     <Routes>
+      <Route path="reservas/:bookingId/chat" element={<OwnerBookingChatPage audience="owner" />} />
       <Route element={<OwnerPanelLayout />}>
         <Route index element={<OwnerDashboardPage />} />
         <Route path="agenda" element={<OwnerAgendaPage />} />

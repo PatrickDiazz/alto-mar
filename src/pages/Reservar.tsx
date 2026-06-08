@@ -64,6 +64,10 @@ import {
   BookingOptionalsPreview,
   buildBookingOptionalPreviewItems,
 } from "@/components/optionals/BookingOptionalsPreview";
+import {
+  createStripeCheckoutSession,
+  openStripeCheckoutUrl,
+} from "@/lib/stripeCheckout";
 /** Primeira data permitida para reserva do banhista = hoje + N dias corridos */
 const BANHISTA_BOOKING_LEAD_DAYS = 2;
 /** PIX desativado temporariamente por decisÃ£o operacional. */
@@ -160,19 +164,6 @@ async function criarReserva(input: {
     throw new Error(text || i18n.t("reservar.bookingFail"));
   }
   return (await resp.json()) as { booking: { id: string; status: string; ownerUserId: string } };
-}
-
-async function criarCheckoutStripe(bookingId: string) {
-  const resp = await authFetch("/api/stripe/checkout-session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ bookingId }),
-  });
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(text || i18n.t("reservar.payFail"));
-  }
-  return (await resp.json()) as { url?: string; sessionId?: string };
 }
 
 const Reservar = () => {
@@ -462,11 +453,11 @@ const Reservar = () => {
       });
 
       if (paymentsProvider === "stripe") {
-        const checkout = await criarCheckoutStripe(booking.booking.id);
+        const checkout = await createStripeCheckoutSession(booking.booking.id);
         if (!checkout.url) {
           throw new Error(t("reservar.payLinkError"));
         }
-        window.location.assign(checkout.url);
+        await openStripeCheckoutUrl(checkout.url, checkout.sessionId);
         return;
       }
 

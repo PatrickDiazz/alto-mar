@@ -1,13 +1,16 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, LogOut, Menu, RefreshCw } from "lucide-react";
+import { ArrowLeft, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { SettingsMenuPanel } from "@/components/HeaderSettingsMenu";
 import { NotificationBell } from "@/components/NotificationBell";
 import { OwnerBottomNav } from "@/components/owner/OwnerBottomNav";
-import { OwnerSidebarNav } from "@/components/owner/OwnerSidebarNav";
+import { OwnerPanelNavContent, OwnerSidebarNav } from "@/components/owner/OwnerSidebarNav";
 import { OwnerPanelProvider, useOwnerPanel } from "@/contexts/OwnerPanelContext";
+import { useNotificationsOptional } from "@/contexts/NotificationsContext";
+import { useMarkNotificationsReadOnVisit } from "@/hooks/useMarkNotificationsReadOnVisit";
+import { useMatchMediaMdUp } from "@/hooks/useMatchMediaMdUp";
 import { ownerPanelBackTarget, ownerPanelTabFromPath } from "@/lib/ownerPanelTab";
 import { ownerPanelMaxWidthClass, ownerPanelWidthFromPath } from "@/lib/ownerPanelLayout";
 import { cn } from "@/lib/utils";
@@ -21,13 +24,17 @@ function OwnerPanelLayoutInner() {
   const { pathname } = useLocation();
   const user = getStoredUser();
   const isLocatario = user?.role === "locatario";
-  const { refreshPainel, loading, dashboardLoading, pendingCount } = useOwnerPanel();
+  const { refreshPainel, loading, dashboardLoading } = useOwnerPanel();
+  const notifications = useNotificationsOptional();
+  const bookingsBadgeCount = notifications?.unreadCountForPathPrefix("/marinheiro/reservas") ?? 0;
+  useMarkNotificationsReadOnVisit(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const tab = ownerPanelTabFromPath(pathname);
   const backTarget = ownerPanelBackTarget(pathname);
   const pageWidth = ownerPanelWidthFromPath(pathname);
   const pageMaxWidth = ownerPanelMaxWidthClass(pageWidth);
   const refreshing = loading || dashboardLoading;
+  const mdUp = useMatchMediaMdUp();
 
   const setTab = (next: OwnerPanelTab) => {
     if (next === "inicio") navigate("/marinheiro");
@@ -46,7 +53,7 @@ function OwnerPanelLayoutInner() {
     <div className="flex min-h-screen min-w-0 bg-background dark:bg-[hsl(220_28%_6%)]">
       {isLocatario ? (
         <OwnerSidebarNav
-          pendingCount={pendingCount}
+          bookingsBadgeCount={bookingsBadgeCount}
           onRefresh={refreshPainel}
           onLogout={handleLogout}
           refreshing={refreshing}
@@ -92,34 +99,43 @@ function OwnerPanelLayoutInner() {
                   variant="ghost"
                   className="h-9 w-9"
                   onClick={() => setMenuOpen(true)}
-                  aria-label={t("nav.bottom.menuAria")}
+                  aria-label={mdUp ? t("nav.bottom.menuAria") : t("ownerPanel.mobileMenuAria")}
                 >
                   <Menu className="h-5 w-5" aria-hidden />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-9 w-9 md:hidden"
-                  onClick={handleLogout}
-                  title={t("marinheiro.logout")}
-                >
-                  <LogOut className="h-5 w-5" aria-hidden />
-                </Button>
-                <Button
-                  size="icon"
-                  className="h-9 w-9 bg-primary text-primary-foreground hover:bg-primary/90 md:hidden"
-                  onClick={refreshPainel}
-                  disabled={refreshing}
-                  title={t("marinheiro.refresh")}
-                >
-                  <RefreshCw className={cn("h-5 w-5", refreshing && "animate-spin")} aria-hidden />
                 </Button>
                 <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
                   <SheetContent
                     side="right"
-                    className="flex w-[min(100%,16rem)] max-w-[16rem] flex-col gap-0 p-4 pt-5"
+                    className={cn(
+                      "flex flex-col gap-0 p-0",
+                      mdUp
+                        ? "w-[min(100%,16rem)] max-w-[16rem] p-4 pt-5"
+                        : "w-[min(100%,17rem)] max-w-[17rem]"
+                    )}
                   >
-                    <SettingsMenuPanel onClose={() => setMenuOpen(false)} idSuffix="owner-panel" />
+                    {mdUp ? (
+                      <SettingsMenuPanel
+                        onClose={() => setMenuOpen(false)}
+                        idSuffix="owner-panel-desktop"
+                      />
+                    ) : (
+                      <>
+                        <OwnerPanelNavContent
+                          bookingsBadgeCount={bookingsBadgeCount}
+                          onRefresh={refreshPainel}
+                          onLogout={handleLogout}
+                          refreshing={refreshing}
+                          onNavigate={() => setMenuOpen(false)}
+                        />
+                        <div className="shrink-0 overflow-y-auto border-t border-border/60 p-4">
+                          <SettingsMenuPanel
+                            onClose={() => setMenuOpen(false)}
+                            idSuffix="owner-panel"
+                            hideHeader
+                          />
+                        </div>
+                      </>
+                    )}
                   </SheetContent>
                 </Sheet>
               </div>
@@ -137,7 +153,9 @@ function OwnerPanelLayoutInner() {
           <Outlet />
         </main>
 
-        {isLocatario ? <OwnerBottomNav tab={tab} onTabChange={setTab} pendingCount={pendingCount} /> : null}
+        {isLocatario ? (
+          <OwnerBottomNav tab={tab} onTabChange={setTab} bookingsBadgeCount={bookingsBadgeCount} />
+        ) : null}
       </div>
     </div>
   );

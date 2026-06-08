@@ -59,7 +59,7 @@
       "sat": "Sáb"
     },
     "ownerHint": "Marque días o días de la semana para no aceptar nuevas reservas. Las solicitudes pendientes no bloquean el día hasta ser aceptadas.",
-    "pickerHint": "Verde: viaje confirmado. Ámbar: reserva pendiente (día no disponible). Rojo: bloqueado por el armador.",
+    "pickerHint": "Verde: viaje confirmado. Rojo: bloqueado por el armador. Las reservas pendientes de otros usuarios no bloquean la fecha.",
     "banhistaMinLeadHint": "Anticipo mínimo: {{days}} días corridos desde hoy — no se puede elegir hoy ni mañana.",
     "panelHint": "Vea reservas y bloqueos. Para editar bloqueos, abra la edición del barco.",
     "pickBoat": "Elija el barco"
@@ -254,7 +254,7 @@
     "pending": "Validación pendiente",
     "description": "Descripción",
     "availabilityTitle": "Disponibilidad",
-    "availabilityHint": "Vea cuándo el barco está libre u ocupado. No disponible: bloqueo del armador, día cerrado o reserva existente. Verde: paseo confirmado. Ámbar: reserva pendiente (día ocupado).",
+    "availabilityHint": "Vea cuándo el barco está libre u ocupado. No disponible para nueva reserva: bloqueo del armador, día cerrado o paseo confirmado (aceptado). Las reservas pendientes no bloquean el día.",
     "bookNow": "Reservar ahora",
     "photoCarousel": "Fotos de la embarcación, desliza para cambiar",
     "jetSkiTitle": "Moto de agua (opcional)",
@@ -362,7 +362,7 @@
     "toastDate": "Elige la fecha del paseo en el calendario.",
     "toastDateMinLead": "La fecha del paseo debe ser al menos dos días después de hoy (hoy y mañana no están disponibles).",
     "tripDate": "Fecha del paseo",
-    "tripDateHint": "Verde: confirmado. Ámbar: reserva pendiente (día no disponible). Rojo: bloqueado por el armador.",
+    "tripDateHint": "Verde: paseo confirmado (aceptado). Rojo: bloqueado por el armador. Las reservas pendientes de otros usuarios no bloquean la fecha.",
     "tripDateMinLead": "Se requiere reservar con al menos 2 días de anticipación: no puedes elegir hoy ni mañana.",
     "toastRoute": "Selecciona al menos una parada del itinerario.",
     "routeStops": "Itinerario del paseo",
@@ -423,6 +423,7 @@
     "tabProfile": "Perfil",
     "bottomNavAria": "Navegación del panel del armador",
     "sidebarAria": "Menú lateral del panel del armador",
+    "mobileMenuAria": "Abrir menú de navegación y ajustes",
     "navAgenda": "Agenda",
     "navRevenue": "Facturación",
     "tripsDone": "Paseos realizados",
@@ -629,7 +630,7 @@
     "metricNow": "ahora",
     "metricNext7Days": "próximos 7 días",
     "columnInCourse": "En curso (ahora)",
-    "columnUpcoming": "Por venir (próximos 7 días)",
+    "columnUpcoming": "Por venir",
     "columnCompletedRecent": "Reservas concluidas (recientes)",
     "summaryTitle": "Resumen de reservas",
     "periodThisMonth": "Este mes",
@@ -637,7 +638,7 @@
     "seeLess": "Ver menos",
     "statusConfirmed": "Confirmada",
     "emptyInCourse": "Ninguna reserva en curso en este momento.",
-    "emptyUpcoming": "Ninguna reserva en los próximos 7 días.",
+    "emptyUpcoming": "Ninguna reserva futura.",
     "emptyCompleted": "Ninguna reserva concluida reciente.",
     "emptyTitle": "Ninguna reserva encontrada",
     "emptyDesc": "Ajuste los filtros o espere nuevas solicitudes.",
@@ -694,6 +695,15 @@
       "TRANSFER_FAILED": "Fallo en la transferencia"
     }
   },
+  "ownerBooking": {
+    "statusInProgress": "En curso",
+    "countdownDays_one": "En 1 día",
+    "countdownDays_other": "En {{count}} días",
+    "countdownWeeks_one": "En 1 sem.",
+    "countdownWeeks_other": "En {{count}} sem.",
+    "countdownMonths_one": "En 1 mes",
+    "countdownMonths_other": "En {{count}} meses"
+  },
   "ownerAgenda": {
     "calendarTitle": "Calendario de reservas",
     "calendarHint": "Pulse un día destacado para filtrar barcos con reserva en esa fecha.",
@@ -737,7 +747,7 @@
     "shortcutBoats": "Mis embarcaciones",
     "status": {
       "PENDING": "Pendiente",
-      "ACCEPTED": "En curso",
+      "ACCEPTED": "Confirmada",
       "COMPLETED": "Completada",
       "DECLINED": "Rechazada",
       "CANCELLED": "Cancelada"
@@ -1177,5 +1187,26 @@
     "markAllRead": "Marcar todas como leídas",
     "loading": "Cargando…",
     "empty": "Sin notificaciones por ahora."
+  },
+  "bookingChat": {
+    "sectionTitle": "Mensajes",
+    "pageTitle": "Mensajes",
+    "open": "Abrir mensajes",
+    "backToBooking": "Volver a la reserva",
+    "you": "Tú",
+    "owner": "Arrendador",
+    "inputPlaceholder": "Escribe un mensaje sobre el paseo…",
+    "send": "Enviar",
+    "empty": "Aún no hay mensajes. Coordina los detalles de embarque aquí.",
+    "readOnlyBanner": "Conversación cerrada — puedes consultar el historial.",
+    "unreadBadge_one": "1 mensaje nuevo",
+    "unreadBadge_other": "{{count}} mensajes nuevos",
+    "errorContentBlocked": "No está permitido compartir contactos o enlaces. Usa el chat solo para coordinar detalles del paseo.",
+    "errorReadOnly": "Esta conversación está cerrada.",
+    "errorNotAvailable": "El chat solo está disponible para reservas confirmadas.",
+    "errorRateLimit": "Espera un momento antes de enviar otro mensaje.",
+    "errorInvalid": "Mensaje no válido.",
+    "errorLoad": "No se pudieron cargar los mensajes.",
+    "errorSend": "No se pudo enviar el mensaje."
   }
 }

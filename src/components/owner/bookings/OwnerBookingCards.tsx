@@ -15,6 +15,7 @@ import {
   rescheduleReasonI18nKey,
 } from "@/lib/rescheduleReasons";
 import type { OwnerBookingRow } from "@/lib/ownerBookingTypes";
+import { formatBookingCountdown } from "@/lib/ownerBookingTiming";
 import { getOwnerCancelPenaltyHint } from "@/lib/ownerCancelUi";
 import { cn } from "@/lib/utils";
 
@@ -91,6 +92,7 @@ export function MarinheiroAcceptedBookingCard({
   const [cancelReason, setCancelReason] = useState("");
   const [cancelScenario, setCancelScenario] = useState<"owner" | "weather" | "boat_failure">("owner");
   const overdue = dayDiff !== null && dayDiff < 0;
+  const inProgressToday = dayDiff === 0;
   const canComplete = dayDiff !== null && dayDiff <= 0;
   const stripeMode = paymentsProvider === "stripe" || b.paymentProvider === "STRIPE";
   const paidStripe = b.paymentProvider === "STRIPE" && b.paymentStatus === "APPROVED";
@@ -114,7 +116,7 @@ export function MarinheiroAcceptedBookingCard({
       ) : null}
       {dayDiff !== null && dayDiff > 0 ? (
         <p className="text-pretty text-xs leading-relaxed text-muted-foreground">
-          {t("marinheiro.completeAvailableOnDay")}
+          {formatBookingCountdown(dayDiff, t)}
         </p>
       ) : null}
       {dayDiff === null && !b.bookingDate ? (
@@ -262,15 +264,24 @@ export function MarinheiroAcceptedBookingCard({
     <div
       className={cn(
         "surface-elevated space-y-3 rounded-xl p-3 sm:p-4",
-        overdue && "ring-2 ring-amber-500/45 dark:ring-amber-400/35"
+        overdue && "ring-2 ring-amber-500/45 dark:ring-amber-400/35",
+        inProgressToday && "ring-2 ring-emerald-500/40 dark:ring-emerald-400/30"
       )}
     >
       <div className="min-w-0">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <p className="truncate text-sm font-semibold text-foreground">{b.boat.nome}</p>
-          {overdue ? (
+          {inProgressToday ? (
+            <Badge className="shrink-0 border-emerald-600/50 bg-emerald-500/15 text-emerald-800 dark:text-emerald-100">
+              {t("ownerBooking.statusInProgress")}
+            </Badge>
+          ) : overdue ? (
             <Badge className="shrink-0 border-amber-600/60 bg-amber-500/15 text-amber-950 dark:text-amber-100">
               {t("marinheiro.acceptedOverdueBadge")}
+            </Badge>
+          ) : dayDiff !== null && dayDiff > 0 ? (
+            <Badge variant="outline" className="shrink-0 text-[10px]">
+              {formatBookingCountdown(dayDiff, t)}
             </Badge>
           ) : null}
         </div>

@@ -17,6 +17,8 @@ import {
   fetchUnreadNotificationCount,
   markAllNotificationsRead,
   markNotificationRead,
+  markNotificationsReadForVisit,
+  notificationMatchesPathPrefix,
   registerPushToken,
   type AppNotification,
 } from "@/lib/notificationsApi";
@@ -30,6 +32,8 @@ type NotificationsContextValue = {
   refresh: () => Promise<void>;
   openNotification: (n: AppNotification) => Promise<void>;
   markAllRead: () => Promise<void>;
+  markReadForVisit: (pathname: string) => Promise<void>;
+  unreadCountForPathPrefix: (prefix: string) => number;
 };
 
 const NotificationsContext = createContext<NotificationsContextValue | null>(null);
@@ -89,6 +93,52 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const markReadForVisit = useCallback(async (pathname: string) => {
+    const path = pathname.split("?")[0];
+    const shouldMark =
+      /^\/marinheiro\/reservas(\/|$)/.test(path) ||
+      /^\/marinheiro\/agenda(\/|$)/.test(path) ||
+      /^\/conta\/reservas(\/|$)/.test(path);
+    if (!shouldMark) return;
+
+    try {
+      const { updated } = await markNotificationsReadForVisit(path);
+      if (updated <= 0) return;
+      const now = new Date().toISOString();
+      setUnreadCount((c) => Math.max(0, c - updated));
+      setItems((prev) =>
+        prev.map((x) => {
+          if (x.readAt || !x.path) return x;
+          const ownerDetail = path.match(/^\/marinheiro\/reservas\/([^/]+)$/);
+          if (ownerDetail) {
+            const bookingId = ownerDetail[1];
+            if (x.bookingId === bookingId || x.path === path || x.path.startsWith(`${path}/`)) {
+              return { ...x, readAt: now };
+            }
+            return x;
+          }
+          if (
+            (path.startsWith("/marinheiro/reservas") || path.startsWith("/marinheiro/agenda")) &&
+            notificationMatchesPathPrefix(x, "/marinheiro/reservas")
+          ) {
+            return { ...x, readAt: now };
+          }
+          if (path.startsWith("/conta/reservas") && notificationMatchesPathPrefix(x, "/conta/reservas")) {
+            return { ...x, readAt: now };
+          }
+          return x;
+        })
+      );
+    } catch {
+      /* visit mark is best-effort */
+    }
+  }, []);
+
+  const unreadCountForPathPrefix = useCallback(
+    (prefix: string) => items.filter((n) => notificationMatchesPathPrefix(n, prefix)).length,
+    [items]
+  );
+
   useEffect(() => {
     void refresh();
     const id = window.setInterval(() => void refresh(), POLL_MS);
@@ -132,8 +182,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       refresh,
       openNotification,
       markAllRead,
+      markReadForVisit,
+      unreadCountForPathPrefix,
     }),
-    [unreadCount, items, loading, refresh, openNotification, markAllRead]
+    [unreadCount, items, loading, refresh, openNotification, markAllRead, markReadForVisit, unreadCountForPathPrefix]
   );
 
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;

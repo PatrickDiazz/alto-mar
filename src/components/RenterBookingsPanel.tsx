@@ -26,7 +26,13 @@ import {
   type RescheduleReason,
   rescheduleReasonI18nKey,
 } from "@/lib/rescheduleReasons";
+import {
+  createStripeCheckoutSession,
+  openStripeCheckoutUrl,
+} from "@/lib/stripeCheckout";
 import { bbqKitPriceReais } from "@/lib/trip-optionals";
+import { BookingChatEntry } from "@/components/chat/BookingChatEntry";
+import { fetchChatUnreadSummary } from "@/lib/chatApi";
 
 type RenterBooking = {
   id: string;
@@ -81,6 +87,7 @@ const RENTER_NOTICE_I18N: Record<string, string> = {
 
 /** Intervalo para alinhar lista com o servidor (aceite/recusa do locador, etc.). */
 const RENTER_BOOKINGS_POLL_MS = 5_000;
+const CHAT_UNREAD_POLL_MS = 60_000;
 
 function readOnlyStatusBadgeLabel(
   status: string,
@@ -101,7 +108,17 @@ async function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-export function RenterBookingsPanel() {
+type RenterBookingsPanelProps = {
+  autoOpenChatBookingId?: string | null;
+  autoOpenChatPeerLabel?: string;
+  autoOpenChatSubtitle?: string;
+};
+
+export function RenterBookingsPanel({
+  autoOpenChatBookingId = null,
+  autoOpenChatPeerLabel,
+  autoOpenChatSubtitle,
+}: RenterBookingsPanelProps = {}) {
   const { t, i18n } = useTranslation();
   const user = getStoredUser();
   const locale = bcp47FromAppLang(i18n.language);
@@ -118,6 +135,7 @@ export function RenterBookingsPanel() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [cancelDraftBookingId, setCancelDraftBookingId] = useState<string | null>(null);
   const [cancelDraftReason, setCancelDraftReason] = useState("");
+  const [chatUnreadByBooking, setChatUnreadByBooking] = useState<Record<string, number>>({});
 
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -163,6 +181,33 @@ export function RenterBookingsPanel() {
     if (!user || user.role !== "banhista") return;
     void load();
   }, [user?.id, user?.role, load]);
+
+  useEffect(() => {
+    if (!user || user.role !== "banhista") return;
+    const onStripeSynced = () => void load({ silent: true });
+    window.addEventListener("alto-mar-stripe-synced", onStripeSynced);
+    return () => window.removeEventListener("alto-mar-stripe-synced", onStripeSynced);
+  }, [user?.id, user?.role, load]);
+
+  const refreshChatUnread = useCallback(async () => {
+    try {
+      const summary = await fetchChatUnreadSummary();
+      const map: Record<string, number> = {};
+      for (const row of summary.byBooking) {
+        map[row.bookingId] = row.count;
+      }
+      setChatUnreadByBooking(map);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!user || user.role !== "banhista") return;
+    void refreshChatUnread();
+    const interval = window.setInterval(() => void refreshChatUnread(), CHAT_UNREAD_POLL_MS);
+    return () => clearInterval(interval);
+  }, [user?.id, user?.role, refreshChatUnread]);
 
   useEffect(() => {
     if (!user || user.role !== "banhista") return;
@@ -349,17 +394,9 @@ export function RenterBookingsPanel() {
   const payStripeCheckout = async (bookingId: string) => {
     setStripePayingId(bookingId);
     try {
-      const resp = await authFetch("/api/stripe/checkout-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookingId }),
-      });
-      if (!resp.ok) {
-        throw new Error(await readResponseErrorMessage(resp, t("reservasConta.payStripeFail")));
-      }
-      const data = (await resp.json()) as { url?: string };
+      const data = await createStripeCheckoutSession(bookingId);
       if (!data.url) throw new Error(t("reservasConta.payStripeFail"));
-      window.location.assign(data.url);
+      await openStripeCheckoutUrl(data.url, data.sessionId);
     } catch (e) {
       const m = (e instanceof Error ? e.message : t("reservasConta.payStripeFail")).trim();
       toast.error(m || t("reservasConta.payStripeFail"));
@@ -390,6 +427,15 @@ export function RenterBookingsPanel() {
                       b={b}
                       currencyFmt={currencyFmt}
                       t={t}
+                      chatUnreadCount={chatUnreadByBooking[b.id] ?? 0}
+                      onChatUnreadChange={(n) =>
+                        setChatUnreadByBooking((prev) => ({ ...prev, [b.id]: n }))
+                      }
+                      autoOpenChat={
+                        autoOpenChatBookingId === b.id
+                          ? { peerLabel: autoOpenChatPeerLabel, subtitle: autoOpenChatSubtitle }
+                          : undefined
+                      }
                       onEdit={() => startEdit(b)}
                       editing={editingId === b.id}
                       editDraft={editDraft}
@@ -440,6 +486,15 @@ export function RenterBookingsPanel() {
                       b={b}
                       currencyFmt={currencyFmt}
                       t={t}
+                      chatUnreadCount={chatUnreadByBooking[b.id] ?? 0}
+                      onChatUnreadChange={(n) =>
+                        setChatUnreadByBooking((prev) => ({ ...prev, [b.id]: n }))
+                      }
+                      autoOpenChat={
+                        autoOpenChatBookingId === b.id
+                          ? { peerLabel: autoOpenChatPeerLabel, subtitle: autoOpenChatSubtitle }
+                          : undefined
+                      }
                       onEdit={() => startEdit(b)}
                       editing={editingId === b.id}
                       editDraft={editDraft}
@@ -480,6 +535,15 @@ export function RenterBookingsPanel() {
                     currencyFmt={currencyFmt}
                     t={t}
                     readOnly
+                    chatUnreadCount={chatUnreadByBooking[b.id] ?? 0}
+                    onChatUnreadChange={(n) =>
+                      setChatUnreadByBooking((prev) => ({ ...prev, [b.id]: n }))
+                    }
+                    autoOpenChat={
+                      autoOpenChatBookingId === b.id
+                        ? { peerLabel: autoOpenChatPeerLabel, subtitle: autoOpenChatSubtitle }
+                        : undefined
+                    }
                     onRated={() => void load({ silent: true })}
                   />
                 ))
@@ -490,7 +554,22 @@ export function RenterBookingsPanel() {
               <section className="space-y-3">
                 <h2 className="text-base font-semibold text-foreground">{t("reservasConta.sectionOther")}</h2>
                 {other.map((b) => (
-                  <BookingCard key={b.id} b={b} currencyFmt={currencyFmt} t={t} readOnly />
+                  <BookingCard
+                    key={b.id}
+                    b={b}
+                    currencyFmt={currencyFmt}
+                    t={t}
+                    readOnly
+                    chatUnreadCount={chatUnreadByBooking[b.id] ?? 0}
+                    onChatUnreadChange={(n) =>
+                      setChatUnreadByBooking((prev) => ({ ...prev, [b.id]: n }))
+                    }
+                    autoOpenChat={
+                      autoOpenChatBookingId === b.id
+                        ? { peerLabel: autoOpenChatPeerLabel, subtitle: autoOpenChatSubtitle }
+                        : undefined
+                    }
+                  />
                 ))}
               </section>
             ) : null}
@@ -596,6 +675,9 @@ function BookingCard({
   stripeCheckoutDue,
   onStripeCheckout,
   stripePaying,
+  chatUnreadCount = 0,
+  onChatUnreadChange,
+  autoOpenChat,
 }: {
   b: RenterBooking;
   currencyFmt: Intl.NumberFormat;
@@ -618,6 +700,9 @@ function BookingCard({
   stripeCheckoutDue?: boolean;
   onStripeCheckout?: () => void;
   stripePaying?: boolean;
+  chatUnreadCount?: number;
+  onChatUnreadChange?: (count: number) => void;
+  autoOpenChat?: { peerLabel?: string; subtitle?: string };
 }) {
   const { i18n } = useTranslation();
   const dateFnsLocale = i18n.language.startsWith("pt") ? ptBR : i18n.language.startsWith("es") ? es : enUS;
@@ -644,6 +729,11 @@ function BookingCard({
     setReadOnlyExpanded(false);
   }, [b.id]);
 
+  useEffect(() => {
+    if (autoOpenChat) setReadOnlyExpanded(true);
+  }, [autoOpenChat, b.id]);
+
+  const showChat = !editing && b.status === "ACCEPTED";
   const compactReadOnly = isCompactableReadOnly && !readOnlyExpanded;
 
   return (
@@ -801,6 +891,18 @@ function BookingCard({
           ) : null}
           {b.status === "COMPLETED" && !b.ratingBoat && readOnly && onRated ? (
             <RateBoatForm bookingId={b.id} t={t} onDone={onRated} />
+          ) : null}
+
+          {showChat ? (
+            <BookingChatEntry
+              bookingId={b.id}
+              audience="renter"
+              peerLabel={autoOpenChat?.peerLabel ?? t("bookingChat.owner")}
+              subtitle={autoOpenChat?.subtitle ?? b.boat.nome}
+              unreadCount={chatUnreadCount}
+              onUnreadChange={onChatUnreadChange}
+              autoOpen={Boolean(autoOpenChat)}
+            />
           ) : null}
 
           {editing && editDraft && setEditDraft ? (

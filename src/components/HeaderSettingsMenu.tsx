@@ -27,9 +27,15 @@ type SettingsMenuPanelProps = {
   onClose: () => void;
   /** Sufixo único para ids de acessibilidade quando há mais de um painel no ecrã (ex.: barra inferior + cabeçalho). */
   idSuffix?: string;
+  /** Oculta cabeçalho com ícone (quando o menu já tem título próprio). */
+  hideHeader?: boolean;
 };
 
-export function SettingsMenuPanel({ onClose, idSuffix = "header" }: SettingsMenuPanelProps) {
+export function SettingsMenuPanel({
+  onClose,
+  idSuffix = "header",
+  hideHeader = false,
+}: SettingsMenuPanelProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -41,12 +47,14 @@ export function SettingsMenuPanel({ onClose, idSuffix = "header" }: SettingsMenu
 
   return (
     <>
-      <SheetHeader className="space-y-0 pb-3">
-        <div className="flex justify-center" aria-hidden>
-          <Settings className="h-5 w-5 text-primary" />
-        </div>
-        <SheetTitle className="sr-only">{t("menu.title")}</SheetTitle>
-      </SheetHeader>
+      {hideHeader ? null : (
+        <SheetHeader className="space-y-0 pb-3">
+          <div className="flex justify-center" aria-hidden>
+            <Settings className="h-5 w-5 text-primary" />
+          </div>
+          <SheetTitle className="sr-only">{t("menu.title")}</SheetTitle>
+        </SheetHeader>
+      )}
       <div className="flex flex-1 flex-col gap-4">
         {isLocatario && (
           <div className="space-y-2">

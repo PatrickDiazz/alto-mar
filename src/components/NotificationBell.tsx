@@ -72,12 +72,27 @@ export function NotificationBell({ className }: { className?: string }) {
                     type="button"
                     className={cn(
                       "flex w-full flex-col gap-0.5 px-3 py-2.5 text-left transition-colors hover:bg-muted/40",
-                      !n.readAt && "bg-primary/[0.04]"
+                      !n.readAt && "bg-primary/[0.04]",
+                      n.readAt && "opacity-55"
                     )}
                     onClick={() => void openNotification(n)}
                   >
-                    <span className="text-sm font-medium text-foreground">{n.title}</span>
-                    <span className="line-clamp-2 text-xs text-muted-foreground">{n.body}</span>
+                    <span
+                      className={cn(
+                        "text-sm font-medium",
+                        n.readAt ? "text-muted-foreground" : "text-foreground"
+                      )}
+                    >
+                      {n.title}
+                    </span>
+                    <span
+                      className={cn(
+                        "line-clamp-2 text-xs",
+                        n.readAt ? "text-muted-foreground/70" : "text-muted-foreground"
+                      )}
+                    >
+                      {n.body}
+                    </span>
                     <span className="text-[10px] text-muted-foreground/80">
                       {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true, locale: dateLocale })}
                     </span>

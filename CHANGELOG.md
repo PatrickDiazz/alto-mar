@@ -12,6 +12,36 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
+## [0.14.2] — 2026-06-07
+
+### Adicionado
+
+- **Chat por reserva** (banhista ↔ locador): módulo `server/chat/` (`booking_messages`, REST, filtro anti-contacto/link, rate limit); notificação **`BOOKING_MESSAGE`** + push FCM por mensagem; disponível **apenas** com reserva **`ACCEPTED`**.
+- **UI do chat**: **mobile** — página dedicada (`/conta/reservas/:id/chat`, `/marinheiro/reservas/:id/chat`) com voltar à reserva; **desktop** — popup (`BookingChatDialog`) na ficha da reserva.
+- **Documentação**: `docs/CHAT-ARCHITECTURE.md`, PDF e secção 17 em **`docs/BUSINESS-RULES.md`**; migração `db/booking_messages.sql`.
+- **Painel locador**: badges de countdown coloridos (`BookingCountdownBadge`), distinção em curso / confirmada / atrasada; menu mobile (☰) com navegação da sidebar; **`ownerBookingTiming.ts`**.
+- **Seed demo Stripe**: `npm run db:seed-stripe-bookings` (reservas futuras com checkout e comprovante de teste).
+- **i18n** (pt / en / es): `bookingChat.*`, `ownerBooking.*`.
+
+### Alterado
+
+- **Explorar (mobile)**: carrossel com bloqueio de eixo (scroll horizontal ou vertical da página, não ambos); sem loop circular entre primeiro e último barco.
+- **Notificações**: leitura ao visitar rotas de chat; deep links para página/popup de mensagens.
+- **`docs/BUSINESS-RULES.md`**: regras de disponibilidade, notificações e chat consolidadas.
+
+### Corrigido
+
+- **Pagamentos Stripe no app Android**: CORS aceita origem `https://localhost` (Capacitor); Checkout em Custom Tab (`@capacitor/browser`); retorno pós-pagamento com `returnBaseUrl` nativo e sync da sessão.
+- **Notificações**: badge em «Reservas» reflecte avisos não lidos; avisos marcados como lidos ao abrir Reservas ou ficha; itens já vistos mais apagados no sino.
+- **Disponibilidade / painel locador**: `PENDING` paga não bloqueia a diária; locador só vê reserva após pagamento aprovado; SQL de ocupação e opcionais alinhados ao enum `booking_status`.
+- **Stripe seed / checkout**: correcções em `bookingAvailability.js`, `ownerOptionals.js` e `applyCheckoutPaid.js` que impediam criar reservas de demonstração.
+
+### Versões
+
+- Cliente e servidor **0.14.2**; Android **`versionName` 0.14.2**, **`versionCode` 14**.
+
+---
+
 ## [0.14.1] — 2026-06-06
 
 ### Adicionado
