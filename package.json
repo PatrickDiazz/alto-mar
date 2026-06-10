@@ -8,6 +8,8 @@
     "dev:server": "npm --prefix server run dev",
     "dev:server:stable": "npm --prefix server run dev:stable",
     "dev:all": "npm-run-all -p dev:server dev",
+    "dev:admin": "npm --prefix admin run dev",
+    "dev:all:ops": "npm-run-all -p dev:server dev:admin",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:reset": "docker compose down -v && docker compose up -d",

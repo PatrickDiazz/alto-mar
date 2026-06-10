@@ -15,6 +15,7 @@
     "refresh-demo-boat-images": "node refresh-demo-boat-images.js",
     "reset-demo-boats": "node reset-demo-boats.js",
     "seed:stripe-bookings": "node seedStripeBookings.js",
+    "seed:staff": "node admin/seedStaff.js",
     "stripe:metrics": "node stripe/run-metrics.mjs",
     "stripe:smoke": "node stripe/smoke-test.mjs",
     "stripe:audit-env": "node stripe/audit-env.mjs",

@@ -64,6 +64,8 @@ import {
 import { ensureNotificationsSchema } from "./notifications/schema.js";
 import { ensureBookingChatSchema } from "./chat/schema.js";
 import { installBookingChatRoutes } from "./chat/routes.js";
+import { ensureAdminSchema } from "./admin/schema.js";
+import { installAdminRoutes, bootstrapAdminData } from "./admin/routes.js";
 import {
   registerPushToken,
   unregisterPushToken,
@@ -713,6 +715,8 @@ const allowedOrigins = [
   "http://localhost:8081",
   "http://127.0.0.1:8080",
   "http://127.0.0.1:8081",
+  "http://localhost:5174",
+  "http://127.0.0.1:5174",
   // Capacitor WebView (Android/iOS)
   "https://localhost",
   "http://localhost",
@@ -1097,7 +1101,7 @@ app.get("/api/boats", async (req, res) => {
   try {
     const amenityNames = parseAmenitiesQuery(req);
     const params = [];
-    const parts = ["coalesce(b.is_active, true) = true"];
+    const parts = ["coalesce(b.is_active, true) = true", "b.verified = true"];
     if (amenityNames.length > 0) {
       for (const name of amenityNames) {
         params.push(name);
@@ -1495,6 +1499,7 @@ app.get("/api/public/boats-available-on", async (req, res) => {
           and (bk.booking_date = $1::date or bd.id is not null)
       )
       and coalesce(b.is_active, true) = true
+      and b.verified = true
       order by b.rating desc nulls last, b.created_at desc
       limit 60
       `,
@@ -1843,7 +1848,6 @@ const ownerUpdateBoatSchema = z
   descricao: z.string().min(5).max(4000),
   routeIslands: z.array(z.string().min(2).max(120)).max(20).optional(),
   routeIslandImages: z.record(z.string(), z.array(z.string())).optional(),
-  verificado: z.boolean(),
   tieDocumentUrl: assetOrUrlSchema.optional().nullable(),
   tiemDocumentUrl: assetOrUrlSchema.optional().nullable(),
   videoUrl: z.string().url().optional().nullable(),
@@ -1935,20 +1939,23 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
            capacity = $7,
            type = $8,
            description = $9,
-           verified = $10,
-           tie_document_url = $11,
-           tiem_document_url = $12,
-           video_url = $13,
-           route_islands = $14,
-           route_island_images = $15::jsonb,
-           bbq_offered = coalesce($16, bbq_offered),
-           bbq_kit_items = coalesce($17::jsonb, bbq_kit_items),
-           bbq_kit_price_cents = coalesce($18, bbq_kit_price_cents),
-           jet_ski_offered = $19,
-           jet_ski_price_cents = $20,
-           jet_ski_image_urls = $21,
-           jet_ski_document_url = $22,
-           custom_optionals = coalesce($23::jsonb, custom_optionals)
+           tie_document_url = $10,
+           tiem_document_url = $11,
+           video_url = $12,
+           route_islands = $13,
+           route_island_images = $14::jsonb,
+           bbq_offered = coalesce($15, bbq_offered),
+           bbq_kit_items = coalesce($16::jsonb, bbq_kit_items),
+           bbq_kit_price_cents = coalesce($17, bbq_kit_price_cents),
+           jet_ski_offered = $18,
+           jet_ski_price_cents = $19,
+           jet_ski_image_urls = $20,
+           jet_ski_document_url = $21,
+           custom_optionals = coalesce($22::jsonb, custom_optionals),
+           review_status = case
+             when verified = true then review_status
+             else 'PENDING_REVIEW'::boat_review_status
+           end
        where id = $1 and owner_user_id = $2
        returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands, route_island_images, bbq_offered, bbq_kit_items, bbq_kit_price_cents, jet_ski_offered, jet_ski_price_cents, jet_ski_image_urls, jet_ski_document_url, custom_optionals`,
       [
@@ -1961,7 +1968,6 @@ app.patch("/api/owner/boats/:id", requireAuth, requireRole("locatario"), async (
         body.capacidade,
         body.tipo,
         body.descricao,
-        body.verificado,
         body.tieDocumentUrl ?? null,
         body.tiemDocumentUrl ?? null,
         body.videoUrl ?? null,
@@ -2113,9 +2119,9 @@ app.post("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, 
       : 0;
     const created = await query(
       `insert into boats
-        (owner_user_id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands, route_island_images,
+        (owner_user_id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, review_status, tie_document_url, tiem_document_url, video_url, route_islands, route_island_images,
          bbq_offered, bbq_kit_items, bbq_kit_price_cents, jet_ski_offered, jet_ski_price_cents, jet_ski_image_urls, jet_ski_document_url, custom_optionals)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17::jsonb,$18,$19,$20,$21,$22,$23::jsonb)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'PENDING_REVIEW',$11,$12,$13,$14,$15::jsonb,$16,$17::jsonb,$18,$19,$20,$21,$22,$23::jsonb)
        returning id, name, location_text, price_cents, rating, size_feet, capacity, type, description, verified, tie_document_url, tiem_document_url, video_url, route_islands, route_island_images`,
       [
         req.user.sub,
@@ -3761,6 +3767,7 @@ app.post("/api/owner/bookings/:id/rate-renter", requireAuth, requireRole("locata
 });
 
 installBookingChatRoutes(app);
+installAdminRoutes(app, { loginLimiter: authLoginLimiter });
 
 const pushTokenSchema = z.object({
   token: z.string().min(10).max(4096),
@@ -3985,6 +3992,8 @@ Teste: http://127.0.0.1:3001/api/health
     await ensureStripeConnectSchema();
     await ensureNotificationsSchema();
     await ensureBookingChatSchema();
+    await ensureAdminSchema();
+    await bootstrapAdminData();
     startStripeCrons();
     if (
       String(process.env.PAYMENTS_PROVIDER || "").toLowerCase() === "stripe" &&
