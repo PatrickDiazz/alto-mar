@@ -14,6 +14,7 @@ import ChatReports from "./pages/ChatReports";
 import Macros from "./pages/Macros";
 import Tags from "./pages/Tags";
 import Audit from "./pages/Audit";
+import AuditAccount from "./pages/AuditAccount";
 import Staff from "./pages/Staff";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="macros" element={<Macros />} />
           <Route path="tags" element={<Tags />} />
           <Route path="audit" element={<Audit />} />
+          <Route path="audit/:accountId" element={<AuditAccount />} />
           <Route path="staff" element={<Staff />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

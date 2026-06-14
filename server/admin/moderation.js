@@ -337,7 +337,7 @@ export async function getChatConversationForStaff(bookingId) {
 
   const messages = await listBookingMessagesForStaff(bookingId, { limit: 500 });
   const reports = await query(
-    `select id, reason, status, created_at, reporter_user_id,
+    `select cr.id, cr.reason, cr.status, cr.created_at, cr.reporter_user_id,
             u.name as reporter_name
      from chat_reports cr
      join users u on u.id = cr.reporter_user_id

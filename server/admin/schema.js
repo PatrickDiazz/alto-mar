@@ -234,4 +234,7 @@ export async function ensureAdminSchema() {
   await query(`
     create index if not exists idx_audit_logs_entity on audit_logs(entity_type, entity_id)
   `);
+  await query(`
+    create index if not exists idx_audit_logs_actor on audit_logs(actor_staff_id, created_at desc)
+  `);
 }

@@ -12,6 +12,28 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
+## [0.14.4] — 2026-06-14
+
+### Adicionado
+
+- **Auditoria (admin)**: listagem por conta operacional staff (`/audit`) e página de acções por conta (`/audit/:accountId`); APIs `GET /api/admin/audit/accounts` e `GET /api/admin/audit/accounts/:accountId`.
+- **Admin em produção**: suporte a `VITE_API_BASE_URL` (chamada directa à Railway), proxy serverless `admin/api/[...path].js` e `admin/vercel.json`; mensagens de erro de API mais claras.
+
+### Alterado
+
+- **Tokens staff**: segredo opcional `JWT_SECRET_STAFF` em `server/.env` / Railway (fallback para `JWT_SECRET`); documentação em `admin/README.md` e `server/.env.example`.
+
+### Corrigido
+
+- **Chats (admin)**: erro SQL «column reference "id" is ambiguous» ao abrir conversa com denúncias.
+- **Build Vercel (admin)**: PostCSS deixava de herdar Tailwind da raiz do monorepo (`admin/postcss.config.js`, `vite.config.ts`).
+
+### Versões
+
+- Cliente e servidor **0.14.4**; Android **`versionName` 0.14.4**, **`versionCode` 16**; console admin **0.1.1** (projeto independente em `admin/`).
+
+---
+
 ## [0.14.3] — 2026-06-14
 
 ### Adicionado

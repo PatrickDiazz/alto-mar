@@ -1,65 +1,81 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { adminJson } from "../lib/auth";
 
-type Log = {
+type AuditAccount = {
   id: string;
-  action: string;
-  entityType: string;
-  entityId: string | null;
-  createdAt: string;
-  actor: { name: string; email: string; role: string } | null;
-  metadata: Record<string, unknown>;
+  name: string;
+  email: string | null;
+  role: string | null;
+  active: boolean;
+  actionCount: number;
+  lastActionAt: string | null;
 };
 
 export default function Audit() {
-  const [logs, setLogs] = useState<Log[]>([]);
+  const [accounts, setAccounts] = useState<AuditAccount[]>([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    adminJson<{ logs: Log[] }>("/api/admin/audit?limit=100")
-      .then((d) => setLogs(d.logs))
+    adminJson<{ accounts: AuditAccount[] }>("/api/admin/audit/accounts")
+      .then((d) => setAccounts(d.accounts))
       .catch((e) => setError(e instanceof Error ? e.message : "Erro"));
   }, []);
 
   return (
     <div>
       <h1 className="page-title">Auditoria</h1>
+      <p style={{ color: "var(--muted)", marginTop: "-0.5rem", marginBottom: "1.25rem" }}>
+        Selecione uma conta operacional para ver o histórico de acções.
+      </p>
       {error && <p className="error">{error}</p>}
-      <div className="card table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Data</th>
-              <th>Actor</th>
-              <th>Acção</th>
-              <th>Entidade</th>
-            </tr>
-          </thead>
-          <tbody>
-            {logs.map((l) => (
-              <tr key={l.id}>
-                <td>{new Date(l.createdAt).toLocaleString("pt-BR")}</td>
-                <td>
-                  {l.actor?.name || "—"}
-                  {l.actor?.role && <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{l.actor.role}</div>}
-                </td>
-                <td>
-                  <code>{l.action}</code>
-                </td>
-                <td>
-                  {l.entityType}
-                  {l.entityId && (
-                    <>
-                      <br />
-                      <small>{l.entityId}</small>
-                    </>
-                  )}
-                </td>
+
+      {accounts.length === 0 && !error ? (
+        <p style={{ color: "var(--muted)" }}>Ainda não há registos de auditoria.</p>
+      ) : (
+        <div className="card table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Conta</th>
+                <th>Papel</th>
+                <th>Acções</th>
+                <th>Última acção</th>
+                <th />
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {accounts.map((a) => (
+                <tr key={a.id}>
+                  <td>
+                    <strong>{a.name}</strong>
+                    {a.email && (
+                      <>
+                        <br />
+                        <small style={{ color: "var(--muted)" }}>{a.email}</small>
+                      </>
+                    )}
+                    {a.id !== "system" && !a.active && (
+                      <>
+                        <br />
+                        <span className="badge badge-open">Inactiva</span>
+                      </>
+                    )}
+                  </td>
+                  <td>{a.role || "—"}</td>
+                  <td>{a.actionCount}</td>
+                  <td>
+                    {a.lastActionAt ? new Date(a.lastActionAt).toLocaleString("pt-BR") : "—"}
+                  </td>
+                  <td>
+                    <Link to={`/audit/${a.id}`}>Ver acções</Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

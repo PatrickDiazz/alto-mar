@@ -19,7 +19,7 @@ export async function writeAuditLog(input) {
 }
 
 /**
- * @param {{ limit?: number; offset?: number; entityType?: string; entityId?: string }} opts
+ * @param {{ limit?: number; offset?: number; entityType?: string; entityId?: string; actorStaffId?: string | null }} opts
  */
 export async function listAuditLogs(opts = {}) {
   const limit = Math.min(200, Math.max(1, opts.limit ?? 50));
@@ -35,6 +35,12 @@ export async function listAuditLogs(opts = {}) {
     params.push(opts.entityId);
     parts.push(`a.entity_id = $${params.length}::uuid`);
   }
+  if (opts.actorStaffId === "system") {
+    parts.push("a.actor_staff_id is null");
+  } else if (opts.actorStaffId) {
+    params.push(opts.actorStaffId);
+    parts.push(`a.actor_staff_id = $${params.length}::uuid`);
+  }
 
   params.push(limit, offset);
   const r = await query(
@@ -49,6 +55,78 @@ export async function listAuditLogs(opts = {}) {
     params
   );
   return r.rows.map(mapAuditRow);
+}
+
+/** Contas staff (e «Sistema») com resumo de acções de auditoria. */
+export async function listAuditAccounts() {
+  const r = await query(
+    `select
+       coalesce(s.id::text, 'system') as id,
+       coalesce(s.name, 'Sistema') as name,
+       s.email,
+       s.role,
+       coalesce(s.active, true) as active,
+       count(a.id)::int as action_count,
+       max(a.created_at) as last_action_at
+     from audit_logs a
+     left join staff_users s on s.id = a.actor_staff_id
+     group by s.id, s.name, s.email, s.role, s.active
+     order by max(a.created_at) desc`
+  );
+  return r.rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    role: row.role,
+    active: row.active,
+    actionCount: Number(row.action_count ?? 0),
+    lastActionAt: row.last_action_at,
+  }));
+}
+
+/** @param {string} accountId — UUID staff ou `system` */
+export async function getAuditAccount(accountId) {
+  if (accountId === "system") {
+    const summary = await query(
+      `select count(*)::int as action_count, max(created_at) as last_action_at
+       from audit_logs where actor_staff_id is null`
+    );
+    const row = summary.rows[0];
+    if (!row || Number(row.action_count) === 0) return null;
+    return {
+      id: "system",
+      name: "Sistema",
+      email: null,
+      role: null,
+      active: true,
+      actionCount: Number(row.action_count),
+      lastActionAt: row.last_action_at,
+    };
+  }
+
+  const r = await query(
+    `select
+       s.id, s.name, s.email, s.role, s.active,
+       count(a.id)::int as action_count,
+       max(a.created_at) as last_action_at
+     from staff_users s
+     left join audit_logs a on a.actor_staff_id = s.id
+     where s.id = $1::uuid
+     group by s.id, s.name, s.email, s.role, s.active
+     limit 1`,
+    [accountId]
+  );
+  const row = r.rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    role: row.role,
+    active: row.active,
+    actionCount: Number(row.action_count ?? 0),
+    lastActionAt: row.last_action_at,
+  };
 }
 
 /** @param {import('pg').QueryResultRow} row */

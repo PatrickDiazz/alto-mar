@@ -9,7 +9,7 @@ import {
   signStaffToken,
   staffCan,
 } from "./auth.js";
-import { writeAuditLog, listAuditLogs } from "./audit.js";
+import { writeAuditLog, listAuditLogs, listAuditAccounts, getAuditAccount } from "./audit.js";
 import {
   createTicket,
   listTickets,
@@ -588,12 +588,39 @@ export function installAdminRoutes(app, opts = {}) {
   });
 
   // —— Audit ——
+  app.get("/api/admin/audit/accounts", requireStaffAuth, requireStaffPermission("auditView"), async (_req, res) => {
+    try {
+      const accounts = await listAuditAccounts();
+      return res.json({ accounts });
+    } catch (e) {
+      return res.status(500).json({ error: "Erro ao listar contas de auditoria." });
+    }
+  });
+
+  app.get("/api/admin/audit/accounts/:accountId", requireStaffAuth, requireStaffPermission("auditView"), async (req, res) => {
+    try {
+      const account = await getAuditAccount(req.params.accountId);
+      if (!account) return res.status(404).json({ error: "Conta não encontrada." });
+      const logs = await listAuditLogs({
+        actorStaffId: req.params.accountId,
+        limit: Number(req.query.limit) || 100,
+        offset: Number(req.query.offset) || 0,
+      });
+      return res.json({ account, logs });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Erro ao consultar auditoria da conta.";
+      return res.status(500).json({ error: msg });
+    }
+  });
+
   app.get("/api/admin/audit", requireStaffAuth, requireStaffPermission("auditView"), async (req, res) => {
     try {
       const logs = await listAuditLogs({
         limit: Number(req.query.limit) || 50,
         offset: Number(req.query.offset) || 0,
         entityType: typeof req.query.entityType === "string" ? req.query.entityType : undefined,
+        entityId: typeof req.query.entityId === "string" ? req.query.entityId : undefined,
+        actorStaffId: typeof req.query.actorStaffId === "string" ? req.query.actorStaffId : undefined,
       });
       return res.json({ logs });
     } catch (e) {
