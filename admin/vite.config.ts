@@ -4,6 +4,10 @@ import react from "@vitejs/plugin-react-swc";
 
 export default defineConfig({
   plugins: [react()],
+  css: {
+    /** Não herdar postcss.config.js da raiz do monorepo (tailwind). */
+    postcss: path.join(__dirname, "postcss.config.js"),
+  },
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
   },

@@ -30,7 +30,9 @@ Credenciais padrão (altere em produção):
 
 ## Deploy
 
-- Projeto Vercel **separado** apontando para `admin/`
+- Projeto Vercel **separado** apontando para `admin/` (Root Directory)
+- Build: `npm run build` · Output: `dist`
+- `admin/postcss.config.js` evita herdar Tailwind da raiz do monorepo
 - `EXTRA_CORS_ORIGINS` na Railway com a URL do admin
 - Não indexar (robots noindex já configurado)
 
