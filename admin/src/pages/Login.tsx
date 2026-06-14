@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { adminJson, setSession, type StaffUser } from "../lib/auth";
+import { adminFetch, adminJson, setSession, type StaffUser } from "../lib/auth";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -18,7 +18,7 @@ export default function Login() {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
-      const me = await fetch("/api/admin/me", {
+      const me = await adminFetch("/api/admin/me", {
         headers: { Authorization: `Bearer ${login.token}` },
       }).then((r) => r.json());
       setSession(login.token, { ...login.staff, permissions: me.permissions });

@@ -2,8 +2,16 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { query } from "../db.js";
 
-const raw = process.env.JWT_SECRET;
-const JWT_SECRET = typeof raw === "string" ? raw.trim() : "";
+function resolveStaffJwtSecret() {
+  const staffRaw = process.env.JWT_SECRET_STAFF;
+  const staff = typeof staffRaw === "string" ? staffRaw.trim() : "";
+  if (staff) return staff;
+  const raw = process.env.JWT_SECRET;
+  return typeof raw === "string" ? raw.trim() : "";
+}
+
+/** Segredo dos tokens staff (`type: "staff"`). Preferir `JWT_SECRET_STAFF`; senão `JWT_SECRET`. */
+const JWT_SECRET_STAFF = resolveStaffJwtSecret();
 
 /** @typedef {'STAFF'|'MODERATOR'|'SENIOR_MODERATOR'|'ADMIN'} StaffRole */
 
@@ -35,7 +43,7 @@ export function signStaffToken(staff) {
       name: staff.name,
       email: staff.email,
     },
-    JWT_SECRET,
+    JWT_SECRET_STAFF,
     { expiresIn: "12h" }
   );
 }
@@ -44,8 +52,11 @@ export function requireStaffAuth(req, res, next) {
   const header = req.headers.authorization || "";
   const [, token] = header.split(" ");
   if (!token) return res.status(401).json({ error: "Não autenticado." });
+  if (!JWT_SECRET_STAFF) {
+    return res.status(503).json({ error: "JWT_SECRET ou JWT_SECRET_STAFF em falta." });
+  }
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET_STAFF);
     if (payload.type !== "staff") {
       return res.status(403).json({ error: "Token não é de staff." });
     }
