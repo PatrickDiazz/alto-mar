@@ -136,6 +136,27 @@ export default {
           from: { opacity: "0", transform: "translateY(6px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        shimmer: {
+          "0%": { backgroundPosition: "200% 0" },
+          "100%": { backgroundPosition: "-200% 0" },
+        },
+        "favorite-pop": {
+          "0%": { transform: "scale(1)" },
+          "45%": { transform: "scale(1.32)" },
+          "100%": { transform: "scale(1)" },
+        },
+        "page-enter": {
+          from: { opacity: "0", transform: "translateY(10px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "stagger-fade-in": {
+          from: { opacity: "0", transform: "translateY(14px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "home-enter": {
+          from: { opacity: "0", transform: "translateY(16px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -155,6 +176,11 @@ export default {
         "bbq-kit-collapsible-up":
           "bbq-kit-collapsible-up 0.28s cubic-bezier(0.4, 0, 0.2, 1) forwards",
         "bbq-kit-row-in": "bbq-kit-row-in 0.32s cubic-bezier(0.22, 1, 0.32, 1) both",
+        shimmer: "shimmer 1.6s ease-in-out infinite",
+        "favorite-pop": "favorite-pop 0.38s cubic-bezier(0.22, 1, 0.32, 1)",
+        "page-enter": "page-enter 0.32s cubic-bezier(0.22, 1, 0.32, 1) both",
+        "stagger-fade-in": "stagger-fade-in 0.45s cubic-bezier(0.22, 1, 0.32, 1) both",
+        "home-enter": "home-enter 0.55s cubic-bezier(0.22, 1, 0.32, 1) both",
       },
     },
   },

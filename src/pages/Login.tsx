@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
+import { SocialLoginButtons } from "@/components/SocialLoginButtons";
 import { apiUrl, setSession, type AuthUser } from "@/lib/auth";
 import { readJsonOrThrow } from "@/lib/apiResponse";
 import type { LoginLocationState } from "@/lib/loginLocationState";
@@ -22,6 +23,7 @@ const Login = () => {
   const from = locState?.from || "/";
   const loginContext = locState?.loginContext;
   const isMarinheiroLogin = from === "/marinheiro";
+  const oauthRole = isMarinheiroLogin ? "locatario" : "banhista";
 
   const contextualSubtitle =
     loginContext === "reservations"
@@ -111,6 +113,8 @@ const Login = () => {
             </p>
           )}
         </div>
+
+        <SocialLoginButtons from={from} role={oauthRole} disabled={loading} />
 
         <form className="space-y-3" onSubmit={onSubmit}>
           <div className="space-y-1">

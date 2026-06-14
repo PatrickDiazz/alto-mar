@@ -29,6 +29,7 @@ import { bcp47FromAppLang } from "@/lib/localeFormat";
 import { vesselTypeLabel } from "@/lib/boatVesselTypes";
 import { cn } from "@/lib/utils";
 import { BoatConsumerReviews } from "@/components/BoatConsumerReviews";
+import { DetalhesBarcoSkeleton } from "@/components/skeletons/DetalhesBarcoSkeleton";
 
 type CarouselSlideDir = "next" | "prev";
 
@@ -140,11 +141,7 @@ const DetalhesBarco = () => {
   }, [id, navigate, t]);
 
   if (barcosLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <p className="text-muted-foreground">{t("detalhes.loading")}</p>
-      </div>
-    );
+    return <DetalhesBarcoSkeleton />;
   }
 
   if (barcosError) {

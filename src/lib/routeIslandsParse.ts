@@ -14,29 +14,23 @@ export function parseOwnerRouteIslands(routeIslands?: string[] | null): ParsedBo
   const lines = (routeIslands || []).map((s) => s.trim()).filter(Boolean);
   if (lines.length === 0) return { kind: "single", stops: [] };
 
-  const anyComma = lines.some((l) => l.includes(","));
-  if (!anyComma && lines.length > 1) {
-    return { kind: "single", stops: lines };
-  }
-
   const routes = lines
-    .map((l) => l.split(",").map((s) => s.trim()).filter(Boolean))
+    .map((l) =>
+      l
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    )
     .filter((stops) => stops.length > 0);
 
-  if (routes.length <= 1) {
-    return { kind: "single", stops: routes[0] ?? [] };
-  }
+  if (routes.length === 0) return { kind: "single", stops: [] };
+  if (routes.length === 1) return { kind: "single", stops: routes[0] };
   return { kind: "multi", routes };
 }
 
-/** Formulário do marinheiro: uma linha por roteiro; legado vira um campo com vírgulas. */
+/** Formulário do marinheiro: uma linha por roteiro alternativo. */
 export function storedRouteIslandsToFormRows(stored: string[] | undefined | null): string[] {
   const lines = (stored || []).map((s) => s.trim()).filter(Boolean);
-  if (lines.length === 0) return [""];
-  const anyComma = lines.some((l) => l.includes(","));
-  if (!anyComma && lines.length > 1) {
-    return [lines.join(", ")];
-  }
   return lines.length ? [...lines] : [""];
 }
 

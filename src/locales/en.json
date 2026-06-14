@@ -221,7 +221,17 @@
     "failCredentials": "Invalid email or password.",
     "sessionExpired": "Your session expired. Please sign in again.",
     "hintReservations": "To view your bookings, create an account or sign in.",
-    "hintFavorites": "To access your favorites, create an account or sign in."
+    "hintFavorites": "To access your favorites, create an account or sign in.",
+    "orContinueWith": "or continue with",
+    "google": "Continue with Google",
+    "facebook": "Continue with Facebook",
+    "oauthStarting": "Redirecting...",
+    "oauthFail": "Social sign-in failed."
+  },
+  "authCallback": {
+    "processing": "Completing sign-in...",
+    "success": "Signed in.",
+    "fail": "Could not sign in."
   },
   "signup": {
     "title": "Sign up",
@@ -366,7 +376,7 @@
     "tripDateMinLead": "Bookings require at least 2 days’ notice: you cannot choose today or tomorrow.",
     "toastRoute": "Select at least one route stop.",
     "routeStops": "Trip route",
-    "routeStopsHint": "Route set by the owner in the listing. Stops cannot be changed.",
+    "routeStopsHint": "Route suggested by the owner. Stops are fixed within the option you choose.",
     "pickRouteVariant": "This boat offers more than one route — pick one:",
     "reviewTitle": "Order review",
     "reviewDate": "Date:",

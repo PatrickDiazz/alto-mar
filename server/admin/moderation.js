@@ -214,6 +214,156 @@ export async function resolveChatReport(reportId, input) {
   });
 }
 
+/**
+ * @param {{ limit?: number; offset?: number; status?: string; q?: string }} opts
+ */
+export async function listChatConversationsForStaff(opts = {}) {
+  const limit = Math.min(100, Math.max(1, opts.limit ?? 50));
+  const offset = Math.max(0, opts.offset ?? 0);
+  const params = [];
+  const parts = [
+    `(
+      exists (select 1 from booking_messages m where m.booking_id = bk.id)
+      or bk.status = 'ACCEPTED'
+    )`,
+  ];
+
+  if (opts.status) {
+    params.push(opts.status);
+    parts.push(`bk.status = $${params.length}`);
+  }
+  if (opts.q?.trim()) {
+    params.push(`%${opts.q.trim().slice(0, 80)}%`);
+    const n = params.length;
+    parts.push(`(
+      b.name ilike $${n}
+      or renter.name ilike $${n}
+      or renter.email::text ilike $${n}
+      or owner.name ilike $${n}
+      or owner.email::text ilike $${n}
+    )`);
+  }
+
+  params.push(limit, offset);
+  const where = `where ${parts.join(" and ")}`;
+
+  const r = await query(
+    `select
+       bk.id as booking_id,
+       bk.status,
+       bk.booking_date::text as booking_date,
+       b.name as boat_name,
+       renter.id as renter_id,
+       renter.name as renter_name,
+       renter.email as renter_email,
+       owner.id as owner_id,
+       owner.name as owner_name,
+       owner.email as owner_email,
+       coalesce(
+         bk.last_message_at,
+         (select max(m.created_at) from booking_messages m where m.booking_id = bk.id)
+       ) as last_message_at,
+       (select count(*)::int from booking_messages m where m.booking_id = bk.id) as message_count,
+       (
+         select m.body from booking_messages m
+         where m.booking_id = bk.id
+         order by m.created_at desc
+         limit 1
+       ) as last_message_preview,
+       (
+         select u.name from booking_messages m
+         join users u on u.id = m.sender_user_id
+         where m.booking_id = bk.id
+         order by m.created_at desc
+         limit 1
+       ) as last_sender_name,
+       (
+         select count(*)::int from chat_reports cr
+         where cr.booking_id = bk.id and cr.status = 'OPEN'
+       ) as open_reports_count
+     from bookings bk
+     join boats b on b.id = bk.boat_id
+     join users renter on renter.id = bk.renter_user_id
+     join users owner on owner.id = bk.owner_user_id
+     ${where}
+     order by coalesce(
+       bk.last_message_at,
+       (select max(m.created_at) from booking_messages m where m.booking_id = bk.id),
+       bk.created_at
+     ) desc
+     limit $${params.length - 1} offset $${params.length}`,
+    params
+  );
+
+  return r.rows.map((row) => ({
+    bookingId: row.booking_id,
+    status: row.status,
+    bookingDate: row.booking_date,
+    boatName: row.boat_name,
+    renter: { id: row.renter_id, name: row.renter_name, email: row.renter_email },
+    owner: { id: row.owner_id, name: row.owner_name, email: row.owner_email },
+    lastMessageAt: row.last_message_at,
+    messageCount: Number(row.message_count ?? 0),
+    lastMessagePreview: row.last_message_preview,
+    lastSenderName: row.last_sender_name,
+    openReportsCount: Number(row.open_reports_count ?? 0),
+  }));
+}
+
+/** @param {string} bookingId */
+export async function getChatConversationForStaff(bookingId) {
+  const meta = await query(
+    `select
+       bk.id,
+       bk.status,
+       bk.booking_date::text as booking_date,
+       b.name as boat_name,
+       renter.id as renter_id,
+       renter.name as renter_name,
+       renter.email as renter_email,
+       owner.id as owner_id,
+       owner.name as owner_name,
+       owner.email as owner_email
+     from bookings bk
+     join boats b on b.id = bk.boat_id
+     join users renter on renter.id = bk.renter_user_id
+     join users owner on owner.id = bk.owner_user_id
+     where bk.id = $1::uuid
+     limit 1`,
+    [bookingId]
+  );
+  const row = meta.rows[0];
+  if (!row) return null;
+
+  const messages = await listBookingMessagesForStaff(bookingId, { limit: 500 });
+  const reports = await query(
+    `select id, reason, status, created_at, reporter_user_id,
+            u.name as reporter_name
+     from chat_reports cr
+     join users u on u.id = cr.reporter_user_id
+     where cr.booking_id = $1::uuid
+     order by cr.created_at desc`,
+    [bookingId]
+  );
+
+  return {
+    bookingId: row.id,
+    status: row.status,
+    bookingDate: row.booking_date,
+    boatName: row.boat_name,
+    renter: { id: row.renter_id, name: row.renter_name, email: row.renter_email },
+    owner: { id: row.owner_id, name: row.owner_name, email: row.owner_email },
+    messages,
+    reports: reports.rows.map((r) => ({
+      id: r.id,
+      reason: r.reason,
+      status: r.status,
+      createdAt: r.created_at,
+      reporter: { id: r.reporter_user_id, name: r.reporter_name },
+    })),
+  };
+}
+
 /** @param {string} bookingId @param {{ limit?: number }} opts */
 export async function listBookingMessagesForStaff(bookingId, opts = {}) {
   const limit = Math.min(500, Math.max(1, opts.limit ?? 200));

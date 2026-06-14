@@ -12,6 +12,31 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
+## [0.14.3] — 2026-06-14
+
+### Adicionado
+
+- **Login social** (Google e Facebook): fluxo OAuth no servidor (`server/oauth/`), callback `/auth/callback`, botões em Login e Signup; variáveis `GOOGLE_*`, `FACEBOOK_*` e migração `db/oauth_providers.sql`.
+- **Reserva — roteiro**: banhista escolhe entre roteiros sugeridos pelo locador (`BookingRoutePicker`); paradas enviadas na reserva; alinhamento com `getRoutesForBoat` da ficha do barco.
+- **Motion / UX**: skeletons com shimmer (Explorar, DetalhesBarco, carregar mais); entrada em cascata nos cards; scroll reveal nas secções da Explorar; transições suaves entre rotas; micro-interações em botões, favoritos e Home.
+- **Console operacional — fase inicial** (`admin/`, porta **5174**): RBAC staff, tickets, fila de aprovação de embarcações, moderação, denúncias e conversas de chat, auditoria, dashboard, macros, tags e gestão de staff; API em `server/admin/` (`/api/admin/*`); seed `npm --prefix server run seed:staff`; guia em **`admin/README.md`**.
+
+### Alterado
+
+- **Detalhes do barco**: calendário de disponibilidade em modo só leitura (sem seleção de dias; navegação entre meses mantida).
+- **Roteiros no anúncio**: cada linha em `route_islands` passa a representar um roteiro alternativo (paradas separadas por vírgula na mesma linha).
+- **Listagens públicas**: apenas embarcações **verificadas**; locador deixa de auto-aprovar embarcação no registo.
+
+### Notas
+
+- O **sistema de suporte / operações** (console admin) está em **fase inicial**: adequado para uso interno e iteração; em produção exige deploy separado (ex. Vercel em `admin/`), `EXTRA_CORS_ORIGINS` na API e credenciais staff fora dos defaults de seed.
+
+### Versões
+
+- Cliente e servidor **0.14.3**; Android **`versionName` 0.14.3**, **`versionCode` 15**; console admin **0.1.0** (projeto independente em `admin/`).
+
+---
+
 ## [0.14.2] — 2026-06-07
 
 ### Adicionado

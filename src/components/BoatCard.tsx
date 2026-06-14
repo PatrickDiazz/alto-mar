@@ -10,14 +10,17 @@ interface BoatCardProps {
   barco: Boat;
   isFavorited?: boolean;
   onToggleFavorite?: (boatId: string) => void;
+  /** Índice para entrada em cascata (Explorar). */
+  staggerIndex?: number;
 }
 
-function BoatCardInner({ barco, isFavorited = false, onToggleFavorite }: BoatCardProps) {
+function BoatCardInner({ barco, isFavorited = false, onToggleFavorite, staggerIndex }: BoatCardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
   const [currentImage, setCurrentImage] = useState(0);
+  const [favPop, setFavPop] = useState(false);
   const n = barco.imagens?.length ?? 0;
 
   useEffect(() => {
@@ -31,9 +34,21 @@ function BoatCardInner({ barco, isFavorited = false, onToggleFavorite }: BoatCar
     return () => obs.disconnect();
   }, []);
 
+  const prevFavoritedRef = useRef(isFavorited);
+
   useEffect(() => {
     setCurrentImage(0);
   }, [barco.id]);
+
+  useEffect(() => {
+    if (!prevFavoritedRef.current && isFavorited) {
+      setFavPop(true);
+      const timer = window.setTimeout(() => setFavPop(false), 420);
+      prevFavoritedRef.current = isFavorited;
+      return () => window.clearTimeout(timer);
+    }
+    prevFavoritedRef.current = isFavorited;
+  }, [isFavorited]);
 
   const nextImage = useCallback(() => {
     if (n <= 0) return;
@@ -53,10 +68,23 @@ function BoatCardInner({ barco, isFavorited = false, onToggleFavorite }: BoatCar
   const ratingN = parseFloat(String(barco.nota).replace(",", ".").trim());
   const hasRating = Number.isFinite(ratingN) && ratingN > 0;
 
+  const staggerStyle =
+    staggerIndex != null && staggerIndex > 0
+      ? ({ animationDelay: `${Math.min(staggerIndex, 14) * 55}ms` } as const)
+      : undefined;
+
   return (
     <div
       ref={rootRef}
-      className="cursor-pointer group animate-fade-in [content-visibility:auto] [contain-intrinsic-size:200px_260px]"
+      style={staggerStyle}
+      className={cn(
+        "group cursor-pointer [content-visibility:auto] [contain-intrinsic-size:200px_260px]",
+        "motion-safe:transition-[transform,box-shadow] motion-safe:duration-300 motion-safe:ease-out",
+        "motion-safe:hover:-translate-y-1 motion-safe:hover:shadow-elevated motion-reduce:transition-none",
+        staggerIndex != null
+          ? "motion-safe:animate-stagger-fade-in motion-reduce:animate-fade-in"
+          : "animate-fade-in"
+      )}
       onClick={goDetail}
     >
       <div className="aspect-square overflow-hidden rounded-lg relative bg-muted">
@@ -103,11 +131,15 @@ function BoatCardInner({ barco, isFavorited = false, onToggleFavorite }: BoatCar
               e.stopPropagation();
               onToggleFavorite(barco.id);
             }}
-            className="absolute top-2 right-2 z-10 rounded-full bg-background/85 p-2 text-foreground hover:bg-background transition"
+            className="absolute top-2 right-2 z-10 rounded-full bg-background/85 p-2 text-foreground transition-[background-color,transform] duration-200 hover:bg-background motion-safe:active:scale-95"
             aria-label={isFavorited ? t("boatCard.favRemove") : t("boatCard.favAdd")}
           >
             <Heart
-              className={`w-4 h-4 ${isFavorited ? "fill-red-500 text-red-500" : "text-foreground"}`}
+              className={cn(
+                "h-4 w-4 transition-colors duration-200",
+                isFavorited ? "fill-red-500 text-red-500" : "text-foreground",
+                favPop && "motion-safe:animate-favorite-pop motion-reduce:animate-none"
+              )}
             />
           </button>
         )}
@@ -143,7 +175,8 @@ function propsEqual(prev: BoatCardProps, next: BoatCardProps) {
   return (
     prev.barco === next.barco &&
     prev.isFavorited === next.isFavorited &&
-    prev.onToggleFavorite === next.onToggleFavorite
+    prev.onToggleFavorite === next.onToggleFavorite &&
+    prev.staggerIndex === next.staggerIndex
   );
 }
 

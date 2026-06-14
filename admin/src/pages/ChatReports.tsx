@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link, NavLink } from "react-router-dom";
 import { adminJson } from "../lib/auth";
 
 type Report = {
@@ -42,7 +43,17 @@ export default function ChatReports() {
 
   return (
     <div>
-      <h1 className="page-title">Moderação de chat</h1>
+      <h1 className="page-title">Chats</h1>
+
+      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
+        <NavLink to="/chats" end className={({ isActive }) => (isActive ? "btn btn-primary btn-sm" : "btn btn-sm")}>
+          Conversas
+        </NavLink>
+        <NavLink to="/chats/reports" className={({ isActive }) => (isActive ? "btn btn-primary btn-sm" : "btn btn-sm")}>
+          Denúncias
+        </NavLink>
+      </div>
+
       {error && <p className="error">{error}</p>}
 
       <div className="card" style={{ marginBottom: "1.5rem" }}>
@@ -63,7 +74,8 @@ export default function ChatReports() {
           <ul style={{ marginTop: "1rem" }}>
             {searchResults.map((m, i) => (
               <li key={i}>
-                <strong>{m.senderName}</strong> (reserva {m.bookingId.slice(0, 8)}…): {m.body}
+                <strong>{m.senderName}</strong> —{" "}
+                <Link to={`/chats/${m.bookingId}`}>abrir conversa</Link>: {m.body}
               </li>
             ))}
           </ul>
@@ -78,6 +90,7 @@ export default function ChatReports() {
               <th>Embarcação</th>
               <th>Denunciante</th>
               <th>Status</th>
+              <th>Conversa</th>
               <th>Acções</th>
             </tr>
           </thead>
@@ -89,6 +102,9 @@ export default function ChatReports() {
                 <td>{r.reporter.name}</td>
                 <td>
                   <span className="badge badge-open">{r.status}</span>
+                </td>
+                <td>
+                  <Link to={`/chats/${r.bookingId}`}>Ver chat</Link>
                 </td>
                 <td>
                   {r.status === "OPEN" && (

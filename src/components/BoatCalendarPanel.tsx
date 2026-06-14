@@ -429,9 +429,10 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
 
   const singleSelected =
     props.variant === "picker" && props.selectedDate ? parseISO(`${props.selectedDate}T12:00:00`) : undefined;
+  const isReadonly = props.variant === "readonly";
 
   return (
-    <div className={cn("space-y-3", className)}>
+    <div className={cn("space-y-3", className)} aria-readonly={isReadonly || undefined}>
       <div className="flex flex-wrap gap-3 text-xs">
         <span className="inline-flex items-center gap-1.5">
           <span className="h-3 w-3 rounded-sm bg-red-500/35 dark:bg-red-950/65" />
@@ -452,13 +453,13 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
         className="flex w-full max-w-full justify-center overflow-x-hidden md:block md:overflow-x-auto md:overscroll-x-contain md:scrollbar-none [-webkit-overflow-scrolling:touch]"
       >
       <DayPicker
-        mode="single"
+        mode={isReadonly ? "default" : "single"}
         numberOfMonths={mdUp ? 2 : 1}
         month={month}
         onMonthChange={setMonth}
         locale={loc}
         components={boatDayPickerIcons}
-        selected={singleSelected}
+        selected={isReadonly ? undefined : singleSelected}
         onSelect={
           props.variant === "picker"
             ? (d) => {
@@ -467,16 +468,20 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
             : undefined
         }
         onDayClick={
-          onUnavailableCb && props.variant === "picker"
-            ? (day, modifiers) => {
-                if (!modifiers.disabled || !data) return;
-                const d0 = startOfDay(day);
-                const minSelectable = addDays(startOfDay(new Date()), pickerLeadDays);
-                if (isBefore(d0, minSelectable)) return;
-                if (!isDayBlockedForPicker(day)) return;
-                onUnavailableCb(dayKey(day));
+          isReadonly
+            ? (_day, _modifiers, e) => {
+                e.preventDefault();
               }
-            : undefined
+            : onUnavailableCb && props.variant === "picker"
+              ? (day, modifiers) => {
+                  if (!modifiers.disabled || !data) return;
+                  const d0 = startOfDay(day);
+                  const minSelectable = addDays(startOfDay(new Date()), pickerLeadDays);
+                  if (isBefore(d0, minSelectable)) return;
+                  if (!isDayBlockedForPicker(day)) return;
+                  onUnavailableCb(dayKey(day));
+                }
+              : undefined
         }
         disabled={props.variant === "picker" ? disabledMatcher : false}
         modifiers={{ ...modifiers }}
@@ -490,9 +495,15 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
           head_cell: "h-9 w-10 p-0 text-center align-middle text-[0.8rem] font-normal text-muted-foreground",
           row: "table-row",
           cell: "relative h-10 w-10 p-0 text-center align-middle text-sm",
-          day: "h-9 w-9 rounded-md p-0 font-normal aria-selected:opacity-100 hover:bg-accent",
-          day_selected:
-            "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+          day: cn(
+            "h-9 w-9 rounded-md p-0 font-normal aria-selected:opacity-100",
+            isReadonly
+              ? "pointer-events-none cursor-default hover:!bg-transparent focus:!outline-none focus-visible:!outline-none"
+              : "hover:bg-accent"
+          ),
+          day_selected: isReadonly
+            ? undefined
+            : "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
           day_today: "ring-1 ring-primary/50",
           day_outside: "text-muted-foreground opacity-50",
           day_disabled: "text-muted-foreground opacity-40 line-through",

@@ -6,6 +6,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PageLoader } from "@/components/PageLoader";
+import { PageTransition } from "@/components/motion/PageTransition";
 import Home from "./pages/Home";
 import { RequireAuth } from "@/components/RequireAuth";
 import { BoatsQueryRecovery } from "@/components/BoatsQueryRecovery";
@@ -20,6 +21,7 @@ const Login = lazy(() => import("./pages/Login"));
 const Signup = lazy(() => import("./pages/Signup"));
 const RecuperarSenha = lazy(() => import("./pages/RecuperarSenha"));
 const RedefinirSenha = lazy(() => import("./pages/RedefinirSenha"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 const ContaUsuario = lazy(() => import("./pages/ContaUsuario"));
 const ContaReservas = lazy(() => import("./pages/ContaReservas"));
 const RenterBookingChatPage = lazy(() => import("./pages/booking/BookingChatPage"));
@@ -57,10 +59,12 @@ const App = () => (
           <NotificationsProvider>
             <MobileNavHost>
             <Suspense fallback={<PageLoader />}>
+              <PageTransition>
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route path="/recuperar-senha" element={<RecuperarSenha />} />
                 <Route path="/redefinir-senha" element={<RedefinirSenha />} />
                 <Route
@@ -132,6 +136,7 @@ const App = () => (
                 />
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              </PageTransition>
             </Suspense>
           </MobileNavHost>
           </NotificationsProvider>

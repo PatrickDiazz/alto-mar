@@ -94,7 +94,7 @@ export default function Dashboard() {
         <div className="metric">
           <div className="metric-value">{metrics.moderation.openChatReports}</div>
           <div className="metric-label">
-            <Link to="/chat-reports">Denúncias chat</Link>
+            <Link to="/chats">Chats</Link>
           </div>
         </div>
         <div className="metric">

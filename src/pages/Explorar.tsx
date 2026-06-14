@@ -15,6 +15,9 @@ import { useTranslation } from "react-i18next";
 import { CalendarDays, ChevronDown, Heart, LogOut, Search, Trash2 } from "lucide-react";
 import { useTheme } from "next-themes";
 import BoatCard from "@/components/BoatCard";
+import { ScrollReveal } from "@/components/motion/ScrollReveal";
+import { ExplorePageSkeleton } from "@/components/skeletons/ExplorePageSkeleton";
+import { BoatCardSkeleton } from "@/components/skeletons/BoatCardSkeleton";
 import { ExploreFiltersCard } from "@/components/ExploreFiltersCard";
 import { BOAT_VESSEL_TYPES, normalizeVesselTipo, vesselTypeLabel } from "@/lib/boatVesselTypes";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
@@ -501,6 +504,7 @@ function ExploreBoatStrip({
                         barco={barco}
                         isFavorited={favoriteIds.has(barco.id)}
                         onToggleFavorite={onToggleFavorite}
+                        staggerIndex={i}
                       />
                     </div>
                   </div>
@@ -521,6 +525,7 @@ function ExploreBoatStrip({
               barco={barco}
               isFavorited={favoriteIds.has(barco.id)}
               onToggleFavorite={onToggleFavorite}
+              staggerIndex={idx}
             />
           </div>
         ))
@@ -1180,8 +1185,8 @@ const Explorar = () => {
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-6xl xl:max-w-7xl px-4 py-6 space-y-10">
-        <div className="mx-auto max-w-2xl text-center space-y-2">
+        <main className="relative z-10 mx-auto max-w-6xl xl:max-w-7xl px-4 py-6 space-y-10">
+        <ScrollReveal className="mx-auto max-w-2xl text-center space-y-2">
           <h1 className="text-base font-bold leading-snug tracking-tight text-foreground sm:text-lg md:text-xl lg:text-2xl">
             {t("explorar.sectionIdeal")}
           </h1>
@@ -1207,9 +1212,9 @@ const Explorar = () => {
               <ExploreFilterPreviewChips items={exploreFilterPreviewItems} onExhausted={dismissFilterPreviewStrip} />
             </div>
           ) : null}
-        </div>
+        </ScrollReveal>
 
-        {barcosLoading && <p className="text-center text-muted-foreground py-8">{t("explorar.loadingBoats")}</p>}
+        {barcosLoading ? <ExplorePageSkeleton /> : null}
         {barcosError && (
           <div className="surface-elevated space-y-2 rounded-lg p-4 text-sm">
             <p className="font-medium text-foreground">{t("explorar.loadErrorTitle")}</p>
@@ -1233,7 +1238,7 @@ const Explorar = () => {
         {!barcosLoading && !barcosError && listaExibida.length > 0 ? (
           <div className="space-y-10">
             {destaques.length > 0 ? (
-              <section className="space-y-4">
+              <ScrollReveal as="section" className="space-y-4">
                 <ExploreSectionHeading
                   title={t("explorar.sectionTopRated")}
                   subtitle={t("explorar.sectionTopRatedHint")}
@@ -1245,11 +1250,11 @@ const Explorar = () => {
                   showScrollHint
                   t={t}
                 />
-              </section>
+              </ScrollReveal>
             ) : null}
 
             {baratos.length > 0 ? (
-              <section className="space-y-4">
+              <ScrollReveal as="section" className="space-y-4" delayMs={100}>
                 <ExploreSectionHeading
                   title={t("explorar.sectionBestPrice")}
                   subtitle={t("explorar.sectionBestPriceHint")}
@@ -1261,11 +1266,11 @@ const Explorar = () => {
                   showScrollHint
                   t={t}
                 />
-              </section>
+              </ScrollReveal>
             ) : null}
 
             {porTipo.length > 0 ? (
-              <section className="space-y-6">
+              <ScrollReveal as="section" className="space-y-6" delayMs={150}>
                 <ExploreSectionHeading
                   title={t("explorar.sectionByType")}
                   subtitle={t("explorar.sectionByTypeHint")}
@@ -1286,7 +1291,7 @@ const Explorar = () => {
                     </div>
                   ))}
                 </div>
-              </section>
+              </ScrollReveal>
             ) : null}
           </div>
         ) : null}
@@ -1297,7 +1302,13 @@ const Explorar = () => {
             className="flex min-h-[3rem] justify-center py-6"
           >
             {isFetchingNextPage ? (
-              <p className="text-sm text-muted-foreground">{t("explorar.loadingMoreBoats")}</p>
+              <div className="flex gap-3 px-2">
+                {Array.from({ length: 3 }, (_, i) => (
+                  <div key={i} className="w-[min(78vw,280px)] shrink-0 md:w-auto md:flex-1">
+                    <BoatCardSkeleton staggerIndex={i} />
+                  </div>
+                ))}
+              </div>
             ) : null}
           </div>
         ) : null}

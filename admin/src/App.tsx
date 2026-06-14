@@ -8,6 +8,8 @@ import TicketDetail from "./pages/TicketDetail";
 import BoatReview from "./pages/BoatReview";
 import BoatReviewDetail from "./pages/BoatReviewDetail";
 import Moderation from "./pages/Moderation";
+import Chats from "./pages/Chats";
+import ChatConversation from "./pages/ChatConversation";
 import ChatReports from "./pages/ChatReports";
 import Macros from "./pages/Macros";
 import Tags from "./pages/Tags";
@@ -38,7 +40,9 @@ export default function App() {
           <Route path="boats" element={<BoatReview />} />
           <Route path="boats/:id" element={<BoatReviewDetail />} />
           <Route path="moderation" element={<Moderation />} />
-          <Route path="chat-reports" element={<ChatReports />} />
+          <Route path="chats" element={<Chats />} />
+          <Route path="chats/reports" element={<ChatReports />} />
+          <Route path="chats/:bookingId" element={<ChatConversation />} />
           <Route path="macros" element={<Macros />} />
           <Route path="tags" element={<Tags />} />
           <Route path="audit" element={<Audit />} />

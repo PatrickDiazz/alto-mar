@@ -119,7 +119,7 @@ export function getStoredUser(): AuthUser | null {
   }
 }
 
-const PUBLIC_PATH_PREFIXES = ["/login", "/signup", "/recuperar-senha", "/redefinir-senha"];
+const PUBLIC_PATH_PREFIXES = ["/login", "/signup", "/auth/callback", "/recuperar-senha", "/redefinir-senha"];
 
 function shouldRedirect401(): boolean {
   if (typeof window === "undefined") return false;

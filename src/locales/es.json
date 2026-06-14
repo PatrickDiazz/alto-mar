@@ -221,7 +221,17 @@
     "failCredentials": "Correo o contraseña incorrectos.",
     "sessionExpired": "La sesión expiró o no es válida. Vuelve a iniciar sesión.",
     "hintReservations": "Para ver tus reservas, crea una cuenta o inicia sesión.",
-    "hintFavorites": "Para acceder a tus favoritos, crea una cuenta o inicia sesión."
+    "hintFavorites": "Para acceder a tus favoritos, crea una cuenta o inicia sesión.",
+    "orContinueWith": "o continúa con",
+    "google": "Continuar con Google",
+    "facebook": "Continuar con Facebook",
+    "oauthStarting": "Redirigiendo...",
+    "oauthFail": "Error al iniciar sesión social."
+  },
+  "authCallback": {
+    "processing": "Completando autenticación...",
+    "success": "Sesión iniciada.",
+    "fail": "No se pudo iniciar sesión."
   },
   "signup": {
     "title": "Crear cuenta",
@@ -366,7 +376,7 @@
     "tripDateMinLead": "Se requiere reservar con al menos 2 días de anticipación: no puedes elegir hoy ni mañana.",
     "toastRoute": "Selecciona al menos una parada del itinerario.",
     "routeStops": "Itinerario del paseo",
-    "routeStopsHint": "Itinerario definido por el propietario en el anuncio. Las paradas no se pueden cambiar.",
+    "routeStopsHint": "Itinerario sugerido por el propietario. Las paradas son fijas dentro de la opción elegida.",
     "pickRouteVariant": "El locador ofrece más de un recorrido — elige una opción:",
     "reviewTitle": "Revisión del pedido",
     "reviewDate": "Fecha:",

@@ -35,6 +35,8 @@ import {
   createChatReport,
   resolveChatReport,
   listBookingMessagesForStaff,
+  listChatConversationsForStaff,
+  getChatConversationForStaff,
   searchChatMessages,
 } from "./moderation.js";
 import { getDashboardMetrics } from "./dashboard.js";
@@ -515,6 +517,29 @@ export function installAdminRoutes(app, opts = {}) {
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erro ao aplicar sanção.";
       return res.status(400).json({ error: msg });
+    }
+  });
+
+  app.get("/api/admin/chat/conversations", requireStaffAuth, requireStaffPermission("moderationBasic"), async (req, res) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status : undefined;
+      const q = typeof req.query.q === "string" ? req.query.q : undefined;
+      const conversations = await listChatConversationsForStaff({ status, q });
+      return res.json({ conversations });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Erro ao listar conversas.";
+      return res.status(500).json({ error: msg });
+    }
+  });
+
+  app.get("/api/admin/chat/conversations/:bookingId", requireStaffAuth, requireStaffPermission("moderationBasic"), async (req, res) => {
+    try {
+      const conversation = await getChatConversationForStaff(req.params.bookingId);
+      if (!conversation) return res.status(404).json({ error: "Conversa não encontrada." });
+      return res.json({ conversation });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Erro ao consultar conversa.";
+      return res.status(500).json({ error: msg });
     }
   });
 

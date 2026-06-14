@@ -21,7 +21,7 @@ export default function Layout() {
           <NavLink to="/tickets">Tickets</NavLink>
           <NavLink to="/boats">Aprovação</NavLink>
           <NavLink to="/moderation">Moderação</NavLink>
-          <NavLink to="/chat-reports">Chat</NavLink>
+          <NavLink to="/chats">Chats</NavLink>
           <NavLink to="/macros">Macros</NavLink>
           <NavLink to="/tags">Tags</NavLink>
           {staff?.permissions?.auditView && (

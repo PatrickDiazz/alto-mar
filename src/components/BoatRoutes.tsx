@@ -141,7 +141,7 @@ function customRouteFromIslands(
   return custom;
 }
 
-function getRoutesForBoat(
+export function getRoutesForBoat(
   boatId: string,
   locationText: string,
   routeIslands: string[] | undefined,

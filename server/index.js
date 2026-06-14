@@ -13,6 +13,8 @@ import { z } from "zod";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { query, pool } from "./db.js";
 import { requireAuth, requireRole, signToken } from "./auth.js";
+import { getOAuthPublicConfig, installOAuthRoutes } from "./oauth/index.js";
+import { ensureOAuthSchema } from "./oauth/schema.js";
 import { ensureStripeConnectSchema } from "./stripe/schema.js";
 import { getStripe } from "./stripe/client.js";
 import { ensureStripePixOnPaymentMethodConfigurations } from "./stripe/ensureStripePixPmc.js";
@@ -775,8 +777,11 @@ app.get("/api/public/app-config", (_req, res) => {
   return res.json({
     paymentsProvider,
     stripePublishableKey: pk || null,
+    oauth: getOAuthPublicConfig(),
   });
 });
+
+installOAuthRoutes(app);
 
 app.get("/api/health", async (_req, res) => {
   try {
@@ -855,6 +860,9 @@ app.post("/api/auth/login", authLoginLimiter, async (req, res) => {
     );
     const row = result.rows[0];
     if (!row) return res.status(401).send("Email ou senha inválidos.");
+    if (!row.password_hash) {
+      return res.status(401).send("Esta conta usa login social. Entre com Google ou Facebook.");
+    }
     const ok = await bcrypt.compare(body.password, row.password_hash);
     if (!ok) return res.status(401).send("Email ou senha inválidos.");
     const user = { id: row.id, name: row.name, email: row.email, role: row.role };
@@ -3990,6 +3998,7 @@ Teste: http://127.0.0.1:3001/api/health
       console.warn("[alto-mar] variedade de opcionais (frota demo):", msg);
     }
     await ensureStripeConnectSchema();
+    await ensureOAuthSchema();
     await ensureNotificationsSchema();
     await ensureBookingChatSchema();
     await ensureAdminSchema();

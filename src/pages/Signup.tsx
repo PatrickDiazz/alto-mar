@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
+import { SocialLoginButtons } from "@/components/SocialLoginButtons";
 import { apiUrl, setSession, type AuthUser, type UserRole } from "@/lib/auth";
 import { readJsonOrThrow } from "@/lib/apiResponse";
 
@@ -58,6 +59,8 @@ const Signup = () => {
           <h1 className="text-xl font-bold text-foreground">{t("signup.title")}</h1>
           <p className="text-sm text-muted-foreground">{t("signup.subtitle")}</p>
         </div>
+
+        <SocialLoginButtons from={from || "/"} role={role} disabled={loading} />
 
         <form className="space-y-3" onSubmit={onSubmit}>
           <div className="space-y-1">

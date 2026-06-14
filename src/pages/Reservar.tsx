@@ -50,7 +50,8 @@ import {
 } from "@/components/ui/dialog";
 import { fetchBoatsAvailableOn } from "@/lib/boatsAvailableOnApi";
 import { vesselTypeLabel } from "@/lib/boatVesselTypes";
-import { parseOwnerRouteIslands } from "@/lib/routeIslandsParse";
+import { getRoutesForBoat } from "@/components/BoatRoutes";
+import { BookingRoutePicker } from "@/components/BookingRoutePicker";
 import {
   bbqKitPriceReais,
   boatOffersBbq,
@@ -237,22 +238,21 @@ const Reservar = () => {
     };
   }, []);
 
-  const routeParsed = useMemo(
-    () => (barco ? parseOwnerRouteIslands(barco.routeIslands) : null),
-    [barco?.id, (barco?.routeIslands ?? []).join("\u0001")]
+  const bookingRoutes = useMemo(
+    () =>
+      barco
+        ? getRoutesForBoat(barco.id, barco.distancia, barco.routeIslands, t("boatRoutes.customName"))
+        : [],
+    [barco?.id, barco?.distancia, (barco?.routeIslands ?? []).join("\u0001"), t]
   );
 
-  /** Paradas fixas do anúncio — o banhista não altera. */
+  /** Paradas do roteiro escolhido (entre os sugeridos pelo locador / anúncio). */
   const activeRouteStops = useMemo(() => {
-    if (!barco || !routeParsed) return [];
-    const fallback = barco.distancia || t("reservar.routeFallback");
-    if (routeParsed.kind === "multi") {
-      const row = routeParsed.routes[selectedRouteIdx] || [];
-      return row.length > 0 ? row : [fallback];
-    }
-    if (routeParsed.stops.length > 0) return routeParsed.stops;
+    const route = bookingRoutes[selectedRouteIdx] ?? bookingRoutes[0];
+    if (route?.stops.length) return route.stops.map((s) => s.ilha);
+    const fallback = barco?.distancia || t("reservar.routeFallback");
     return [fallback];
-  }, [barco, routeParsed, selectedRouteIdx, t]);
+  }, [bookingRoutes, selectedRouteIdx, barco?.distancia, t]);
 
   useEffect(() => {
     if (!barco) return;
@@ -278,7 +278,7 @@ const Reservar = () => {
   useEffect(() => {
     if (!barco) return;
     setSelectedRouteIdx(0);
-  }, [barco?.id, (barco?.routeIslands ?? []).join("\u0001")]);
+  }, [barco?.id, barco?.distancia, (barco?.routeIslands ?? []).join("\u0001")]);
 
   useEffect(() => {
     if (!barco?.jetSkiOffered) setMotoAquatica(false);
@@ -620,38 +620,19 @@ const Reservar = () => {
           </div>
         </section>
 
-        <section className="space-y-3">
-          <h3 className="text-base font-bold text-foreground">{t("reservar.routeStops")}</h3>
-          <p className="text-xs text-muted-foreground">{t("reservar.routeStopsHint")}</p>
-          {routeParsed?.kind === "multi" ? (
-            <div className="surface-elevated space-y-2 rounded-xl p-3">
-              <p className="text-xs font-medium text-foreground">{t("reservar.pickRouteVariant")}</p>
-              <RadioGroup
-                value={String(selectedRouteIdx)}
-                onValueChange={(v) => setSelectedRouteIdx(Number(v))}
-                className="space-y-2"
-              >
-                {routeParsed.routes.map((stops, i) => (
-                  <div key={`rv-${i}`} className="flex items-center space-x-2">
-                    <RadioGroupItem value={String(i)} id={`reservar-rv-${i}`} />
-                    <Label htmlFor={`reservar-rv-${i}`} className="font-normal cursor-pointer text-sm">
-                      {stops.join(", ")}
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            </div>
-          ) : null}
-          <ul className="surface-elevated space-y-1.5 rounded-xl p-3 text-sm text-foreground">
-            {activeRouteStops.map((stop, si) => (
-              <li key={`${stop}-${si}`} className="flex items-start gap-2">
-                <span className="text-muted-foreground" aria-hidden>
-                  •
-                </span>
-                <span>{stop}</span>
-              </li>
-            ))}
-          </ul>
+        <section className="surface-elevated space-y-3 rounded-xl p-4">
+          <div>
+            <h3 className="text-base font-bold text-foreground">{t("reservar.routeStops")}</h3>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              {bookingRoutes.length > 1 ? t("reservar.pickRouteVariant") : t("reservar.routeStopsHint")}
+            </p>
+          </div>
+          <BookingRoutePicker
+            routes={bookingRoutes}
+            selectedIdx={selectedRouteIdx}
+            onSelect={setSelectedRouteIdx}
+            fallbackStops={activeRouteStops}
+          />
         </section>
 
         <section className="space-y-2">
