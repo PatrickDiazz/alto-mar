@@ -16,7 +16,7 @@ Variáveis importantes:
 |------|-----------|---------|
 | Railway (API) | `DATABASE_URL` | fornecida pelo Postgres do Railway ou Neon |
 | Railway (API) | `JWT_SECRET` | string longa e aleatória (não compartilhe) |
-| Railway (API) | `FRONTEND_URL` | URL do Vercel, ex. `https://alto-mar.vercel.app` |
+| Railway (API) | `FRONTEND_URL` | Domínio do site, ex. `https://altomar.app` |
 | Railway (API) | `PORT` | **não defina** — o Railway define sozinho |
 | Vercel (**Build** / Production) | `VITE_API_BASE_URL` | **Recomendado:** URL pública da API na Railway, ex. `https://alto-mar-production.up.railway.app` (sem `/` no fim). O front passa a chamar a API **diretamente**; evita depender do proxy. |
 | Vercel (Runtime) | `ALTO_MAR_API_ORIGIN` | Só se **não** usares `VITE_API_BASE_URL` no build: mesma URL da API, para o proxy em `api/[...path].js`. |
@@ -97,7 +97,7 @@ Só avance para a **Parte C** (API) quando o schema tiver rodado **sem erro** e 
    ```
    DATABASE_URL=<cole a URL do Postgres - pode usar Reference ao serviço Postgres no Railway>
    JWT_SECRET=<gere algo longo, ex. openssl rand -hex 32>
-   FRONTEND_URL=https://SEU-APP.vercel.app
+   FRONTEND_URL=https://altomar.app
    ```
 
    - `MP_ACCESS_TOKEN` só se for usar Mercado Pago de verdade.  
@@ -161,9 +161,9 @@ Só avance para a **Parte C** (API) quando o schema tiver rodado **sem erro** e 
 
 5. **Deploy**.
 
-6. Abra a URL do Vercel (ex. `https://alto-mar.vercel.app`). Teste login e listagem de barcos.
+6. Abra o site (ex. `https://altomar.app`). Teste login e listagem de barcos.
 
-7. Volte no **Railway** → variável **`FRONTEND_URL`** = URL final do Vercel (com `https://`) → **Redeploy** a API para o CORS aceitar o front.
+7. Volte no **Railway** → variável **`FRONTEND_URL`** = URL final do site (ex. `https://altomar.app`, com `https://`) → **Redeploy** a API para o CORS aceitar o front.
 
 ### D.1 — Erro “The page could not be found” / `NOT_FOUND` (Vercel)
 
@@ -192,13 +192,13 @@ Depois de corrigir, faça **Redeploy** (Deployments → … → Redeploy).
 Se você usa domínio principal + preview do Vercel, configure no Railway:
 
 ```env
-FRONTEND_URL=https://alto-mar.vercel.app
-EXTRA_CORS_ORIGINS=https://alto-mar.vercel.app,https://alto-<preview>.vercel.app
+FRONTEND_URL=https://altomar.app
+EXTRA_CORS_ORIGINS=https://www.altomar.app,https://admin.altomar.app
 ```
 
 Sem barra `/` no final. Depois faça **Redeploy** da API.
 
-Para **restringir origens** (recomendado quando o front já tem URL estável), defina no Railway **`CORS_STRICT=1`**. A API passa a aceitar só `FRONTEND_URL`, localhost de dev, `*.vercel.app` e o que estiver em **`EXTRA_CORS_ORIGINS`**.
+Para **restringir origens** (recomendado quando o front já tem URL estável), defina no Railway **`CORS_STRICT=1`**. A API passa a aceitar só `FRONTEND_URL`, localhost de dev, `*.vercel.app`, `altomar.app` / `*.altomar.app` e o que estiver em **`EXTRA_CORS_ORIGINS`**.
 
 ### E.2 — Erro 502 + CORS no navegador
 

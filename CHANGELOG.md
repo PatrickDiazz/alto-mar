@@ -12,6 +12,18 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
+## [0.14.5] — 2026-06-17
+
+### Alterado
+
+- **Domínio de produção** `altomar.app`: CORS aceita `altomar.app` e `*.altomar.app`; retornos do Stripe Checkout validam o mesmo domínio; guia de deploy actualizado.
+
+### Versões
+
+- Cliente e servidor **0.14.5**; Android **`versionName` 0.14.5**, **`versionCode` 17**; console admin **0.1.1** (inalterado).
+
+---
+
 ## [0.14.4] — 2026-06-14
 
 ### Adicionado

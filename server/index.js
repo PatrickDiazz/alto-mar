@@ -731,8 +731,9 @@ function corsAllowed(origin) {
   if (!origin) return true;
   if (allowedOrigins.includes(origin)) return true;
   try {
-    const host = new URL(origin).hostname;
+    const host = new URL(origin).hostname.toLowerCase();
     if (host.endsWith(".vercel.app")) return true;
+    if (host === "altomar.app" || host.endsWith(".altomar.app")) return true;
   } catch {
     /* ignore */
   }

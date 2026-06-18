@@ -20,6 +20,7 @@ export function resolveCheckoutReturnBase(raw) {
       return u.origin;
     }
     if (host.endsWith(".vercel.app")) return u.origin;
+    if (host === "altomar.app" || host.endsWith(".altomar.app")) return u.origin;
     const fe = new URL(fallback);
     if (u.origin === fe.origin) return u.origin;
   } catch {
