@@ -74,7 +74,7 @@ export function generateDemoBoats(count) {
       type: tipo,
       description:
         "Embarcação fictícia para demonstração. Roteiro personalizado conforme o clima e a maré.",
-      verified: i % 4 !== 0,
+      verified: true,
       images,
       embark_locations: locais[reg] || [],
       amenities: [

@@ -89,10 +89,11 @@ import {
   notifyBookingPaymentReceived,
 } from "./notifications/bookingEvents.js";
 import { BOOKING_SLOT_OCCUPIED_STATUSES, sqlOwnerVisibleBookingClause } from "./bookingAvailability.js";
+import { normalizeAppUrl } from "./appUrl.js";
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
+const FRONTEND_URL = normalizeAppUrl(process.env.FRONTEND_URL, "http://localhost:8080");
 const DATABASE_URL = process.env.DATABASE_URL;
 
 function parseEnvBoolean(value) {

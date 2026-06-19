@@ -12,6 +12,27 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
+## [0.14.6] — 2026-06-18
+
+### Adicionado
+
+- **Favicon do site**: ícones PNG gerados a partir da logo Alto Mar (`favicon-32`, `favicon-192`, `apple-touch-icon`).
+- **`server/appUrl.js`**: normaliza `FRONTEND_URL` / `API_PUBLIC_URL` sem esquema (`altomar.app` → `https://altomar.app`).
+
+### Alterado
+
+- **Frota demo**: os 30 barcos fictícios passam a ser criados sempre **verificados** (selo visível no Explorar).
+
+### Corrigido
+
+- **Stripe / OAuth / MP**: URLs de retorno deixam de falhar com «Invalid URL: An explicit scheme must be provided» quando `FRONTEND_URL` no Railway vem sem `https://`.
+
+### Versões
+
+- Cliente e servidor **0.14.6**; Android **`versionName` 0.14.6**, **`versionCode` 18**; console admin **0.1.1** (inalterado).
+
+---
+
 ## [0.14.5] — 2026-06-17
 
 ### Alterado

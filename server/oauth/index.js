@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { query } from "../db.js";
 import { signToken } from "../auth.js";
+import { normalizeAppUrl } from "../appUrl.js";
 
 const JWT_SECRET = (() => {
   const raw = process.env.JWT_SECRET;
@@ -9,12 +10,13 @@ const JWT_SECRET = (() => {
   return v;
 })();
 
-const FRONTEND_URL = (process.env.FRONTEND_URL || "http://localhost:8080").replace(/\/$/, "");
-const API_PUBLIC_URL = (
+const FRONTEND_URL = normalizeAppUrl(process.env.FRONTEND_URL, "http://localhost:8080");
+const API_PUBLIC_URL = normalizeAppUrl(
   process.env.API_PUBLIC_URL ||
-  process.env.API_URL ||
+    process.env.API_URL ||
+    `http://localhost:${process.env.PORT ? Number(process.env.PORT) : 3001}`,
   `http://localhost:${process.env.PORT ? Number(process.env.PORT) : 3001}`
-).replace(/\/$/, "");
+);
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID && String(process.env.GOOGLE_CLIENT_ID).trim();
 const GOOGLE_CLIENT_SECRET =

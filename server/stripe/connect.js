@@ -2,8 +2,9 @@ import { query } from "../db.js";
 import { getStripe } from "./client.js";
 import { ensureStripePixOnPaymentMethodConfigurations } from "./ensureStripePixPmc.js";
 import { isStripePixEnabled } from "./pixEnabled.js";
+import { normalizeAppUrl } from "../appUrl.js";
 
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
+const FRONTEND_URL = normalizeAppUrl(process.env.FRONTEND_URL, "http://localhost:8080");
 
 /**
  * Garante conta Connect Express e devolve URL do Account Link (onboarding).

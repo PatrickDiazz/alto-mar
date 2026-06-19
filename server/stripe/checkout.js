@@ -6,8 +6,9 @@ import { StripeFlowStatus } from "./flowStatus.js";
 import { applyPaidCheckoutSessionInTx } from "./applyCheckoutPaid.js";
 import { ensureStripePixOnPaymentMethodConfigurations } from "./ensureStripePixPmc.js";
 import { isStripePixEnabled } from "./pixEnabled.js";
+import { normalizeAppUrl } from "../appUrl.js";
 
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
+const FRONTEND_URL = normalizeAppUrl(process.env.FRONTEND_URL, "http://localhost:8080");
 
 /** @param {string | null | undefined} raw */
 export function resolveCheckoutReturnBase(raw) {
