@@ -178,8 +178,19 @@ async function findOrCreateOAuthUser({ provider, providerId, email, name, role }
     );
     const existing = byEmail.rows[0];
     if (existing) {
-      await query(`update users set ${idCol} = $1 where id = $2`, [providerId, existing.id]);
-      return existing;
+      if (email && !existing.email_verified_at) {
+        await query(`update users set ${idCol} = $1, email_verified_at = now() where id = $2`, [
+          providerId,
+          existing.id,
+        ]);
+      } else {
+        await query(`update users set ${idCol} = $1 where id = $2`, [providerId, existing.id]);
+      }
+      const refreshed = await query(
+        `select id, name, email, role from users where id = $1 limit 1`,
+        [existing.id]
+      );
+      return refreshed.rows[0] || existing;
     }
   }
 
@@ -188,10 +199,10 @@ async function findOrCreateOAuthUser({ provider, providerId, email, name, role }
   const effectiveEmail = email || `${providerId}@${provider}.oauth.local`;
 
   const created = await query(
-    `insert into users (name, email, password_hash, role, ${idCol})
-     values ($1, $2, null, $3, $4)
+    `insert into users (name, email, password_hash, role, ${idCol}, email_verified_at)
+     values ($1, $2, null, $3, $4, $5)
      returning id, name, email, role`,
-    [displayName, effectiveEmail, effectiveRole, providerId]
+    [displayName, effectiveEmail, effectiveRole, providerId, email ? new Date().toISOString() : null]
   );
   return created.rows[0];
 }

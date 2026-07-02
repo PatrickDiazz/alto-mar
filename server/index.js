@@ -12,6 +12,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { query, pool } from "./db.js";
+import { normalizeSignupPhone } from "./brPhone.js";
 import { requireAuth, requireRole, signToken } from "./auth.js";
 import { getOAuthPublicConfig, installOAuthRoutes } from "./oauth/index.js";
 import { ensureOAuthSchema } from "./oauth/schema.js";
@@ -27,6 +28,7 @@ import {
 import { createConnectAccountLinkForOwner } from "./stripe/connect.js";
 import { startStripeBookingPayout } from "./stripe/payout.js";
 import { applyDemoFleetOptionalsVariety } from "./boatOptionalsProfile.js";
+import { applyDemoMarinheirosToAllBoats } from "./demoMarinheiros.js";
 import { startStripeCrons } from "./jobs/stripeCron.js";
 import { getConnectStatusForOwnerUser } from "./stripe/connectStatus.js";
 import { fetchStripeConnectMetrics } from "./stripe/metrics.js";
@@ -58,6 +60,8 @@ import {
   assertOwnerOptionalsAvailable,
   getBoatOptionalAvailability,
 } from "./ownerOptionals.js";
+import { ensureMarinheirosSchema } from "./marinheiros/schema.js";
+import { installMarinheiroRoutes, listPublicCrewForBoat } from "./marinheiros/index.js";
 import {
   isPaymentsStripe,
   refundStripePaymentInTx,
@@ -183,6 +187,7 @@ async function ensureBoatsRouteIslandImagesColumn() {
 async function ensureUserProfileColumns() {
   await query(`alter table users add column if not exists rg_url text null`);
   await query(`alter table users add column if not exists nautical_license_url text null`);
+  await query(`alter table users add column if not exists phone text null`);
 }
 
 async function ensureBoatDocumentAndMediaColumns() {
@@ -816,33 +821,117 @@ app.get("/api/amenities", async (_req, res) => {
 });
 
 // --- Auth ---
-const signupSchema = z.object({
-  name: z.string().min(2).max(100),
-  email: z.string().email().max(200),
-  password: z.string().min(6).max(200),
-  role: z.enum(["banhista", "locatario"]),
-});
+const signupSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(3, "Informe seu nome completo.")
+      .max(100)
+      .refine((v) => v.split(/\s+/).filter(Boolean).length >= 2, {
+        message: "Informe nome e sobrenome.",
+      }),
+    email: z.string().trim().toLowerCase().email("Informe um e-mail válido.").max(200),
+    phone: z.string().min(8).max(30),
+    password: z.string().min(6).max(200),
+    confirmPassword: z.string().min(6).max(200),
+    role: z.enum(["banhista", "locatario"]),
+    acceptTerms: z.boolean().optional(),
+    acceptPrivacy: z.literal(true, {
+      errorMap: () => ({ message: "Aceite a Política de Privacidade e Proteção de Dados." }),
+    }),
+    acceptCancellation: z.literal(true, {
+      errorMap: () => ({ message: "Aceite a Política de Cancelamento e Reembolso." }),
+    }),
+    acceptStripe: z.literal(true, {
+      errorMap: () => ({ message: "Aceite os Termos de Pagamento e Uso do Gateway Stripe." }),
+    }),
+    acceptPartnership: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.role === "banhista" && data.acceptTerms !== true) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Aceite os Termos e Condições para Clientes.",
+        path: ["acceptTerms"],
+      });
+    }
+    if (data.role === "locatario" && data.acceptPartnership !== true) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Aceite o Contrato de Parceria para Marinheiros e Operadores.",
+        path: ["acceptPartnership"],
+      });
+    }
+    if (data.password !== data.confirmPassword) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "As senhas não coincidem.",
+        path: ["confirmPassword"],
+      });
+    }
+    try {
+      normalizeSignupPhone(data.phone);
+    } catch (e) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: e instanceof Error ? e.message : "Telefone inválido.",
+        path: ["phone"],
+      });
+    }
+  });
 
 app.post("/api/auth/signup", async (req, res) => {
   try {
     const body = signupSchema.parse(req.body);
     const hash = await bcrypt.hash(body.password, 10);
+    const phone = normalizeSignupPhone(body.phone);
+
+    const existing = await query(
+      `select id, email_verified_at from users where email = $1 limit 1`,
+      [body.email]
+    );
+    const existingRow = existing.rows[0];
+    if (existingRow) {
+      if (!existingRow.email_verified_at) {
+        const { issueEmailVerification } = await import("./authEmailVerification.js");
+        await issueEmailVerification(existingRow.id, FRONTEND_URL);
+        return res.json({
+          ok: true,
+          emailVerificationRequired: true,
+          email: body.email,
+        });
+      }
+      return res.status(409).send("Email já cadastrado.");
+    }
 
     const created = await query(
-      `insert into users (name, email, password_hash, role)
-       values ($1, $2, $3, $4)
+      `insert into users (name, email, phone, password_hash, role, email_verified_at)
+       values ($1, $2, $3, $4, $5, null)
        returning id, name, email, role, created_at`,
-      [body.name, body.email, hash, body.role]
+      [body.name.trim(), body.email, phone, hash, body.role]
     );
 
     const user = created.rows[0];
-    const token = signToken(user);
-    return res.json({ token, user });
+    const { issueEmailVerification } = await import("./authEmailVerification.js");
+    await issueEmailVerification(user.id, FRONTEND_URL);
+    return res.json({
+      ok: true,
+      emailVerificationRequired: true,
+      email: user.email,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro ao criar conta.";
-    // Unique violation (email)
     if (msg.includes("duplicate key value")) {
       return res.status(409).send("Email já cadastrado.");
+    }
+    if (msg.includes("email_verification_tokens") || msg.includes("email_verified_at")) {
+      return res.status(500).send(
+        "Colunas de verificação de email ausentes. Execute db/email_verification.sql no PostgreSQL."
+      );
+    }
+    if (msg.includes('column "phone"') || (msg.includes("phone") && msg.includes("does not exist"))) {
+      return res.status(500).send("Coluna phone ausente. Execute db/user_phone.sql no PostgreSQL.");
     }
     return res.status(400).send(msg);
   }
@@ -857,7 +946,7 @@ app.post("/api/auth/login", authLoginLimiter, async (req, res) => {
   try {
     const body = loginSchema.parse(req.body);
     const result = await query(
-      `select id, name, email, role, password_hash from users where email = $1 limit 1`,
+      `select id, name, email, role, password_hash, email_verified_at from users where email = $1 limit 1`,
       [body.email]
     );
     const row = result.rows[0];
@@ -867,6 +956,13 @@ app.post("/api/auth/login", authLoginLimiter, async (req, res) => {
     }
     const ok = await bcrypt.compare(body.password, row.password_hash);
     if (!ok) return res.status(401).send("Email ou senha inválidos.");
+    if (!row.email_verified_at) {
+      return res
+        .status(403)
+        .send(
+          "Confirme o seu email antes de entrar. Verifique a caixa de entrada ou solicite um novo link na página de confirmação."
+        );
+    }
     const user = { id: row.id, name: row.name, email: row.email, role: row.role };
     const token = signToken(user);
     return res.json({ token, user });
@@ -921,6 +1017,47 @@ app.post("/api/auth/forgot-password", authForgotLimiter, async (req, res) => {
   }
 });
 
+const resendVerificationSchema = z.object({
+  email: z.string().email().max(200),
+});
+
+/** Reenvia link de confirmação (não revela se o email existe). */
+app.post("/api/auth/resend-verification", authForgotLimiter, async (req, res) => {
+  try {
+    const body = resendVerificationSchema.parse(req.body);
+    const { resendEmailVerification } = await import("./authEmailVerification.js");
+    await resendEmailVerification(body.email, FRONTEND_URL);
+    return res.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro.";
+    if (msg.includes("email_verification_tokens") || msg.includes("email_verified_at")) {
+      return res.status(500).send(
+        "Colunas de verificação de email ausentes. Execute db/email_verification.sql no PostgreSQL."
+      );
+    }
+    return res.status(400).send(msg);
+  }
+});
+
+app.get("/api/auth/verify-email", async (req, res) => {
+  const token = typeof req.query.token === "string" ? req.query.token : "";
+  if (token.length < 32) return res.status(400).json({ ok: false, reason: "invalid" });
+  try {
+    const { verifyEmailToken } = await import("./authEmailVerification.js");
+    const result = await verifyEmailToken(token);
+    if (!result.ok) return res.status(400).json({ ok: false, reason: result.reason });
+    return res.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro.";
+    if (msg.includes("email_verification_tokens") || msg.includes("email_verified_at")) {
+      return res.status(500).send(
+        "Colunas de verificação de email ausentes. Execute db/email_verification.sql no PostgreSQL."
+      );
+    }
+    return res.status(400).send(msg);
+  }
+});
+
 app.get("/api/auth/reset-token-check", async (req, res) => {
   const token = typeof req.query.token === "string" ? req.query.token : "";
   if (token.length < 32) return res.status(400).json({ valid: false });
@@ -957,7 +1094,7 @@ app.post("/api/auth/reset-password", async (req, res) => {
 app.get("/api/me", requireAuth, async (req, res) => {
   const userId = req.user.sub;
   const result = await query(
-    `select id, name, email, role, rg_url, nautical_license_url, created_at, guest_rating from users where id = $1`,
+    `select id, name, email, phone, role, rg_url, nautical_license_url, created_at, guest_rating from users where id = $1`,
     [userId]
   );
   const row = result.rows[0];
@@ -1336,6 +1473,7 @@ app.get("/api/boats/:id", async (req, res) => {
 
     const starsByBoat = await fetchBoatStarsByBoatIds([boatId]);
     const realStars = starsByBoat[boatId] || [];
+    const tripulacao = await listPublicCrewForBoat(boatId, b.owner_user_id);
 
     return res.json({
       boat: {
@@ -1357,6 +1495,7 @@ app.get("/api/boats/:id", async (req, res) => {
         routeIslands: normalizeRouteIslands(b.route_islands),
         routeIslandImages:
           b.route_island_images && typeof b.route_island_images === "object" ? b.route_island_images : {},
+        tripulacao,
         ...mapBoatJetSkiFields(b),
       },
     });
@@ -1636,6 +1775,7 @@ app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, r
          b.type,
          b.description,
          b.verified,
+         b.review_status,
          b.tie_document_url,
          b.tiem_document_url,
          b.video_url,
@@ -1728,6 +1868,7 @@ app.get("/api/owner/boats", requireAuth, requireRole("locatario"), async (req, r
         tipo: b.type,
         descricao: b.description,
         verificado: b.verified,
+        reviewStatus: b.review_status,
         tieDocumentUrl: b.tie_document_url,
         tiemDocumentUrl: b.tiem_document_url,
         videoUrl: b.video_url,
@@ -2664,22 +2805,18 @@ const rescheduleReasonEnum = z.enum([
   "OTHER",
 ]);
 
-const renterUpdateBookingSchema = z.object({
-  passengersAdults: z.number().int().min(1).optional(),
-  passengersChildren: z.number().int().min(0).optional(),
-  hasKids: z.boolean().optional(),
-  bbqKit: z.boolean().optional(),
-  jetSki: z.boolean().optional(),
-  embarkLocation: z.union([z.string().max(200), z.null()]).optional(),
-  embarkTime: z.union([z.string().max(5), z.null()]).optional(),
-  totalCents: z.number().int().min(0).optional(),
-  routeIslands: z.array(z.string().min(1).max(200)).max(30).optional(),
-  bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  rescheduleReason: rescheduleReasonEnum.optional(),
-  rescheduleTitle: z.string().max(200).optional(),
-  rescheduleNote: z.string().max(4000).optional(),
-  rescheduleAttachments: z.array(assetOrUrlSchema).max(8).optional(),
-});
+const renterUpdateBookingSchema = z
+  .object({
+    passengersAdults: z.number().int().min(1).optional(),
+    passengersChildren: z.number().int().min(0).optional(),
+    hasKids: z.boolean().optional(),
+    bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    rescheduleReason: rescheduleReasonEnum.optional(),
+    rescheduleTitle: z.string().max(200).optional(),
+    rescheduleNote: z.string().max(4000).optional(),
+    rescheduleAttachments: z.array(assetOrUrlSchema).max(8).optional(),
+  })
+  .strict();
 
 app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req, res) => {
   try {
@@ -2727,7 +2864,8 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
          bk.stripe_flow_status,
          bk.renter_notice_code,
          p.provider::text as payment_provider,
-         p.status::text as payment_status
+         p.status::text as payment_status,
+         p.paid_at
        from bookings bk
        join boats b on b.id = bk.boat_id
        left join booking_ratings br on br.booking_id = bk.id
@@ -2774,6 +2912,7 @@ app.get("/api/renter/bookings", requireAuth, requireRole("banhista"), async (req
         renterNoticeCode: r.renter_notice_code ?? null,
         paymentProvider: r.payment_provider ?? null,
         paymentStatus: r.payment_status ?? null,
+        paidAt: r.paid_at ?? null,
         ratingBoat:
           r.boat_stars != null
             ? {
@@ -2895,15 +3034,8 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
     const bookingId = req.params.id;
     const body = renterUpdateBookingSchema.parse(req.body || {});
     const cur = await query(
-      `select bk.status, bk.boat_id, bk.passengers_adults, bk.passengers_children, bk.booking_date::text as bd,
-              bk.embark_location, to_char(bk.embark_time, 'HH24:MI') as embark_time,
-              bk.bbq_kit, bk.jet_ski_selected,
-              b.price_cents, coalesce(b.bbq_offered, true) as bbq_offered,
-              coalesce(b.bbq_kit_price_cents, 25000) as bbq_kit_price_cents,
-              coalesce(b.jet_ski_offered, false) as jet_ski_offered,
-              coalesce(b.jet_ski_price_cents, 0) as jet_ski_price_cents
+      `select bk.status, bk.boat_id, bk.passengers_adults, bk.passengers_children, bk.booking_date::text as bd
        from bookings bk
-       join boats b on b.id = bk.boat_id
        where bk.id = $1 and bk.renter_user_id = $2 limit 1`,
       [bookingId, req.user.sub]
     );
@@ -2957,66 +3089,6 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
       reschedulePayload = { reason: pr.data, title, note, attachments };
     }
 
-    let nextLoc = cur.rows[0].embark_location ?? null;
-    let nextTime = cur.rows[0].embark_time ?? null;
-    if (body.embarkLocation !== undefined) {
-      nextLoc =
-        body.embarkLocation === null
-          ? null
-          : String(body.embarkLocation).trim() === ""
-            ? null
-            : String(body.embarkLocation).trim();
-    }
-    if (body.embarkTime !== undefined) {
-      if (body.embarkTime === null || String(body.embarkTime).trim() === "") {
-        nextTime = null;
-      } else {
-        const nt = normalizeEmbarkTimeHHMM(String(body.embarkTime));
-        if (!nt) return res.status(400).send("Horário de embarque inválido.");
-        nextTime = nt;
-      }
-    }
-    if (body.embarkLocation !== undefined || body.embarkTime !== undefined) {
-      try {
-        const r = await assertBookingEmbarkChoices(boatId, nextLoc, nextTime);
-        nextLoc = r.embarkLocation;
-        nextTime = r.embarkTimeHHMM;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Dados de embarque inválidos.";
-        return res.status(400).send(msg);
-      }
-    }
-
-    const row0 = cur.rows[0];
-    const nextBbq = body.bbqKit !== undefined ? body.bbqKit : row0.bbq_kit;
-    const nextJet = body.jetSki !== undefined ? body.jetSki : row0.jet_ski_selected;
-    if (nextBbq && row0.bbq_offered === false) {
-      return res.status(400).send("Esta embarcação não oferece kit churrasco.");
-    }
-    if (nextJet && !row0.jet_ski_offered) {
-      return res.status(400).send("Esta embarcação não oferece moto aquática.");
-    }
-    if (body.totalCents !== undefined) {
-      let expectedTotal;
-      try {
-        expectedTotal = expectedBookingTotalCents({
-          price_cents: row0.price_cents,
-          bbq_kit: nextBbq,
-          bbq_offered: row0.bbq_offered,
-          bbq_kit_price_cents: row0.bbq_kit_price_cents,
-          jet_ski_selected: nextJet,
-          jet_ski_offered: row0.jet_ski_offered,
-          jet_ski_price_cents: row0.jet_ski_price_cents,
-        });
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Total inválido.";
-        return res.status(400).send(msg);
-      }
-      if (body.totalCents !== expectedTotal) {
-        return res.status(400).send("Total da reserva inconsistente. Atualize a página e tente novamente.");
-      }
-    }
-
     const sets = [];
     const vals = [bookingId, req.user.sub];
     let n = 3;
@@ -3035,32 +3107,6 @@ app.patch("/api/renter/bookings/:id", requireAuth, requireRole("banhista"), asyn
       vals.push(body.hasKids);
       n += 1;
     }
-    if (body.bbqKit !== undefined) {
-      sets.push(`bbq_kit = $${n}`);
-      vals.push(body.bbqKit);
-      n += 1;
-    }
-    if (body.jetSki !== undefined) {
-      sets.push(`jet_ski_selected = $${n}`);
-      vals.push(body.jetSki);
-      n += 1;
-    }
-    if (body.embarkLocation !== undefined) {
-      sets.push(`embark_location = $${n}`);
-      vals.push(nextLoc);
-      n += 1;
-    }
-    if (body.embarkTime !== undefined) {
-      sets.push(`embark_time = $${n}::time`);
-      vals.push(nextTime);
-      n += 1;
-    }
-    if (body.totalCents !== undefined) {
-      sets.push(`total_cents = $${n}`);
-      vals.push(body.totalCents);
-      n += 1;
-    }
-    // Paradas vêm do anúncio na criação — banhista não pode alterar depois.
     if (body.bookingDate !== undefined) {
       sets.push(`booking_date = $${n}::date`);
       vals.push(body.bookingDate);
@@ -3777,6 +3823,7 @@ app.post("/api/owner/bookings/:id/rate-renter", requireAuth, requireRole("locata
 });
 
 installBookingChatRoutes(app);
+installMarinheiroRoutes(app, { assetOrUrlSchema });
 installAdminRoutes(app, { loginLimiter: authLoginLimiter });
 
 const pushTokenSchema = z.object({
@@ -3999,11 +4046,19 @@ Teste: http://127.0.0.1:3001/api/health
       // eslint-disable-next-line no-console
       console.warn("[alto-mar] variedade de opcionais (frota demo):", msg);
     }
+    try {
+      await applyDemoMarinheirosToAllBoats(query, bcrypt);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "unknown";
+      // eslint-disable-next-line no-console
+      console.warn("[alto-mar] tripulação demo:", msg);
+    }
     await ensureStripeConnectSchema();
     await ensureOAuthSchema();
     await ensureNotificationsSchema();
     await ensureBookingChatSchema();
     await ensureAdminSchema();
+    await ensureMarinheirosSchema();
     await bootstrapAdminData();
     startStripeCrons();
     if (

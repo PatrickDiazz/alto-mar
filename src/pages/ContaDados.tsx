@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { bcp47FromAppLang } from "@/lib/localeFormat";
 import { authFetch, getStoredUser } from "@/lib/auth";
+import { formatBrPhoneDisplay } from "@/lib/brPhone";
 import { readResponseErrorMessage } from "@/lib/responseError";
 
 type MeResponse = {
@@ -13,6 +14,7 @@ type MeResponse = {
     id: string;
     name: string;
     email: string;
+    phone?: string | null;
     role: "banhista" | "locatario";
     created_at: string;
   };
@@ -54,6 +56,8 @@ const ContaDados = () => {
     return `${visible}${stars}@${domain}`;
   };
 
+  const displayPhone = me?.phone ? formatBrPhoneDisplay(me.phone) : null;
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-4 py-3">
@@ -78,6 +82,12 @@ const ContaDados = () => {
             <span className="text-muted-foreground">{t("contaDados.email")} </span>
             <span className="text-foreground">{maskEmail(me?.email || currentUser?.email || "")}</span>
           </p>
+          {displayPhone ? (
+            <p>
+              <span className="text-muted-foreground">{t("contaDados.phone")} </span>
+              <span className="text-foreground">{displayPhone}</span>
+            </p>
+          ) : null}
           <p>
             <span className="text-muted-foreground">{t("contaDados.profile")} </span>
             <span className="text-foreground">

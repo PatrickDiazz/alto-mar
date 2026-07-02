@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { RequireOwnerStripeConnect } from "@/components/owner/RequireOwnerStripeConnect";
 import { OwnerPanelLayout } from "@/components/owner/OwnerPanelLayout";
 import { PageLoader } from "@/components/PageLoader";
 
@@ -14,14 +15,20 @@ const OwnerBoatRegisterPage = lazy(() => import("./owner/OwnerBoatRegisterPage")
 const OwnerOptionalsListPage = lazy(() => import("./owner/OwnerOptionalsListPage"));
 const OwnerOptionalCreatePage = lazy(() => import("./owner/OwnerOptionalCreatePage"));
 const OwnerOptionalEditPage = lazy(() => import("./owner/OwnerOptionalEditPage"));
+const OwnerStripeOnboardingPage = lazy(() => import("./owner/OwnerStripeOnboardingPage"));
 const OwnerProfilePage = lazy(() => import("./owner/OwnerProfilePage"));
 const OwnerRevenuePage = lazy(() => import("./owner/OwnerRevenuePage"));
+const OwnerMarinheirosListPage = lazy(() => import("./owner/OwnerMarinheirosListPage"));
+const OwnerMarinheiroCreatePage = lazy(() => import("./owner/OwnerMarinheiroCreatePage"));
+const OwnerMarinheiroEditPage = lazy(() => import("./owner/OwnerMarinheiroEditPage"));
 
 const Marinheiro = () => (
   <Suspense fallback={<PageLoader />}>
     <Routes>
-      <Route path="reservas/:bookingId/chat" element={<OwnerBookingChatPage audience="owner" />} />
-      <Route element={<OwnerPanelLayout />}>
+      <Route path="stripe" element={<OwnerStripeOnboardingPage />} />
+      <Route element={<RequireOwnerStripeConnect />}>
+        <Route path="reservas/:bookingId/chat" element={<OwnerBookingChatPage audience="owner" />} />
+        <Route element={<OwnerPanelLayout />}>
         <Route index element={<OwnerDashboardPage />} />
         <Route path="agenda" element={<OwnerAgendaPage />} />
         <Route path="reservas" element={<OwnerReservasListPage />} />
@@ -32,9 +39,13 @@ const Marinheiro = () => (
         <Route path="opcionais" element={<OwnerOptionalsListPage />} />
         <Route path="opcionais/novo" element={<OwnerOptionalCreatePage />} />
         <Route path="opcionais/:optionalKey" element={<OwnerOptionalEditPage />} />
+        <Route path="tripulacao" element={<OwnerMarinheirosListPage />} />
+        <Route path="tripulacao/novo" element={<OwnerMarinheiroCreatePage />} />
+        <Route path="tripulacao/:marinheiroId" element={<OwnerMarinheiroEditPage />} />
         <Route path="perfil" element={<OwnerProfilePage />} />
         <Route path="faturamento" element={<OwnerRevenuePage />} />
         <Route path="*" element={<Navigate to="/marinheiro" replace />} />
+        </Route>
       </Route>
     </Routes>
   </Suspense>

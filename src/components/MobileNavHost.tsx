@@ -19,11 +19,11 @@ function useShowMobileExploreBottomNav(): boolean {
 function bottomTabState(pathname: string) {
   return {
     favorites: pathname === "/conta/favoritos",
-    reservations: pathname === "/conta/reservas",
+    reservations: pathname === "/conta/reservas" || pathname.startsWith("/conta/reservas/"),
     account:
       pathname === "/conta" ||
       pathname.startsWith("/conta/dados") ||
-      pathname.startsWith("/conta/ajuda-teste"),
+      pathname.startsWith("/ajuda"),
   };
 }
 

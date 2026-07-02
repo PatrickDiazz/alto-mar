@@ -30,6 +30,7 @@ import { BookingChatEntry } from "@/components/chat/BookingChatEntry";
 import type { BookingChatLocationState } from "@/pages/booking/BookingChatPage";
 import { ownerBookingChatPath } from "@/lib/bookingChatRoutes";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { OwnerBookingCrewAssign } from "@/components/owner/OwnerBookingCrewAssign";
 
 function parseYmd(iso: string): Date {
   const [y, m, d] = iso.split("-").map(Number);
@@ -339,6 +340,12 @@ export default function OwnerBookingDetailPage() {
           </div>
         ) : null}
       </OwnerSurface>
+
+      {b.status === "PENDING" || b.status === "ACCEPTED" ? (
+        <OwnerSurface className="p-4 sm:p-5">
+          <OwnerBookingCrewAssign bookingId={b.id} />
+        </OwnerSurface>
+      ) : null}
 
       {b.rescheduleTitle ? (
         <OwnerSurface className="p-4 sm:p-5">

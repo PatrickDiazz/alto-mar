@@ -39,17 +39,21 @@ export function BookingChatDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-2">
-          <BookingChatPanel
-            bookingId={bookingId}
-            peerLabel={peerLabel}
-            enabled={open}
-            autoFocus={open}
-            unreadCount={unreadCount}
-            onUnreadChange={onUnreadChange}
-            surface="dialog"
-            className="flex min-h-0 flex-1 flex-col border-0 bg-transparent p-0"
-            hideHeader
-          />
+          {open ? (
+            <div className="flex min-h-[min(52vh,22rem)] min-h-0 flex-1 flex-col">
+              <BookingChatPanel
+                bookingId={bookingId}
+                peerLabel={peerLabel}
+                enabled
+                autoFocus
+                unreadCount={unreadCount}
+                onUnreadChange={onUnreadChange}
+                surface="dialog"
+                className="flex min-h-0 flex-1 flex-col border-0 bg-transparent p-0"
+                hideHeader
+              />
+            </div>
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

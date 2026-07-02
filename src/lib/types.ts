@@ -15,6 +15,18 @@ export type CustomOptional = {
   imageUrls: string[];
 };
 
+/** Tripulação exibida na página pública do barco */
+export type PublicCrewMember = {
+  id: string;
+  nome: string;
+  photoUrl: string;
+  funcao: string;
+  funcaoLabel: string;
+  bio?: string | null;
+  platformTenureMonths?: number;
+  approvalStatus?: string;
+};
+
 export type Boat = {
   id: string;
   nome: string;
@@ -47,5 +59,7 @@ export type Boat = {
   jetSkiDocumentUrl?: string | null;
   /** Opcionais extras definidos pelo locador (título, preço, fotos) */
   customOptionals?: CustomOptional[];
+  /** Tripulação aprovada vinculada à embarcação */
+  tripulacao?: PublicCrewMember[];
 };
 

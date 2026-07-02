@@ -6,6 +6,7 @@ export type OwnerPanelNavId =
   | "agenda"
   | "boats"
   | "optionals"
+  | "crew"
   | "revenue"
   | "profile";
 
@@ -21,6 +22,7 @@ export function ownerPanelNavFromPath(pathname: string): OwnerPanelNavId {
   if (pathname.startsWith("/marinheiro/agenda")) return "agenda";
   if (pathname.startsWith("/marinheiro/embarcacoes")) return "boats";
   if (pathname.startsWith("/marinheiro/opcionais")) return "optionals";
+  if (pathname.startsWith("/marinheiro/tripulacao")) return "crew";
   if (pathname.startsWith("/marinheiro/faturamento")) return "revenue";
   if (pathname.startsWith("/marinheiro/perfil")) return "profile";
   return "home";
@@ -32,6 +34,7 @@ export function ownerPanelNavPath(id: OwnerPanelNavId): string {
   if (id === "agenda") return "/marinheiro/agenda";
   if (id === "boats") return "/marinheiro/embarcacoes";
   if (id === "optionals") return "/marinheiro/opcionais";
+  if (id === "crew") return "/marinheiro/tripulacao";
   if (id === "revenue") return "/marinheiro/faturamento";
   return "/marinheiro/perfil";
 }
@@ -41,6 +44,7 @@ export function ownerPanelTabFromPath(pathname: string): OwnerPanelTab {
   if (pathname.startsWith("/marinheiro/agenda")) return "reservas";
   if (pathname.startsWith("/marinheiro/embarcacoes")) return "embarcacoes";
   if (pathname.startsWith("/marinheiro/opcionais")) return "embarcacoes";
+  if (pathname.startsWith("/marinheiro/tripulacao")) return "embarcacoes";
   if (pathname.startsWith("/marinheiro/perfil")) return "perfil";
   return "inicio";
 }
@@ -51,6 +55,10 @@ export function ownerPanelBackTarget(pathname: string): string | null {
 
   if (pathname === "/marinheiro/embarcacoes/novo") return "/marinheiro/embarcacoes";
   if (pathname === "/marinheiro/opcionais/novo") return "/marinheiro/opcionais";
+  if (pathname === "/marinheiro/tripulacao/novo") return "/marinheiro/tripulacao";
+
+  const crewDetail = pathname.match(/^\/marinheiro\/tripulacao\/[^/]+$/);
+  if (crewDetail) return "/marinheiro/tripulacao";
 
   const boatsDetail = pathname.match(/^\/marinheiro\/embarcacoes\/[^/]+$/);
   if (boatsDetail) return "/marinheiro/embarcacoes";
@@ -66,6 +74,7 @@ export function ownerPanelBackTarget(pathname: string): string | null {
     pathname === "/marinheiro/faturamento" ||
     pathname === "/marinheiro/embarcacoes" ||
     pathname === "/marinheiro/opcionais" ||
+    pathname === "/marinheiro/tripulacao" ||
     pathname === "/marinheiro/perfil"
   ) {
     return "/marinheiro";

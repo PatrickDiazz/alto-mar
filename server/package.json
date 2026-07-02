@@ -1,7 +1,7 @@
 {
   "name": "alto-mar-server",
   "private": true,
-  "version": "0.14.6",
+  "version": "0.14.7",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -11,6 +11,7 @@
     "dev:stable": "node index.js",
     "start": "node index.js",
     "seed": "node seed.js",
+    "seed:marinheiros": "node seed-marinheiros.js",
     "stripe:enable-pix-pmc": "node stripe/run-enable-pix-pmc.mjs",
     "refresh-demo-boat-images": "node refresh-demo-boat-images.js",
     "reset-demo-boats": "node reset-demo-boats.js",

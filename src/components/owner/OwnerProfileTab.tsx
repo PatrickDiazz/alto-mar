@@ -105,7 +105,7 @@ export function OwnerProfileTab({
         <Button type="button" variant="outline" className="w-full justify-start" onClick={() => navigate("/conta/dados")}>
           {t("ownerPanel.editProfile")}
         </Button>
-        <Button type="button" variant="outline" className="w-full justify-start" onClick={() => navigate("/conta/ajuda-teste")}>
+        <Button type="button" variant="outline" className="w-full justify-start" onClick={() => navigate("/ajuda")}>
           {t("ownerPanel.help")}
         </Button>
         {paymentsStripe ? (

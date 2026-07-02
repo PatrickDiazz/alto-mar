@@ -66,8 +66,8 @@ export async function createConnectAccountLinkForOwner(input) {
     }
   }
 
-  const refreshUrl = `${FRONTEND_URL}/marinheiro?stripe_connect=refresh`;
-  const returnUrl = `${FRONTEND_URL}/marinheiro?stripe_connect=return`;
+  const refreshUrl = `${FRONTEND_URL}/marinheiro/stripe?stripe_connect=refresh`;
+  const returnUrl = `${FRONTEND_URL}/marinheiro/stripe?stripe_connect=return`;
 
   const link = await stripe.accountLinks.create({
     account: accountId,

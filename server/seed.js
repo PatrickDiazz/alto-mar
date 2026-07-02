@@ -13,6 +13,7 @@ import {
   generateDemoBoats,
   persistBoatsForOwner,
 } from "./demoFleet.js";
+import { applyDemoMarinheirosToAllBoats, demoMarinheiroLoginHint } from "./demoMarinheiros.js";
 
 const { email: DEMO_OWNER_EMAIL, password: DEMO_OWNER_PASSWORD, name: DEMO_OWNER_NAME } =
   demoOwnerDefaults();
@@ -54,10 +55,15 @@ async function main() {
   const boats = generateDemoBoats(30);
   await persistBoatsForOwner(query, ownerId, boats);
 
+  await applyDemoMarinheirosToAllBoats(query, bcrypt);
+  const marinheiroHint = demoMarinheiroLoginHint(ownerId);
+
   // eslint-disable-next-line no-console
   console.log("Seed concluído.");
   // eslint-disable-next-line no-console
   console.log("Locador demo:", DEMO_OWNER_EMAIL, "/", DEMO_OWNER_PASSWORD);
+  // eslint-disable-next-line no-console
+  console.log("Marinheiro demo (exemplo):", marinheiroHint.email, "/", marinheiroHint.password);
 }
 
 main().catch((e) => {

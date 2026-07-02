@@ -28,6 +28,13 @@ import {
   suspendBoat,
 } from "./boats.js";
 import {
+  listMarinheiroReviewQueue,
+  getMarinheiroReviewDetail,
+  approveMarinheiro,
+  rejectMarinheiro,
+  suspendMarinheiro,
+} from "./marinheiros.js";
+import {
   listModerationCases,
   createModerationCase,
   applyModerationAction,
@@ -438,6 +445,65 @@ export function installAdminRoutes(app, opts = {}) {
       const reason = z.string().min(3).max(2000).parse(req.body?.reason ?? "");
       const boat = await suspendBoat(req.params.id, { staffId: req.staff.sub, reason });
       return res.json({ boat });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Erro ao suspender.";
+      return res.status(400).json({ error: msg });
+    }
+  });
+
+  // —— Marinheiro approval ——
+  app.get("/api/admin/marinheiros/review-queue", requireStaffAuth, requireStaffPermission("boatsReview"), async (req, res) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status : "PENDENTE";
+      const marinheiros = await listMarinheiroReviewQueue({ status });
+      return res.json({ marinheiros });
+    } catch (e) {
+      return res.status(500).json({ error: "Erro ao listar fila." });
+    }
+  });
+
+  app.get("/api/admin/marinheiros/:id/review", requireStaffAuth, requireStaffPermission("boatsReview"), async (req, res) => {
+    try {
+      const detail = await getMarinheiroReviewDetail(req.params.id);
+      if (!detail) return res.status(404).json({ error: "Marinheiro não encontrado." });
+      return res.json(detail);
+    } catch (e) {
+      return res.status(500).json({ error: "Erro ao consultar marinheiro." });
+    }
+  });
+
+  app.post("/api/admin/marinheiros/:id/approve", requireStaffAuth, requireStaffPermission("boatsReview"), async (req, res) => {
+    try {
+      const notes = typeof req.body?.notes === "string" ? req.body.notes : undefined;
+      const detail = await approveMarinheiro(req.params.id, req.staff.sub, notes);
+      if (!detail) return res.status(404).json({ error: "Marinheiro não encontrado." });
+      return res.json(detail);
+    } catch (e) {
+      const code = e && typeof e === "object" && "code" in e ? e.code : null;
+      if (code === "DOCS_EXPIRED") return res.status(409).json({ error: e.message });
+      const msg = e instanceof Error ? e.message : "Erro ao aprovar.";
+      return res.status(400).json({ error: msg });
+    }
+  });
+
+  app.post("/api/admin/marinheiros/:id/reject", requireStaffAuth, requireStaffPermission("boatsReview"), async (req, res) => {
+    try {
+      const reason = z.string().min(3).max(2000).parse(req.body?.reason ?? "");
+      const detail = await rejectMarinheiro(req.params.id, req.staff.sub, reason);
+      if (!detail) return res.status(404).json({ error: "Marinheiro não encontrado." });
+      return res.json(detail);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Erro ao reprovar.";
+      return res.status(400).json({ error: msg });
+    }
+  });
+
+  app.post("/api/admin/marinheiros/:id/suspend", requireStaffAuth, requireStaffPermission("boatsReview"), async (req, res) => {
+    try {
+      const reason = z.string().min(3).max(2000).parse(req.body?.reason ?? "");
+      const detail = await suspendMarinheiro(req.params.id, req.staff.sub, reason);
+      if (!detail) return res.status(404).json({ error: "Marinheiro não encontrado." });
+      return res.json(detail);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erro ao suspender.";
       return res.status(400).json({ error: msg });

@@ -12,6 +12,7 @@ import {
   Sparkles,
   TrendingUp,
   UserRound,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ export const OWNER_PANEL_NAV_ITEMS: NavItem[] = [
   { id: "bookings", icon: ClipboardList, labelKey: "ownerPanel.tabBookings" },
   { id: "boats", icon: Ship, labelKey: "ownerPanel.tabBoats" },
   { id: "optionals", icon: Sparkles, labelKey: "ownerPanel.tabOptionals" },
+  { id: "crew", icon: Users, labelKey: "ownerPanel.tabCrew" },
   { id: "revenue", icon: TrendingUp, labelKey: "ownerPanel.navRevenue" },
   { id: "profile", icon: UserRound, labelKey: "ownerPanel.tabProfile" },
 ];

@@ -3,6 +3,14 @@ import { readResponseErrorMessage } from "@/lib/responseError";
 import type { CustomOptional } from "@/lib/types";
 import type { BbqKitItemConfig } from "@/lib/trip-optionals";
 
+export type BoatReviewStatus =
+  | "DRAFT"
+  | "PENDING_REVIEW"
+  | "UNDER_REVIEW"
+  | "APPROVED"
+  | "REJECTED"
+  | "SUSPENDED";
+
 export type OwnerBoatRecord = {
   id: string;
   nome: string;
@@ -17,6 +25,7 @@ export type OwnerBoatRecord = {
   tipo: string;
   descricao: string;
   verificado: boolean;
+  reviewStatus?: BoatReviewStatus | string;
   ativo: boolean;
   tieDocumentUrl?: string | null;
   tiemDocumentUrl?: string | null;
@@ -36,6 +45,24 @@ export type OwnerBoatRecord = {
   bbqKitItems?: BbqKitItemConfig[];
   bbqKitPriceCents?: number;
 };
+
+export function isOwnerBoatUnderReview(reviewStatus?: BoatReviewStatus | string | null): boolean {
+  return reviewStatus === "PENDING_REVIEW" || reviewStatus === "UNDER_REVIEW";
+}
+
+export function ownerBoatStatusLabelKey(boat: Pick<OwnerBoatRecord, "ativo" | "reviewStatus">): string {
+  if (isOwnerBoatUnderReview(boat.reviewStatus)) return "ownerPanel.boatUnderReview";
+  if (boat.ativo) return "ownerPanel.boatActive";
+  return "ownerPanel.boatInactive";
+}
+
+export function ownerBoatStatusTone(boat: Pick<OwnerBoatRecord, "ativo" | "reviewStatus">): string {
+  if (isOwnerBoatUnderReview(boat.reviewStatus)) {
+    return "bg-amber-500/15 text-amber-600 dark:text-amber-300";
+  }
+  if (boat.ativo) return "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300";
+  return "bg-muted text-muted-foreground";
+}
 
 export function parseOwnerBoatRating(boat: Pick<OwnerBoatRecord, "rating" | "nota">): number {
   const n = Number(boat.rating);

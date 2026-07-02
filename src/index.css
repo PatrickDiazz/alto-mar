@@ -297,13 +297,39 @@ html.explorar-mobile-scroll-hide::-webkit-scrollbar {
 
 /* BoatCalendarPanel (2 meses): mantém apenas setas externas do painel. */
 .owner-calendar-outer-nav.rdp-multiple_months .rdp-caption_start .rdp-nav button[name='next-month'] {
-  visibility: hidden;
+  display: none;
   pointer-events: none;
 }
 
 .owner-calendar-outer-nav.rdp-multiple_months .rdp-caption_end .rdp-nav button[name='previous-month'] {
-  visibility: hidden;
+  display: none;
   pointer-events: none;
+}
+
+.owner-calendar-outer-nav.rdp-multiple_months .rdp-caption_end .rdp-caption {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.owner-calendar-outer-nav.rdp-multiple_months .rdp-caption_end .rdp-caption_label {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  text-align: center;
+  flex: 0 1 auto;
+}
+
+.owner-calendar-outer-nav.rdp-multiple_months .rdp-caption_end .rdp-nav {
+  position: static !important;
+  inset: auto !important;
+  width: auto !important;
+  height: auto !important;
+  transform: none;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  pointer-events: auto;
 }
 
 /* Agenda do locador: setas de mês à direita do calendário */
@@ -335,7 +361,7 @@ html.explorar-mobile-scroll-hide::-webkit-scrollbar {
   .rdp-caption_start
   .rdp-nav
   button[name='next-month'] {
-  visibility: hidden;
+  display: none;
   pointer-events: none;
 }
 
@@ -343,8 +369,34 @@ html.explorar-mobile-scroll-hide::-webkit-scrollbar {
   .rdp-caption_end
   .rdp-nav
   button[name='previous-month'] {
-  visibility: hidden;
+  display: none;
   pointer-events: none;
+}
+
+.owner-agenda-calendar.owner-calendar-outer-nav.rdp-multiple_months .rdp-caption_end .rdp-caption {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.owner-agenda-calendar.owner-calendar-outer-nav.rdp-multiple_months .rdp-caption_end .rdp-caption_label {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  text-align: center;
+  flex: 0 1 auto;
+}
+
+.owner-agenda-calendar.owner-calendar-outer-nav.rdp-multiple_months .rdp-caption_end .rdp-nav {
+  position: static !important;
+  inset: auto !important;
+  width: auto !important;
+  height: auto !important;
+  transform: none;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  pointer-events: auto;
 }
 
 .explore-section-heading-emphasis-animate {

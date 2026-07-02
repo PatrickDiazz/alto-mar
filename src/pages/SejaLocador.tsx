@@ -100,7 +100,7 @@ export default function SejaLocador() {
       navigate(MARINHEIRO_FROM);
       return;
     }
-    navigate("/signup", { state: { from: MARINHEIRO_FROM } });
+    navigate("/signup/locador", { state: { from: MARINHEIRO_FROM } });
   }, [navigate, user]);
 
   const goLogin = useCallback(() => {

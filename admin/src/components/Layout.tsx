@@ -19,7 +19,8 @@ export default function Layout() {
             Dashboard
           </NavLink>
           <NavLink to="/tickets">Tickets</NavLink>
-          <NavLink to="/boats">Aprovação</NavLink>
+          <NavLink to="/boats">Embarcações</NavLink>
+          <NavLink to="/marinheiros">Tripulação</NavLink>
           <NavLink to="/moderation">Moderação</NavLink>
           <NavLink to="/chats">Chats</NavLink>
           <NavLink to="/macros">Macros</NavLink>

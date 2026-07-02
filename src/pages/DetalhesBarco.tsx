@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -30,6 +31,7 @@ import { vesselTypeLabel } from "@/lib/boatVesselTypes";
 import { cn } from "@/lib/utils";
 import { BoatConsumerReviews } from "@/components/BoatConsumerReviews";
 import { DetalhesBarcoSkeleton } from "@/components/skeletons/DetalhesBarcoSkeleton";
+import { BoatCrewSection } from "@/components/BoatCrewSection";
 
 type CarouselSlideDir = "next" | "prev";
 
@@ -40,6 +42,7 @@ type PendingCarouselSlide = {
 };
 
 const CAROUSEL_SLIDE_MS = 380;
+const MOBILE_MAX_WIDTH = 767;
 
 const DetalhesBarco = () => {
   const { t, i18n: i18nReact } = useTranslation();
@@ -67,8 +70,42 @@ const DetalhesBarco = () => {
   const carouselTouchRef = useRef<{ x: number; y: number } | null>(null);
   const carouselSlidingRef = useRef(false);
   const carouselSlideFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [portalReady, setPortalReady] = useState(false);
 
   const user = getStoredUser();
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
+
+  useEffect(() => {
+    const html = document.documentElement;
+    const mq = window.matchMedia(`(max-width: ${MOBILE_MAX_WIDTH}px)`);
+
+    const syncMobileScroll = () => {
+      if (!mq.matches) {
+        html.classList.remove("scrollbar-none");
+        document.body.classList.remove("scrollbar-none");
+        html.style.overflowX = "";
+        document.body.style.overflowX = "";
+        return;
+      }
+      html.classList.add("scrollbar-none");
+      document.body.classList.add("scrollbar-none");
+      html.style.overflowX = "hidden";
+      document.body.style.overflowX = "hidden";
+    };
+
+    syncMobileScroll();
+    mq.addEventListener("change", syncMobileScroll);
+    return () => {
+      mq.removeEventListener("change", syncMobileScroll);
+      html.classList.remove("scrollbar-none");
+      document.body.classList.remove("scrollbar-none");
+      html.style.overflowX = "";
+      document.body.style.overflowX = "";
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -253,47 +290,69 @@ const DetalhesBarco = () => {
     navigate(`/reservar/${barco.id}`);
   };
 
+  const renderBookBar = () => (
+    <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-3">
+      <span className="text-xl font-bold leading-none text-foreground">{barco.preco}</span>
+      <Button
+        className="shrink-0 bg-accent text-accent-foreground hover:bg-accent/90 max-md:h-[42px] max-md:px-[21px] max-md:text-[10.5px] max-md:leading-none"
+        onClick={handleReservar}
+      >
+        {t("detalhes.bookNow")}
+      </Button>
+    </div>
+  );
+
+  const pageToolbar = (
+    <>
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        className="text-foreground transition-colors hover:text-primary"
+        aria-label={t("common.back")}
+      >
+        <ArrowLeft className="w-5 h-5" />
+      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={toggleFavorite}
+          className="rounded-full p-2 text-foreground transition-colors hover:bg-secondary"
+          aria-label={isFavorited ? t("boatCard.favRemove") : t("boatCard.favAdd")}
+        >
+          <Heart
+            className={`w-5 h-5 ${isFavorited ? "fill-red-500 text-red-500" : "text-foreground"}`}
+          />
+        </button>
+        <HeaderSettingsMenu />
+      </div>
+    </>
+  );
+
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-4 py-3">
-        <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="text-foreground hover:text-primary transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={toggleFavorite}
-              className="rounded-full p-2 text-foreground hover:bg-secondary transition-colors"
-              aria-label={
-                isFavorited ? t("boatCard.favRemove") : t("boatCard.favAdd")
-              }
-            >
-              <Heart
-                className={`w-5 h-5 ${isFavorited ? "fill-red-500 text-red-500" : "text-foreground"}`}
-              />
-            </button>
-            <HeaderSettingsMenu />
-          </div>
+    <div className="flex min-h-screen flex-col overflow-x-hidden bg-background">
+      <header className="sticky top-0 z-10 border-b border-border bg-background/80 px-4 py-3 backdrop-blur-md">
+        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
+          {pageToolbar}
         </div>
       </header>
 
-      <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-6">
-        {/* Image carousel */}
-        <div
-          className="relative aspect-square max-w-lg mx-auto rounded-xl overflow-hidden shadow-elevated border border-border touch-manipulation select-none"
-          onTouchStart={onCarouselTouchStart}
-          onTouchEnd={onCarouselTouchEnd}
-          onTouchCancel={onCarouselTouchCancel}
-          role="region"
-          aria-label={t("detalhes.photoCarousel")}
-        >
+      <div className="min-w-0 flex-1 overflow-x-hidden max-md:pb-[calc(5rem+var(--safe-area-bottom))]">
+        <div className="md:mx-auto md:w-full md:max-w-2xl md:px-4 md:pt-6">
+          {/* Image carousel — full bleed on mobile, contained on desktop */}
+          <div
+            className={cn(
+              "relative aspect-square w-full max-w-full touch-manipulation select-none overflow-hidden",
+              "max-md:rounded-none max-md:border-0 max-md:shadow-none",
+              "md:mx-auto md:max-w-lg md:rounded-xl md:border md:border-border md:shadow-elevated"
+            )}
+            onTouchStart={onCarouselTouchStart}
+            onTouchEnd={onCarouselTouchEnd}
+            onTouchCancel={onCarouselTouchCancel}
+            role="region"
+            aria-label={t("detalhes.photoCarousel")}
+          >
           {nImagens > 0 ? (
-            <div className="relative h-full w-full">
+            <div className="relative h-full w-full overflow-hidden">
               {pendingSlide ? (
                 <>
                   <img
@@ -314,7 +373,7 @@ const DetalhesBarco = () => {
                     )}
                     width={512}
                     height={512}
-                    sizes="(max-width: 1024px) 100vw, min(32rem, 100vw)"
+                    sizes="(max-width: 768px) 100vw, min(32rem, 100vw)"
                     decoding="async"
                     onTransitionEnd={handleSlideTransitionEnd}
                   />
@@ -332,7 +391,7 @@ const DetalhesBarco = () => {
                     )}
                     width={512}
                     height={512}
-                    sizes="(max-width: 1024px) 100vw, min(32rem, 100vw)"
+                    sizes="(max-width: 768px) 100vw, min(32rem, 100vw)"
                     loading={pendingSlide.to === 0 ? "eager" : "lazy"}
                     decoding="async"
                     fetchPriority={pendingSlide.to === 0 ? "high" : "low"}
@@ -345,7 +404,7 @@ const DetalhesBarco = () => {
                   className="absolute inset-0 h-full w-full object-cover"
                   width={512}
                   height={512}
-                  sizes="(max-width: 1024px) 100vw, min(32rem, 100vw)"
+                  sizes="(max-width: 768px) 100vw, min(32rem, 100vw)"
                   loading={safeImgIndex === 0 ? "eager" : "lazy"}
                   decoding="async"
                   fetchPriority={safeImgIndex === 0 ? "high" : "low"}
@@ -385,10 +444,11 @@ const DetalhesBarco = () => {
               ))}
             </div>
           )}
+          </div>
         </div>
 
         {/* Info */}
-        <div className="mt-6 space-y-3">
+        <div className="mx-auto w-full max-w-2xl space-y-3 px-4 py-6">
           <h1 className="text-2xl font-bold text-foreground">{barco.nome}</h1>
           <BoatConsumerReviews boatId={barco.id} ratingLabel={barco.nota} />
           <p className="text-muted-foreground">{barco.distancia}</p>
@@ -452,6 +512,13 @@ const DetalhesBarco = () => {
             </>
           ) : null}
 
+          {barco.tripulacao?.length ? (
+            <>
+              <hr className="border-border" />
+              <BoatCrewSection tripulacao={barco.tripulacao} />
+            </>
+          ) : null}
+
           <hr className="border-border" />
 
           <h2 className="text-lg font-bold text-foreground">{t("detalhes.description")}</h2>
@@ -471,17 +538,17 @@ const DetalhesBarco = () => {
         </div>
       </div>
 
-      <div className="sticky bottom-0 z-20 border-0 bg-muted px-4 py-4 dark:bg-card">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <span className="text-xl font-bold text-foreground">{barco.preco}</span>
-          <Button
-            className="bg-accent text-accent-foreground hover:bg-accent/90"
-            onClick={handleReservar}
-          >
-            {t("detalhes.bookNow")}
-          </Button>
-        </div>
+      <div className="hidden border-0 bg-muted dark:bg-card md:sticky md:bottom-0 md:z-20 md:block">
+        <div className="flex h-14 items-center px-4">{renderBookBar()}</div>
       </div>
+
+      {portalReady &&
+        createPortal(
+          <div className="fixed inset-x-0 bottom-0 z-[100] border-t border-border bg-background/95 pb-safe backdrop-blur-md md:hidden">
+            <div className="flex h-14 items-center px-4">{renderBookBar()}</div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

@@ -891,14 +891,14 @@ const Reservar = () => {
         <section className="surface-elevated rounded-xl p-4 space-y-2">
           <h3 className="text-sm font-semibold text-foreground">{t("reservar.reviewTitle")}</h3>
           <ul className="text-xs text-muted-foreground space-y-1">
-            <li>
-              <strong className="text-foreground">{t("reservar.reviewDate")}</strong>{" "}
-              {diasPasseio.length
-                ? diasPasseio
-                    .map((d) => format(new Date(`${d}T12:00:00`), "PPP", { locale: dateFnsLocale }))
-                    .join(" Â· ")
-                : "â€”"}
-            </li>
+            {diasPasseio.length > 0 ? (
+              <li>
+                <strong className="text-foreground">{t("reservar.reviewDate")}</strong>{" "}
+                {diasPasseio
+                  .map((d) => format(new Date(`${d}T12:00:00`), "PPP", { locale: dateFnsLocale }))
+                  .join(" · ")}
+              </li>
+            ) : null}
             <li>
               <strong className="text-foreground">{t("reservar.reviewRoute")}</strong>{" "}
               {activeRouteStops.length ? activeRouteStops.join(", ") : "—"}

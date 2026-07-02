@@ -1171,14 +1171,9 @@ const Explorar = () => {
                   </Button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={() => navigate("/login", { state: { from: "/explorar" } })}>
-                    {t("explorar.login")}
-                  </Button>
-                  <Button type="button" size="sm" onClick={() => navigate("/signup", { state: { from: "/explorar" } })}>
-                    {t("explorar.signup")}
-                  </Button>
-                </div>
+                <Button type="button" variant="outline" size="sm" onClick={() => navigate("/login", { state: { from: "/explorar" } })}>
+                  {t("explorar.login")}
+                </Button>
               )}
             </div>
           </div>

@@ -7,6 +7,8 @@ import Tickets from "./pages/Tickets";
 import TicketDetail from "./pages/TicketDetail";
 import BoatReview from "./pages/BoatReview";
 import BoatReviewDetail from "./pages/BoatReviewDetail";
+import MarinheiroReview from "./pages/MarinheiroReview";
+import MarinheiroReviewDetail from "./pages/MarinheiroReviewDetail";
 import Moderation from "./pages/Moderation";
 import Chats from "./pages/Chats";
 import ChatConversation from "./pages/ChatConversation";
@@ -40,6 +42,8 @@ export default function App() {
           <Route path="tickets/:id" element={<TicketDetail />} />
           <Route path="boats" element={<BoatReview />} />
           <Route path="boats/:id" element={<BoatReviewDetail />} />
+          <Route path="marinheiros" element={<MarinheiroReview />} />
+          <Route path="marinheiros/:id" element={<MarinheiroReviewDetail />} />
           <Route path="moderation" element={<Moderation />} />
           <Route path="chats" element={<Chats />} />
           <Route path="chats/reports" element={<ChatReports />} />

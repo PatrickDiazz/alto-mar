@@ -2,7 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps,
 import { useTranslation } from "react-i18next";
 import { format, parseISO, startOfDay, isBefore, addMonths, addDays } from "date-fns";
 import { ptBR, enUS, es } from "date-fns/locale";
-import { DayPicker, type Matcher } from "react-day-picker";
+import {
+  CaptionLabel,
+  CaptionNavigation,
+  DayPicker,
+  useDayPicker,
+  useNavigation,
+  type CaptionProps,
+  type Matcher,
+} from "react-day-picker";
 import "react-day-picker/dist/style.css";
 import { cn } from "@/lib/utils";
 import { fetchBoatCalendar, type BoatCalendarResponse } from "@/lib/boatCalendarApi";
@@ -41,6 +49,60 @@ const boatDayPickerIcons = {
   IconRight: ({ className, ...props }: ComponentProps<typeof ChevronRight>) => (
     <ChevronRight className={cn("h-4 w-4", className)} {...props} />
   ),
+};
+
+/** 2 meses (md+): mês da direita espelha o da esquerda — rótulo centrado, seta «próximo» no overlay à direita. */
+function BoatCalendarCaption(props: CaptionProps) {
+  const { numberOfMonths, classNames, styles, disableNavigation, locale, labels, components } =
+    useDayPicker();
+  const { nextMonth, goToMonth } = useNavigation();
+  const displayIndex = props.displayIndex ?? 0;
+  const isOuterEnd = numberOfMonths > 1 && displayIndex === numberOfMonths - 1;
+
+  if (disableNavigation) {
+    return (
+      <div className={classNames.caption} style={styles.caption}>
+        <CaptionLabel id={props.id} displayMonth={props.displayMonth} displayIndex={props.displayIndex} />
+      </div>
+    );
+  }
+
+  if (isOuterEnd) {
+    const IconRight = components?.IconRight ?? boatDayPickerIcons.IconRight;
+    const nextLabel = labels.labelNext(nextMonth, { locale });
+
+    return (
+      <div className={classNames.caption} style={styles.caption}>
+        <CaptionLabel id={props.id} displayMonth={props.displayMonth} displayIndex={props.displayIndex} />
+        <div className={cn(classNames.nav, "justify-end")}>
+          <button
+            type="button"
+            name="next-month"
+            aria-label={nextLabel}
+            disabled={!nextMonth}
+            onClick={() => {
+              if (nextMonth) goToMonth(nextMonth);
+            }}
+            className={cn(classNames.nav_button, classNames.nav_button_next)}
+          >
+            <IconRight className={cn("h-4 w-4", classNames.nav_icon)} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={classNames.caption} style={styles.caption}>
+      <CaptionLabel id={props.id} displayMonth={props.displayMonth} displayIndex={props.displayIndex} />
+      <CaptionNavigation displayMonth={props.displayMonth} id={props.id} />
+    </div>
+  );
+}
+
+const boatDayPickerComponents = {
+  ...boatDayPickerIcons,
+  Caption: BoatCalendarCaption,
 };
 
 const RANGE_BACK = 6;
@@ -308,7 +370,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
           month={month}
           onMonthChange={setMonth}
           locale={loc}
-          components={boatDayPickerIcons}
+          components={boatDayPickerComponents}
           selected={selectedMulti}
           onSelect={(dates) => {
             const next = (dates || []).map((d) => dayKey(d));
@@ -458,7 +520,7 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
         month={month}
         onMonthChange={setMonth}
         locale={loc}
-        components={boatDayPickerIcons}
+        components={boatDayPickerComponents}
         selected={isReadonly ? undefined : singleSelected}
         onSelect={
           props.variant === "picker"
@@ -510,13 +572,10 @@ export function BoatCalendarPanel(props: BoatCalendarPanelProps) {
         }}
       />
       </div>
-      {props.variant === "picker" ? (
-        <div className="space-y-1 text-[11px] text-muted-foreground">
-          <p>{t("calendar.pickerHint")}</p>
-          {props.variant === "picker" && pickerLeadDays > 0 ? (
-            <p>{t("calendar.banhistaMinLeadHint", { days: pickerLeadDays })}</p>
-          ) : null}
-        </div>
+      {props.variant === "picker" && pickerLeadDays > 0 ? (
+        <p className="text-[11px] text-muted-foreground">
+          {t("calendar.banhistaMinLeadHint", { days: pickerLeadDays })}
+        </p>
       ) : null}
     </div>
   );

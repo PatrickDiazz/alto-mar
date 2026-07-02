@@ -184,10 +184,20 @@ async function loginOrSignupBanhista() {
       body: {
         name: BANHISTA_NAME,
         email: BANHISTA_EMAIL,
+        phone: "21999999999",
         password: BANHISTA_PASSWORD,
+        confirmPassword: BANHISTA_PASSWORD,
         role: "banhista",
+        acceptTerms: true,
+        acceptPrivacy: true,
+        acceptCancellation: true,
+        acceptStripe: true,
       },
     });
+    await query(
+      `update users set email_verified_at = COALESCE(email_verified_at, now()) where email = $1`,
+      [BANHISTA_EMAIL]
+    );
     const login = await api("/api/auth/login", {
       method: "POST",
       body: { email: BANHISTA_EMAIL, password: BANHISTA_PASSWORD },

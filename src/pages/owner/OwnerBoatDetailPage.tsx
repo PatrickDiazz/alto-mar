@@ -10,7 +10,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BoatCalendarPanel } from "@/components/BoatCalendarPanel";
 import { useOwnerPanel } from "@/contexts/OwnerPanelContext";
-import { patchOwnerBoatActive, parseOwnerBoatRating } from "@/lib/ownerBoats";
+import {
+  isOwnerBoatUnderReview,
+  ownerBoatStatusLabelKey,
+  ownerBoatStatusTone,
+  patchOwnerBoatActive,
+  parseOwnerBoatRating,
+} from "@/lib/ownerBoats";
 import { authFetch } from "@/lib/auth";
 import { readResponseErrorMessage } from "@/lib/responseError";
 import { BOAT_VESSEL_TYPES, vesselTypeLabel } from "@/lib/boatVesselTypes";
@@ -18,6 +24,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { OwnerSurface } from "@/components/owner/OwnerSurface";
 import { OwnerPanelPage } from "@/components/owner/OwnerPanelPage";
+import { OwnerBoatCrewLink } from "@/components/owner/OwnerBoatCrewLink";
 
 type BoatEditForm = {
   nome: string;
@@ -48,7 +55,7 @@ export default function OwnerBoatDetailPage() {
   const { boatId } = useParams<{ boatId: string }>();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { boats, reloadBoats } = useOwnerPanel();
+  const { boats, reloadBoats, loading: boatsLoading } = useOwnerPanel();
   const [toggling, setToggling] = useState(false);
   const [editingOpen, setEditingOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -56,15 +63,8 @@ export default function OwnerBoatDetailPage() {
   const boat = useMemo(() => boats.find((b) => b.id === boatId), [boats, boatId]);
   const [form, setForm] = useState<BoatEditForm | null>(null);
 
-  if (!boat) {
-    return (
-      <OwnerPanelPage bodyLayout="stack-tight">
-        <p className="text-sm text-muted-foreground">{t("ownerPanel.boatNotFound")}</p>
-      </OwnerPanelPage>
-    );
-  }
-
   useEffect(() => {
+    if (!boat) return;
     setForm({
       nome: boat.nome,
       distancia: boat.distancia,
@@ -81,6 +81,22 @@ export default function OwnerBoatDetailPage() {
       horariosEmbarque: (boat.horariosEmbarque || []).join(", "),
     });
   }, [boat]);
+
+  if (boatsLoading && !boat) {
+    return (
+      <OwnerPanelPage bodyLayout="stack-tight">
+        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+      </OwnerPanelPage>
+    );
+  }
+
+  if (!boat) {
+    return (
+      <OwnerPanelPage bodyLayout="stack-tight">
+        <p className="text-sm text-muted-foreground">{t("ownerPanel.boatNotFound")}</p>
+      </OwnerPanelPage>
+    );
+  }
 
   const rating = parseOwnerBoatRating(boat);
 
@@ -173,12 +189,23 @@ export default function OwnerBoatDetailPage() {
           ) : null}
         </div>
         <div className="space-y-3 p-4">
-          <div className="flex items-center justify-between rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5">
-            <Label htmlFor="boat-active" className="text-sm font-medium">
-              {boat.ativo ? t("ownerPanel.boatActive") : t("ownerPanel.boatInactive")}
-            </Label>
-            <Switch id="boat-active" checked={boat.ativo} disabled={toggling} onCheckedChange={(v) => void toggleActive(v)} />
-          </div>
+          {isOwnerBoatUnderReview(boat.reviewStatus) ? (
+            <div
+              className={cn(
+                "rounded-xl border border-amber-500/30 px-3 py-2.5 text-sm font-medium",
+                ownerBoatStatusTone(boat)
+              )}
+            >
+              {t("ownerPanel.boatUnderReviewHint")}
+            </div>
+          ) : (
+            <div className="flex items-center justify-between rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5">
+              <Label htmlFor="boat-active" className="text-sm font-medium">
+                {t(ownerBoatStatusLabelKey(boat))}
+              </Label>
+              <Switch id="boat-active" checked={boat.ativo} disabled={toggling} onCheckedChange={(v) => void toggleActive(v)} />
+            </div>
+          )}
 
           <p className="text-sm text-muted-foreground">{boat.descricao}</p>
           <p className="text-base font-semibold text-foreground">{boat.preco}</p>
@@ -323,6 +350,10 @@ export default function OwnerBoatDetailPage() {
         <h2 className="text-base font-semibold text-foreground">{t("calendar.title")}</h2>
         <p className="text-xs text-muted-foreground">{t("calendar.panelHint")}</p>
         <BoatCalendarPanel variant="owner" boatId={boat.id} onSaved={() => void reloadBoats()} />
+      </OwnerSurface>
+
+      <OwnerSurface className="p-4">
+        <OwnerBoatCrewLink boatId={boat.id} />
       </OwnerSurface>
 
       <OwnerSurface className="p-4">

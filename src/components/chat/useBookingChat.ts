@@ -32,40 +32,20 @@ export function useBookingChat({
   const [error, setError] = useState<string | null>(null);
   const lastCreatedAtRef = useRef<string | null>(null);
   const markedReadRef = useRef(false);
+  const metaRef = useRef<ChatMeta | null>(null);
+  metaRef.current = meta;
 
-  const syncUnread = useCallback(
-    (count: number) => {
-      onUnreadChange?.(count);
-    },
-    [onUnreadChange]
-  );
+  const onUnreadChangeRef = useRef(onUnreadChange);
+  onUnreadChangeRef.current = onUnreadChange;
 
-  const loadInitial = useCallback(async () => {
-    if (!enabled || !bookingId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const m = await fetchChatMeta(bookingId);
-      setMeta(m);
-      if (!m || m.mode === "hidden") {
-        setMessages([]);
-        syncUnread(0);
-        return;
-      }
-      syncUnread(m.unreadCount);
-      const data = await fetchChatMessages(bookingId, { limit: 100 });
-      setMessages(data.messages);
-      const last = data.messages[data.messages.length - 1];
-      lastCreatedAtRef.current = last?.createdAt ?? null;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "chat_load_fail");
-    } finally {
-      setLoading(false);
-    }
-  }, [bookingId, enabled, syncUnread]);
+  const syncUnread = useCallback((count: number) => {
+    onUnreadChangeRef.current?.(count);
+  }, []);
 
   const pollNew = useCallback(async () => {
-    if (!enabled || !bookingId || !meta || meta.mode === "hidden") return;
+    if (!enabled || !bookingId) return;
+    const currentMeta = metaRef.current;
+    if (!currentMeta || currentMeta.mode === "hidden") return;
     try {
       const since = lastCreatedAtRef.current;
       const data = await fetchChatMessages(bookingId, { since: since ?? undefined, limit: 100 });
@@ -89,7 +69,7 @@ export function useBookingChat({
     } catch {
       /* silent poll */
     }
-  }, [bookingId, enabled, meta, syncUnread]);
+  }, [bookingId, enabled, syncUnread]);
 
   const markRead = useCallback(async () => {
     if (!bookingId || markedReadRef.current) return;
@@ -103,10 +83,71 @@ export function useBookingChat({
     }
   }, [bookingId, syncUnread]);
 
+  const loadInitial = useCallback(async () => {
+    if (!enabled || !bookingId) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const m = await fetchChatMeta(bookingId);
+      setMeta(m);
+      if (!m || m.mode === "hidden") {
+        setMessages([]);
+        syncUnread(0);
+        return;
+      }
+      syncUnread(m.unreadCount);
+      const data = await fetchChatMessages(bookingId, { limit: 100 });
+      setMessages(data.messages);
+      const last = data.messages[data.messages.length - 1];
+      lastCreatedAtRef.current = last?.createdAt ?? null;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "chat_load_fail");
+    } finally {
+      setLoading(false);
+    }
+  }, [bookingId, enabled, syncUnread]);
+
   useEffect(() => {
+    if (!enabled || !bookingId) {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
     markedReadRef.current = false;
-    void loadInitial();
-  }, [loadInitial]);
+    lastCreatedAtRef.current = null;
+    setMeta(null);
+    setMessages([]);
+    setError(null);
+    setLoading(true);
+
+    void (async () => {
+      try {
+        const m = await fetchChatMeta(bookingId);
+        if (cancelled) return;
+        setMeta(m);
+        if (!m || m.mode === "hidden") {
+          setMessages([]);
+          syncUnread(0);
+          return;
+        }
+        syncUnread(m.unreadCount);
+        const data = await fetchChatMessages(bookingId, { limit: 100 });
+        if (cancelled) return;
+        setMessages(data.messages);
+        const last = data.messages[data.messages.length - 1];
+        lastCreatedAtRef.current = last?.createdAt ?? null;
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "chat_load_fail");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingId, enabled, syncUnread]);
 
   useEffect(() => {
     if (!enabled || !meta || meta.mode === "hidden") return;
@@ -120,7 +161,7 @@ export function useBookingChat({
     if (document.visibilityState !== "visible") return;
     const id = window.setInterval(() => void pollNew(), POLL_MS);
     return () => clearInterval(id);
-  }, [enabled, meta, pollNew]);
+  }, [enabled, meta?.mode, pollNew]);
 
   const send = useCallback(
     async (body: string) => {

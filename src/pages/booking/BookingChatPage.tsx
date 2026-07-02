@@ -125,6 +125,7 @@ export default function BookingChatPage({ audience }: Props) {
           enabled
           autoFocus
           surface="page"
+          hideHeader
           className="flex min-h-0 flex-1 flex-col border-0 bg-transparent p-0"
         />
       </div>

@@ -8,7 +8,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { OwnerSurface } from "@/components/owner/OwnerSurface";
 import { cn } from "@/lib/utils";
 import { bcp47FromAppLang } from "@/lib/localeFormat";
-import { topRatedBoats, parseOwnerBoatRating, type OwnerBoatRecord } from "@/lib/ownerBoats";
+import {
+  topRatedBoats,
+  ownerBoatStatusLabelKey,
+  ownerBoatStatusTone,
+  parseOwnerBoatRating,
+  type OwnerBoatRecord,
+} from "@/lib/ownerBoats";
 import { buildOwnerOptionalsCatalogFromApi } from "@/lib/ownerOptionalsCatalog";
 import type { OwnerOptionalRecord } from "@/lib/ownerOptionalsApi";
 import type { OwnerDashboardStats } from "@/lib/ownerDashboardApi";
@@ -212,10 +218,14 @@ export function OwnerDashboardHome({
                         {rating.toFixed(1).replace(".", ",")}
                       </p>
                     ) : null}
-                    <p className="flex items-center gap-1 text-[9px] font-medium text-emerald-500">
-                      <span className="h-1 w-1 rounded-full bg-emerald-500" aria-hidden />
-                      {t("ownerPanel.boatActive")}
-                    </p>
+                    <span
+                      className={cn(
+                        "inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
+                        ownerBoatStatusTone(b)
+                      )}
+                    >
+                      {t(ownerBoatStatusLabelKey(b))}
+                    </span>
                   </div>
                 </button>
               );

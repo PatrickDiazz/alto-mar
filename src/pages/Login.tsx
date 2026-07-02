@@ -9,6 +9,7 @@ import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { SocialLoginButtons } from "@/components/SocialLoginButtons";
 import { apiUrl, setSession, type AuthUser } from "@/lib/auth";
 import { readJsonOrThrow } from "@/lib/apiResponse";
+import { resolveOwnerEntryPath } from "@/lib/ownerStripeConnect";
 import type { LoginLocationState } from "@/lib/loginLocationState";
 
 const Login = () => {
@@ -56,6 +57,8 @@ const Login = () => {
         let msg = t("login.toastFail");
         if (resp.status === 401) {
           msg = text.trim() || t("login.failCredentials");
+        } else if (resp.status === 403) {
+          msg = text.trim() || t("login.failEmailUnverified");
         } else if (resp.status === 503 || resp.status === 502 || resp.status === 504) {
           msg = t("login.failUnavailable");
         } else {
@@ -81,7 +84,13 @@ const Login = () => {
       );
       setSession(data.token, data.user);
       toast.success(t("login.toastOk"));
-      navigate(from, { replace: true });
+      const dest =
+        data.user.role === "marinheiro"
+          ? "/tripulante"
+          : data.user.role === "locatario"
+            ? await resolveOwnerEntryPath(from === "/" ? undefined : from)
+            : from;
+      navigate(dest, { replace: true });
     } catch (err) {
       const isNetwork =
         err instanceof TypeError &&
@@ -150,12 +159,26 @@ const Login = () => {
           </Link>
         </p>
 
-        <p className="text-sm text-muted-foreground">
-          {t("login.noAccount")}{" "}
-          <Link className="text-primary font-semibold hover:underline" to="/signup" state={location.state}>
-            {isMarinheiroLogin ? t("login.signupRenter") : t("login.signup")}
+        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+          <span>{t("login.noAccount")}</span>
+          <Link
+            className="font-semibold text-primary hover:underline"
+            to="/signup"
+            state={location.state}
+          >
+            {t("login.signup")}
           </Link>
-        </p>
+          <span className="text-muted-foreground/50" aria-hidden>
+            ·
+          </span>
+          <Link
+            className="font-semibold text-primary hover:underline"
+            to="/signup/locador"
+            state={location.state}
+          >
+            {t("login.signupRenter")}
+          </Link>
+        </div>
       </div>
     </div>
   );

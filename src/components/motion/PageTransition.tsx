@@ -11,6 +11,9 @@ const MAIN_ROUTE_PREFIXES = [
   "/seja-locador",
   "/login",
   "/signup",
+  "/ajuda",
+  "/confirmar-email",
+  "/verificar-email",
 ];
 
 function shouldAnimateRoute(pathname: string): boolean {

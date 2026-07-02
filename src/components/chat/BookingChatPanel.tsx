@@ -76,7 +76,7 @@ export function BookingChatPanel({
     surface === "page"
       ? "min-h-0 flex-1 space-y-2 overflow-y-auto py-1 pr-1"
       : surface === "dialog"
-        ? "max-h-[min(52vh,22rem)] space-y-2 overflow-y-auto py-1 pr-1"
+        ? "min-h-0 flex-1 space-y-2 overflow-y-auto py-1 pr-1"
         : "max-h-64 space-y-2 overflow-y-auto py-1 pr-1";
 
   const defaultClass =
@@ -105,9 +105,16 @@ export function BookingChatPanel({
       ) : null}
 
       {loading ? (
-        <div className="space-y-2 py-2">
+        <div
+          className={
+            surface === "dialog"
+              ? "flex min-h-[min(52vh,22rem)] flex-col justify-center space-y-2 py-2"
+              : "space-y-2 py-2"
+          }
+        >
           <Skeleton className="h-10 w-3/4" />
-          <Skeleton className="h-10 w-2/3 ml-auto" />
+          <Skeleton className="ml-auto h-10 w-2/3" />
+          {surface === "dialog" ? <Skeleton className="h-10 w-3/5" /> : null}
         </div>
       ) : (
         <div className={messagesScrollClass}>

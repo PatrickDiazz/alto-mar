@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { MessageCircle } from "lucide-react";
@@ -42,13 +42,13 @@ export function BookingChatEntry({
     setLocalUnread(unreadCount);
   }, [unreadCount]);
 
-  const syncUnread = useCallback(
-    (n: number) => {
-      setLocalUnread(n);
-      onUnreadChange?.(n);
-    },
-    [onUnreadChange]
-  );
+  const onUnreadChangeRef = useRef(onUnreadChange);
+  onUnreadChangeRef.current = onUnreadChange;
+
+  const syncUnread = useCallback((n: number) => {
+    setLocalUnread(n);
+    onUnreadChangeRef.current?.(n);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,7 +96,7 @@ export function BookingChatEntry({
         type="button"
         variant="outline"
         size="sm"
-        className="mt-2 w-full gap-2 sm:w-auto"
+        className="w-full gap-2 sm:w-auto"
         onClick={openChat}
       >
         <MessageCircle className="h-4 w-4 shrink-0" aria-hidden />

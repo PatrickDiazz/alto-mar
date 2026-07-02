@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Plus, Ship, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useOwnerPanel } from "@/contexts/OwnerPanelContext";
-import { parseOwnerBoatRating } from "@/lib/ownerBoats";
+import { ownerBoatStatusLabelKey, ownerBoatStatusTone, parseOwnerBoatRating } from "@/lib/ownerBoats";
 import { OwnerBoatsOpcionaisNav } from "@/components/owner/OwnerBoatsOpcionaisNav";
 import { OwnerPanelPage } from "@/components/owner/OwnerPanelPage";
 import { cn } from "@/lib/utils";
@@ -62,12 +62,22 @@ export default function OwnerBoatsListPage() {
                 </div>
                 <div className="p-2 sm:p-2.5">
                   <p className="truncate text-sm font-semibold text-foreground">{b.nome}</p>
-                  {rating > 0 ? (
-                    <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
-                      <Star className="h-3 w-3 fill-amber-500 text-amber-500" aria-hidden />
-                      {rating.toFixed(1).replace(".", ",")}
-                    </p>
-                  ) : null}
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                    {rating > 0 ? (
+                      <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <Star className="h-3 w-3 fill-amber-500 text-amber-500" aria-hidden />
+                        {rating.toFixed(1).replace(".", ",")}
+                      </p>
+                    ) : null}
+                    <span
+                      className={cn(
+                        "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                        ownerBoatStatusTone(b)
+                      )}
+                    >
+                      {t(ownerBoatStatusLabelKey(b))}
+                    </span>
+                  </div>
                 </div>
               </button>
             );

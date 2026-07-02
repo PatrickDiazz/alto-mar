@@ -1,7 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import i18n from "@/i18n";
 
-export type UserRole = "banhista" | "locatario";
+export type UserRole = "banhista" | "locatario" | "marinheiro";
 
 export type AuthUser = {
   id: string;
@@ -119,7 +119,16 @@ export function getStoredUser(): AuthUser | null {
   }
 }
 
-const PUBLIC_PATH_PREFIXES = ["/login", "/signup", "/auth/callback", "/recuperar-senha", "/redefinir-senha"];
+const PUBLIC_PATH_PREFIXES = [
+  "/login",
+  "/signup",
+  "/auth/callback",
+  "/recuperar-senha",
+  "/redefinir-senha",
+  "/confirmar-email",
+  "/verificar-email",
+  "/ajuda",
+];
 
 function shouldRedirect401(): boolean {
   if (typeof window === "undefined") return false;

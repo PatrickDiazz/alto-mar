@@ -2,14 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import type { BookingChatLocationState } from "@/pages/booking/BookingChatPage";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { ArrowLeft } from "lucide-react";
 import { HeaderSettingsMenu } from "@/components/HeaderSettingsMenu";
 import { RenterBookingsPanel } from "@/components/RenterBookingsPanel";
+import { RenterBookingsMobileList } from "@/components/renter/mobile/RenterBookingsMobileList";
+import { useRenterMobileLayout } from "@/hooks/useRenterMobileLayout";
 import { authFetch, getStoredUser } from "@/lib/auth";
 import { readResponseErrorMessage } from "@/lib/responseError";
 import { useMarkNotificationsReadOnVisit } from "@/hooks/useMarkNotificationsReadOnVisit";
 import { parseLegacyRenterChatHash, renterBookingChatPath } from "@/lib/bookingChatRoutes";
+import { RENTER_PAGE_BG, RENTER_HEADER, RENTER_TEXT_TITLE } from "@/components/renter/booking/renterBookingUi";
+import { cn } from "@/lib/utils";
 
 const ContaReservas = () => {
   const { t } = useTranslation();
@@ -21,11 +25,13 @@ const ContaReservas = () => {
   const stripeReturnQuery = searchParams.toString();
   const user = getStoredUser();
   const [bookingsPanelKey, setBookingsPanelKey] = useState(0);
-  const chatNavState = (location.state as BookingChatLocationState | null) ?? null;
+  const isMobileLayout = useRenterMobileLayout();
+  const chatNavState = (location.state as BookingChatLocationState & { selectBookingId?: string } | null) ?? null;
   const autoOpenChatBookingId = useMemo(
     () => chatNavState?.openChatBookingId ?? null,
     [chatNavState?.openChatBookingId]
   );
+  const initialSelectedId = chatNavState?.selectBookingId ?? null;
 
   useEffect(() => {
     const legacyId = parseLegacyRenterChatHash(window.location.hash);
@@ -87,36 +93,50 @@ const ContaReservas = () => {
 
   if (!user || user.role !== "banhista") return null;
 
+  if (isMobileLayout) {
+    return (
+      <RenterBookingsMobileList
+        key={bookingsPanelKey}
+        autoOpenChatBookingId={autoOpenChatBookingId}
+        autoOpenChatPeerLabel={chatNavState?.peerLabel}
+        autoOpenChatSubtitle={chatNavState?.subtitle}
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-10 border-b border-border bg-background/80 px-4 py-3 backdrop-blur-md">
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-2">
+    <div className={`min-h-screen ${RENTER_PAGE_BG}`}>
+      <header className={RENTER_HEADER}>
+        <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-6 py-4">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
-              onClick={() => navigate("/explorar")}
-              className="shrink-0 text-foreground transition-colors hover:text-primary"
+              onClick={() => navigate("/conta")}
+              className={cn(
+                "shrink-0 rounded-full p-1.5 text-slate-700 transition-colors duration-200",
+                "hover:bg-slate-100 hover:text-[#2563EB] dark:text-foreground dark:hover:bg-muted"
+              )}
               aria-label={t("common.back")}
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
-            <div className="min-w-0">
-              <h1 className="truncate text-lg font-semibold text-foreground">{t("reservasConta.title")}</h1>
-              <p className="truncate text-xs text-muted-foreground">{t("reservasConta.liveSyncHint")}</p>
-            </div>
+            <h1 className={cn("truncate text-xl font-bold tracking-tight", RENTER_TEXT_TITLE)}>
+              {t("reservasConta.title")}
+            </h1>
           </div>
           <HeaderSettingsMenu />
         </div>
       </header>
 
-      <div className="mx-auto max-w-2xl space-y-4 px-4 py-5">
+      <main className="mx-auto max-w-[1440px] px-6 py-6">
         <RenterBookingsPanel
           key={bookingsPanelKey}
           autoOpenChatBookingId={autoOpenChatBookingId}
           autoOpenChatPeerLabel={chatNavState?.peerLabel}
           autoOpenChatSubtitle={chatNavState?.subtitle}
+          initialSelectedId={initialSelectedId}
         />
-      </div>
+      </main>
     </div>
   );
 };

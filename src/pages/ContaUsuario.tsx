@@ -142,9 +142,9 @@ const ContaUsuario = () => {
               <UserRound className="w-4 h-4 mr-1" />
               {t("conta.accountData")}
             </Button>
-            <Button variant="secondary" onClick={() => navigate("/conta/ajuda-teste")}>
+            <Button variant="secondary" onClick={() => navigate("/ajuda")}>
               <CircleHelp className="w-4 h-4 mr-1" />
-              {t("conta.helpTest")}
+              {t("conta.help")}
             </Button>
             {me?.role === "banhista" ? (
               <Button variant="default" className="sm:col-span-2" onClick={() => navigate("/conta/reservas")}>
@@ -158,7 +158,7 @@ const ContaUsuario = () => {
         <section className="surface-elevated rounded-2xl p-4">
           <h2 className="text-base font-semibold text-foreground mb-1">{t("conta.helpSectionTitle")}</h2>
           <p className="text-xs text-muted-foreground mb-3">{t("conta.helpSectionDesc")}</p>
-          <Button variant="secondary" onClick={() => navigate("/conta/ajuda-teste")}>
+          <Button variant="secondary" onClick={() => navigate("/ajuda")}>
             <CircleHelp className="w-4 h-4 mr-1" />
             {t("conta.openHelp")}
           </Button>

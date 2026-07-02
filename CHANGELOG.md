@@ -12,7 +12,35 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
-## [0.14.6] — 2026-06-18
+## [0.14.7] — 2026-07-01
+
+### Adicionado
+
+- **Cadastro em produção**: confirmação de e-mail obrigatória antes do login (`db/email_verification.sql`, `server/authEmailVerification.js`, `server/email.js` com Resend ou fallback em consola); páginas `/confirmar-email` e `/verificar-email`.
+- **Central de ajuda** (`/ajuda`): documentos oficiais em PDF (`public/documents/`), leitor integrado (`ContractPdfViewer` com `react-pdf`), contacto `contato@altomar.app`.
+- **Cadastro separado**: banhista em `/signup` e locador em `/signup/locador`, cada um com checkboxes dos contratos aplicáveis (`SignupContractCheckboxes`).
+- **Formulário de cadastro**: nome completo, telefone, senha, confirmar senha e mostrar/ocultar senha; validação de telefone brasileiro (`src/lib/brPhone.ts`, `server/brPhone.js`) com máscara, DDD válido e regra do 9 em celulares; coluna `users.phone` (`db/user_phone.sql`).
+- **Marinheiros e tripulação**: API e UI de tripulantes/marinheiros (`server/marinheiros/`, painel locador, atribuição em reservas, área tripulante); revisão no admin (`MarinheiroReview`).
+- **Stripe Connect (locador)**: onboarding obrigatório antes do painel (`RequireOwnerStripeConnect`, `OwnerStripeOnboardingPage`).
+- **Reservas do banhista**: detalhe mobile/desktop refactorizado, recibo PDF, página `/conta/reservas/:id`.
+- **`docs/PRE-LAUNCH-CHECKLIST.md`**: checklist pré-lançamento.
+
+### Alterado
+
+- **Login**: links lado a lado para criar conta banhista e locador; contratos removidos da página de entrada.
+- **Central de ajuda**: listagem plana com divisores em vez de cards elevados.
+- **OAuth**: utilizadores sociais com e-mail verificado quando o provedor o fornece.
+- **Explorar**: botão de cadastro removido do cabeçalho (fluxo via login/cadastro).
+
+### Removido
+
+- Página de teste `AjudaTeste` e rota `/conta/ajuda-teste`.
+
+### Versões
+
+- Cliente e servidor **0.14.7**; Android **`versionName` 0.14.7**, **`versionCode` 19**; console admin **0.1.1** (inalterado).
+
+---
 
 ### Adicionado
 

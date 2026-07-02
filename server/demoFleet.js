@@ -182,15 +182,15 @@ export async function ensureDemoOwner(query, bcrypt, opts = {}) {
   const existing = await query(`select id from users where email = $1 limit 1`, [email]);
   if (existing.rows[0]) {
     await query(
-      `update users set password_hash = $1, role = 'locatario', name = $2 where email = $3`,
+      `update users set password_hash = $1, role = 'locatario', name = $2, email_verified_at = COALESCE(email_verified_at, now()) where email = $3`,
       [hash, name, email]
     );
     return existing.rows[0].id;
   }
 
   const created = await query(
-    `insert into users (name, email, password_hash, role)
-     values ($1, $2, $3, 'locatario')
+    `insert into users (name, email, password_hash, role, email_verified_at)
+     values ($1, $2, $3, 'locatario', now())
      returning id`,
     [name, email, hash]
   );

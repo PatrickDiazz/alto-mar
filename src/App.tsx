@@ -24,11 +24,15 @@ const RedefinirSenha = lazy(() => import("./pages/RedefinirSenha"));
 const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 const ContaUsuario = lazy(() => import("./pages/ContaUsuario"));
 const ContaReservas = lazy(() => import("./pages/ContaReservas"));
+const ContaReservaDetail = lazy(() => import("./pages/ContaReservaDetail"));
 const RenterBookingChatPage = lazy(() => import("./pages/booking/BookingChatPage"));
 const ContaFavoritos = lazy(() => import("./pages/ContaFavoritos"));
 const ContaDados = lazy(() => import("./pages/ContaDados"));
-const AjudaTeste = lazy(() => import("./pages/AjudaTeste"));
+const CentroAjuda = lazy(() => import("./pages/CentroAjuda"));
+const ConfirmarEmail = lazy(() => import("./pages/ConfirmarEmail"));
+const VerificarEmail = lazy(() => import("./pages/VerificarEmail"));
 const SejaLocador = lazy(() => import("./pages/SejaLocador"));
+const Tripulante = lazy(() => import("./pages/Tripulante"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -63,7 +67,11 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/login" element={<Login />} />
+                <Route path="/signup/locador" element={<Signup />} />
                 <Route path="/signup" element={<Signup />} />
+                <Route path="/confirmar-email" element={<ConfirmarEmail />} />
+                <Route path="/verificar-email" element={<VerificarEmail />} />
+                <Route path="/ajuda/*" element={<CentroAjuda />} />
                 <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route path="/recuperar-senha" element={<RecuperarSenha />} />
                 <Route path="/redefinir-senha" element={<RedefinirSenha />} />
@@ -92,6 +100,14 @@ const App = () => (
                   }
                 />
                 <Route
+                  path="/conta/reservas/:bookingId"
+                  element={
+                    <RequireAuth>
+                      <ContaReservaDetail />
+                    </RequireAuth>
+                  }
+                />
+                <Route
                   path="/conta/favoritos"
                   element={
                     <RequireAuth>
@@ -107,14 +123,7 @@ const App = () => (
                     </RequireAuth>
                   }
                 />
-                <Route
-                  path="/conta/ajuda-teste"
-                  element={
-                    <RequireAuth>
-                      <AjudaTeste />
-                    </RequireAuth>
-                  }
-                />
+
                 <Route path="/explorar" element={<Explorar />} />
                 <Route path="/seja-locador" element={<SejaLocador />} />
                 <Route path="/barco/:id" element={<DetalhesBarco />} />
@@ -131,6 +140,14 @@ const App = () => (
                   element={
                     <RequireAuth>
                       <Marinheiro />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/tripulante/*"
+                  element={
+                    <RequireAuth>
+                      <Tripulante />
                     </RequireAuth>
                   }
                 />

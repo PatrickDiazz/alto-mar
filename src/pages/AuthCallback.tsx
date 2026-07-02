@@ -5,6 +5,7 @@ import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 import { toast } from "sonner";
 import { PageLoader } from "@/components/PageLoader";
+import { resolveOwnerEntryPath } from "@/lib/ownerStripeConnect";
 import { setSession, type AuthUser } from "@/lib/auth";
 
 function decodeJwtPayload(token: string): AuthUser | null {
@@ -74,7 +75,13 @@ const AuthCallback = () => {
       }
 
       window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
-      navigate(from.startsWith("/") ? from : "/", { replace: true });
+      const dest =
+        user.role === "locatario"
+          ? await resolveOwnerEntryPath(from.startsWith("/") ? from : undefined)
+          : from.startsWith("/")
+            ? from
+            : "/";
+      navigate(dest, { replace: true });
     };
 
     void finish();
