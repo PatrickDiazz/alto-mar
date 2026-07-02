@@ -25,6 +25,9 @@ export default function Layout() {
           <NavLink to="/chats">Chats</NavLink>
           <NavLink to="/macros">Macros</NavLink>
           <NavLink to="/tags">Tags</NavLink>
+          {staff?.permissions?.usersManage && (
+            <NavLink to="/users">Contas</NavLink>
+          )}
           {staff?.permissions?.auditView && (
             <NavLink to="/audit">Auditoria</NavLink>
           )}

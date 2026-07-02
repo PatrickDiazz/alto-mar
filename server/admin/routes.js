@@ -10,6 +10,7 @@ import {
   staffCan,
 } from "./auth.js";
 import { writeAuditLog, listAuditLogs, listAuditAccounts, getAuditAccount } from "./audit.js";
+import { listAppUsers, verifyUserEmailByStaff } from "./users.js";
 import {
   createTicket,
   listTickets,
@@ -265,6 +266,7 @@ export function installAdminRoutes(app, opts = {}) {
           dashboardView: staffCan(row.role, "dashboardView"),
           macrosManage: staffCan(row.role, "macrosManage"),
           tagsManage: staffCan(row.role, "tagsManage"),
+          usersManage: staffCan(row.role, "usersManage"),
         })
       ),
     });
@@ -693,6 +695,56 @@ export function installAdminRoutes(app, opts = {}) {
       return res.status(500).json({ error: "Erro ao listar auditoria." });
     }
   });
+
+  // —— Platform users (email verification) ——
+  app.get("/api/admin/users", requireStaffAuth, requireStaffPermission("usersManage"), async (req, res) => {
+    try {
+      const statusRaw = typeof req.query.status === "string" ? req.query.status : "pending";
+      const status =
+        statusRaw === "verified" || statusRaw === "all" || statusRaw === "pending" ? statusRaw : "pending";
+      const role = typeof req.query.role === "string" ? req.query.role : undefined;
+      const q = typeof req.query.q === "string" ? req.query.q : undefined;
+      const result = await listAppUsers({
+        status,
+        role,
+        q,
+        limit: Number(req.query.limit) || 50,
+        offset: Number(req.query.offset) || 0,
+      });
+      return res.json(result);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Erro ao listar contas.";
+      if (msg.includes("email_verified_at")) {
+        return res.status(500).json({
+          error: "Coluna email_verified_at ausente. Execute db/email_verification.sql no PostgreSQL.",
+        });
+      }
+      return res.status(500).json({ error: msg });
+    }
+  });
+
+  app.post(
+    "/api/admin/users/:id/verify-email",
+    requireStaffAuth,
+    requireStaffPermission("usersManage"),
+    async (req, res) => {
+      try {
+        const result = await verifyUserEmailByStaff(req.params.id, req.staff.sub);
+        if (!result.ok) {
+          return res.status(404).json({ error: "Utilizador não encontrado." });
+        }
+        return res.json({ ok: true, user: result.user });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Erro ao ativar conta.";
+        if (msg.includes("email_verified_at")) {
+          return res.status(500).json({
+            error: "Coluna email_verified_at ausente. Execute db/email_verification.sql no PostgreSQL.",
+          });
+        }
+        return res.status(500).json({ error: msg });
+      }
+    }
+  );
 
   // —— Staff management (ADMIN) ——
   app.get("/api/admin/staff", requireStaffAuth, requireStaffPermission("staffManage"), async (_req, res) => {

@@ -18,6 +18,7 @@ import Tags from "./pages/Tags";
 import Audit from "./pages/Audit";
 import AuditAccount from "./pages/AuditAccount";
 import Staff from "./pages/Staff";
+import Users from "./pages/Users";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   if (!getToken()) return <Navigate to="/login" replace />;
@@ -50,6 +51,7 @@ export default function App() {
           <Route path="chats/:bookingId" element={<ChatConversation />} />
           <Route path="macros" element={<Macros />} />
           <Route path="tags" element={<Tags />} />
+          <Route path="users" element={<Users />} />
           <Route path="audit" element={<Audit />} />
           <Route path="audit/:accountId" element={<AuditAccount />} />
           <Route path="staff" element={<Staff />} />

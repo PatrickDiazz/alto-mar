@@ -123,6 +123,7 @@ export const PERMISSIONS = {
   dashboardView: ["STAFF", "MODERATOR", "SENIOR_MODERATOR", "ADMIN"],
   macrosManage: ["ADMIN"],
   tagsManage: ["STAFF", "MODERATOR", "SENIOR_MODERATOR", "ADMIN"],
+  usersManage: ["STAFF", "MODERATOR", "SENIOR_MODERATOR", "ADMIN"],
 };
 
 /** @param {StaffRole} staffRole @param {keyof typeof PERMISSIONS} permission */

@@ -12,6 +12,18 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 
 ---
 
+## [0.14.8] — 2026-07-01
+
+### Adicionado
+
+- **Admin — Contas** (`/users`): listagem de utilizadores da plataforma com filtro por e-mail pendente/confirmado; botão **Ativar** confirma o e-mail remotamente (`POST /api/admin/users/:id/verify-email`); permissão `usersManage`; auditoria `user.verify_email`.
+
+### Versões
+
+- Servidor **0.14.8**; console admin **0.1.2**; cliente **0.14.7** e Android **0.14.7** / `versionCode` **19** (inalterados).
+
+---
+
 ## [0.14.7] — 2026-07-01
 
 ### Adicionado
@@ -41,6 +53,8 @@ As versões **v0.1.0–v0.9.0** foram documentadas **retroactivamente** com base
 - Cliente e servidor **0.14.7**; Android **`versionName` 0.14.7**, **`versionCode` 19**; console admin **0.1.1** (inalterado).
 
 ---
+
+## [0.14.6] — 2026-06-18
 
 ### Adicionado
 
